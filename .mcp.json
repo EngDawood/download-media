@@ -1,0 +1,41 @@
+{
+  "mcpServers": {
+    "exa": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "exa-mcp-server",
+        "tools=web_search_exa,get_code_context_exa,crawling_exa,deep_researcher_start,deep_researcher_check"
+      ],
+      "env": {
+        "EXA_API_KEY": "6d974803-ec38-4e06-89f8-bf95c288e2fc"
+      }
+    },
+    "tavily-mcp": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "tavily-mcp@0.1.2"
+      ],
+      "env": {
+        "TAVILY_API_KEY": "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"
+      }
+    },
+    "context7": {
+      "command": "cmd",
+      "args": [                                                                                                 
+       "/c",                                                                                                     
+       "npx",                                                                                                    
+       "-y",                                                                                                     
+      "@upstash/context7-mcp",                                                                                  
+      "--api-key",                                                                                              
+       "ctx7sk-a0b2d29f-d811-428d-be33-de8f54af3fbe"                                                             
+
+      ]                                                                                                           
+
+    }
+  }
+}

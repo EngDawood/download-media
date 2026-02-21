@@ -1,0 +1,41 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "download-media-bot",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-02-10",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": true,
+			"invocation_logs": true
+		},
+		"traces": {
+			"enabled": true,
+			"persist": true,
+			"head_sampling_rate": 1
+		}
+	},
+	// KV namespace for download-media-bot state cache
+	"kv_namespaces": [
+		{
+			"binding": "DOWNLOAD_CACHE",
+			"id": "6769aec205aa4557ab05757c559c9618"
+		}
+	],
+	"vars": {
+		"ADMIN_TELEGRAM_ID": "801062947"
+	},
+	// Analytics Engine dataset for download statistics
+	"analytics_engine_datasets": [
+		{ "binding": "ANALYTICS" }
+	]
+	// Secrets (set via wrangler secret put):
+	// - TELEGRAM_BOT_TOKEN
+	// - TELEGRAM_WEBHOOK_SECRET
+}
