@@ -15,9 +15,13 @@ const SUPPORTED_PLATFORMS = [
 	'Facebook', 'Threads', 'SoundCloud', 'Spotify', 'Pinterest',
 ];
 
-export async function handleSetup(c: Context<HonoEnv>): Promise<Response> {
-	const bot = new Bot(c.env.TELEGRAM_BOT_TOKEN);
-	const adminId = parseInt(c.env.ADMIN_TELEGRAM_ID, 10);
+/**
+ * Core setup logic — registers bot commands and sends deploy notification.
+ * Used by both the /setup route (manual) and auto-setup (on first webhook request).
+ */
+export async function runSetup(env: Env, sendNotification: boolean = true): Promise<void> {
+	const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
+	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
 
 	const [botInfo] = await Promise.all([
 		bot.api.getMe(),
@@ -25,8 +29,9 @@ export async function handleSetup(c: Context<HonoEnv>): Promise<Response> {
 		bot.api.setChatMenuButton({ menu_button: { type: 'commands' } }),
 	]);
 
-	const now = new Date();
-	const deployTime = now.toUTCString();
+	if (!sendNotification) return;
+
+	const deployTime = new Date().toUTCString();
 
 	const message = [
 		`🚀 <b>Worker Deployed</b>`,
@@ -42,6 +47,10 @@ export async function handleSetup(c: Context<HonoEnv>): Promise<Response> {
 	].join('\n');
 
 	await bot.api.sendMessage(adminId, message, { parse_mode: 'HTML' });
+}
 
-	return c.json({ ok: true, commands: BOT_COMMANDS.length, bot: botInfo.username });
+/** GET /setup — manual setup route (kept as fallback). */
+export async function handleSetup(c: Context<HonoEnv>): Promise<Response> {
+	await runSetup(c.env, true);
+	return c.json({ ok: true, commands: BOT_COMMANDS.length });
 }

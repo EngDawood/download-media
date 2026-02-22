@@ -176,3 +176,4 @@ chat.md
 .archive/*
 mirror-scrapers-archive.ts
 reports/*
+src/_deploy-id.ts

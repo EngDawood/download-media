@@ -10,17 +10,20 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 	bot.command('start', async (ctx) => {
 		const isAdmin = ctx.from?.id === adminId;
+		const name = ctx.from?.first_name || '';
+		const greeting = name ? `Hi ${name}! 👋\n\n` : '';
 
 		if (isAdmin) {
 			await ctx.reply(
-				'<b>Media Download Bot — Admin</b>\n\n' +
+				greeting +
+					'<b>Media Download Bot — Admin</b>\n\n' +
 					'Send any supported URL to download media.\n\n' +
 					'<b>Platforms:</b>\n' +
+					'• YouTube — Auto-download video (🎵 MP3 button after)\n' +
 					'• TikTok — Video/Audio picker (slideshows auto-download)\n' +
+					'• Facebook — HD/SD picker when available\n' +
 					'• Instagram — Auto-download\n' +
 					'• X / Twitter — Auto-download\n' +
-					'• YouTube — Quality picker\n' +
-					'• Facebook — HD/SD picker\n' +
 					'• Threads — Auto-download\n' +
 					'• SoundCloud — Audio\n' +
 					'• Spotify — Audio\n' +
@@ -41,7 +44,8 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			: '';
 
 		await ctx.reply(
-			'<b>Media Download Bot</b>\n\n' +
+			greeting +
+				'<b>Media Download Bot</b>\n\n' +
 				'Send a URL from any supported platform and I\'ll download the media for you.\n\n' +
 				'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest\n' +
 				channelLine +
@@ -52,13 +56,16 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 	bot.command('help', async (ctx) => {
 		const isAdmin = ctx.from?.id === adminId;
+		const name = ctx.from?.first_name || '';
+		const namePrefix = name ? `${name}, here's how it works:\n\n` : '';
 
 		if (isAdmin) {
 			await ctx.reply(
-				'<b>How to use — Admin</b>\n\n' +
-					'Send any supported URL. YouTube, TikTok, and Facebook show quality pickers; all others auto-download.\n\n' +
+				namePrefix +
+					'<b>How to use — Admin</b>\n\n' +
+					'Send any supported URL. TikTok and Facebook show quality pickers; all others auto-download.\n\n' +
 					'<b>Quality pickers:</b>\n' +
-					'• <b>YouTube</b> — up to 4 quality options + Audio\n' +
+					'• <b>YouTube</b> — Auto-downloads video, offers 🎵 MP3 button\n' +
 					'• <b>TikTok</b> — Video/Audio (slideshows skip the picker)\n' +
 					'• <b>Facebook</b> — HD/SD when multiple qualities available\n\n' +
 					'<b>Large files (&gt;50MB):</b>\n' +
@@ -79,7 +86,8 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			: '';
 
 		await ctx.reply(
-			'<b>How to use</b>\n\n' +
+			namePrefix +
+				'<b>How to use</b>\n\n' +
 				'Send a URL and the bot downloads it for you.\n\n' +
 				'<b>Large files (&gt;50MB):</b>\n' +
 				'Shows the direct URL and a link to <a href="https://t.me/urluploadxbot">@urluploadxbot</a>.' +

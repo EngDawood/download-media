@@ -22,6 +22,7 @@ export interface DownloaderResult {
 	media?: MediaItem[];
 	caption?: string;
 	thumbnail?: string;
+	mp3Url?: string;
 	error?: string;
 }
 
@@ -269,13 +270,14 @@ async function downloadTikTok(url: string, mode: string): Promise<DownloaderResu
 	// Fallback to 'ttdl' (alternative endpoint)
 	const res = await btchFetch('ttdl', url);
 	const caption = res.title || '';
+	const ttdlThumb = isUrl(res.cover) ? res.cover : isUrl(res.thumbnail) ? res.thumbnail : undefined;
 	if (mode === 'audio' && Array.isArray(res.audio) && isUrl(res.audio[0])) {
 		const directAudio = decodeTiktokDirectUrl(res.audio[0]) || res.audio[0];
-		return { status: 'success', media: [{ type: 'audio', url: directAudio }], caption };
+		return { status: 'success', media: [{ type: 'audio', url: directAudio }], caption, thumbnail: ttdlThumb };
 	}
 	if (Array.isArray(res.video) && isUrl(res.video[0])) {
 		const directVideo = decodeTiktokDirectUrl(res.video[0]) || res.video[0];
-		return { status: 'success', media: [{ type: 'video', url: directVideo }], caption };
+		return { status: 'success', media: [{ type: 'video', url: directVideo }], caption, thumbnail: ttdlThumb };
 	}
 	return { status: 'error', error: 'No TikTok media found' };
 }
@@ -364,6 +366,7 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 	const res = await btchFetch('twitter', url);
 	// Note: res.creator is the API developer name, not the tweet author
 	const caption = res.title || '';
+	const twitterThumb = isUrl(res.thumbnail) ? res.thumbnail : undefined;
 	if (Array.isArray(res.url) && res.url.length > 0) {
 		const media: MediaItem[] = [];
 		for (const item of res.url) {
@@ -377,18 +380,42 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 			}
 		}
 		if (media.length > 0) {
-			return { status: 'success', media, caption };
+			return { status: 'success', media, caption, thumbnail: twitterThumb };
 		}
 	}
 	if (isUrl(res.url)) {
 		const type = detectMediaType(res.url);
-		return { status: 'success', media: [{ type, url: res.url }], caption };
+		return { status: 'success', media: [{ type, url: res.url }], caption, thumbnail: twitterThumb };
 	}
 	return { status: 'error', error: 'No Twitter media found' };
 }
 
 async function downloadYouTube(url: string, mode: string): Promise<DownloaderResult> {
-	// Try AIO endpoint for quality options
+	// Try youtube endpoint first — fast and reliable
+	try {
+		const res = await btchFetch('youtube', url);
+		const caption = buildCaption(res.title, res.author);
+		const thumbnail = res.thumbnail;
+		if (mode === 'audio' && isUrl(res.mp3)) {
+			return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption, thumbnail };
+		}
+		if (mode === 'auto' && isUrl(res.mp4)) {
+			return {
+				status: 'success',
+				media: [{ type: 'video', url: res.mp4 }],
+				caption,
+				thumbnail,
+				mp3Url: isUrl(res.mp3) ? res.mp3 : undefined,
+			};
+		}
+		if (isUrl(res.mp4)) {
+			return { status: 'success', media: [{ type: 'video', url: res.mp4 }], caption, thumbnail };
+		}
+	} catch (e) {
+		console.warn('[downloader] youtube endpoint failed, trying AIO:', (e as Error).message);
+	}
+
+	// Fallback to AIO endpoint
 	try {
 		const aio = await btchFetch('aio', url);
 		const data = aio.data;
@@ -407,7 +434,6 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 					.filter((v: any) => isUrl(v.url))
 					.map((v: any) => ({ type: 'video' as const, url: v.url, quality: v.q_text }));
 				if (videos.length > 0) {
-					// If mode specifies a quality, find it; otherwise return best (first)
 					if (mode !== 'auto' && mode !== 'audio') {
 						const match = videos.find(v => v.quality?.includes(mode));
 						if (match) return { status: 'success', media: [match], caption, thumbnail };
@@ -417,56 +443,10 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 			}
 		}
 	} catch (e) {
-		console.warn('[downloader] AIO for YouTube failed, trying youtube endpoint:', (e as Error).message);
+		console.warn('[downloader] AIO for YouTube also failed:', (e as Error).message);
 	}
 
-	// Fallback to youtube endpoint (single quality)
-	const res = await btchFetch('youtube', url);
-	const caption = buildCaption(res.title, res.author);
-	const thumbnail = res.thumbnail;
-	if (mode === 'audio' && isUrl(res.mp3)) {
-		return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption, thumbnail };
-	}
-	if (isUrl(res.mp4)) {
-		return { status: 'success', media: [{ type: 'video', url: res.mp4 }], caption, thumbnail };
-	}
 	return { status: 'error', error: 'No YouTube media found' };
-}
-
-/**
- * Fetch YouTube video quality options without downloading.
- * Returns available qualities for the user to choose from.
- */
-export async function fetchYouTubeQualities(url: string): Promise<{ caption: string; thumbnail?: string; qualities: Array<{ quality: string; url: string; size?: string }> } | null> {
-	// Try youtube endpoint first — single quality but more reliable
-	try {
-		const res = await btchFetch('youtube', url);
-		if (res.status && isUrl(res.mp4)) {
-			const caption = buildCaption(res.title, res.author);
-			return { caption, thumbnail: res.thumbnail, qualities: [{ quality: 'Video', url: res.mp4 }] };
-		}
-	} catch (e) {
-		console.warn('[downloader] fetchYouTubeQualities youtube failed, trying aio:', (e as Error).message);
-	}
-
-	// Fallback to aio — may return multiple quality options
-	try {
-		const aio = await btchFetch('aio', url);
-		const data = aio.data;
-		if (data?.links?.video?.length > 0) {
-			const caption = buildCaption(data.title, data.author?.full_name || data.author?.username);
-			const qualities = data.links.video
-				.filter((v: any) => isUrl(v.url))
-				.map((v: any) => ({ quality: v.q_text || 'unknown', url: v.url, size: v.size }));
-			if (qualities.length > 0) {
-				return { caption, thumbnail: data.thumbnail, qualities };
-			}
-		}
-	} catch (e) {
-		console.warn('[downloader] fetchYouTubeQualities aio failed:', (e as Error).message);
-	}
-
-	return null;
 }
 
 /** Format bytes to human-readable string */
@@ -515,7 +495,7 @@ async function downloadFacebook(url: string, mode: string = 'auto'): Promise<Dow
 	const res = await btchFetch('fbdown', url);
 	const videoUrl = isUrl(res.HD) ? res.HD : isUrl(res.Normal_video) ? res.Normal_video : null;
 	if (videoUrl) {
-		return { status: 'success', media: [{ type: 'video', url: videoUrl }] };
+		return { status: 'success', media: [{ type: 'video', url: videoUrl }], caption: res.title || '' };
 	}
 	return { status: 'error', error: 'No Facebook media found' };
 }
@@ -561,29 +541,30 @@ async function downloadThreads(url: string, mode: string): Promise<DownloaderRes
 
 	// Fallback to threads endpoint
 	const res = await btchFetch('threads', url);
-	// API returns flat: { status, type: 'video'|'image'|'mixed', video?, image?, download? }
+	// API returns flat: { status, type: 'video'|'image'|'mixed', video?, image?, download?, title? }
 	const hasVideo = res.type === 'video' && isUrl(res.video);
 	const hasImage = (res.type === 'image' || res.type === 'mixed') && isUrl(res.image);
+	const threadsCap = res.title || '';
 
 	if (mode === 'audio' && hasVideo) {
-		return { status: 'success', media: [{ type: 'audio', url: res.video }] };
+		return { status: 'success', media: [{ type: 'audio', url: res.video }], caption: threadsCap };
 	}
 
 	if (res.type === 'mixed') {
 		const media: MediaItem[] = [];
 		if (isUrl(res.video)) media.push({ type: 'video', url: res.video });
 		if (isUrl(res.image)) media.push({ type: 'photo', url: res.image });
-		if (media.length > 0) return { status: 'success', media };
+		if (media.length > 0) return { status: 'success', media, caption: threadsCap };
 	}
 
 	if (hasVideo) {
-		return { status: 'success', media: [{ type: 'video', url: res.video }] };
+		return { status: 'success', media: [{ type: 'video', url: res.video }], caption: threadsCap };
 	}
 	if (hasImage) {
-		return { status: 'success', media: [{ type: 'photo', url: res.image }] };
+		return { status: 'success', media: [{ type: 'photo', url: res.image }], caption: threadsCap };
 	}
 	if (isUrl(res.download)) {
-		return { status: 'success', media: [{ type: 'video', url: res.download }] };
+		return { status: 'success', media: [{ type: 'video', url: res.download }], caption: threadsCap };
 	}
 	return { status: 'error', error: 'No Threads media found' };
 }

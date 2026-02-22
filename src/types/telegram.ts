@@ -20,6 +20,8 @@ export interface AdminState {
 		downloadCaption?: string;
 		/** Direct CDN media URL that Telegram rejected (for dl:confirm fallback) */
 		directMediaUrl?: string;
+		/** YouTube mp3 URL for audio button after video send */
+		mp3Url?: string;
 	};
 }
 
