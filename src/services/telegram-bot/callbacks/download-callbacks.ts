@@ -14,6 +14,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 		const action = ctx.match[1]; // e.g. 'video', 'audio', 'hd', 'sd', 'yt:720p', 'confirm', 'cancel'
 		const chatId = ctx.chat!.id;
 		const msgId = ctx.callbackQuery.message?.message_id;
+		const firstName = ctx.from?.first_name;
 		const state = await getAdminState(kv, adminId);
 
 		if (!state || state.action !== 'downloading_media' || !state.context?.downloadUrl) {
@@ -21,7 +22,15 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 			return;
 		}
 
-		const { downloadUrl, downloadPlatform, qualities, directMediaUrl } = state.context;
+		const { downloadUrl, downloadPlatform, qualities, directMediaUrl, mp3Url } = state.context;
+
+		// YouTube MP3 — send the stored mp3 URL as audio
+		if (action === 'yt:mp3' && mp3Url) {
+			await clearAdminState(kv, adminId);
+			await ctx.answerCallbackQuery();
+			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, { analytics: env.ANALYTICS, userId: adminId, mediaType: 'audio', firstName });
+			return;
+		}
 
 		// Cancel — clear state and dismiss the message
 		if (action === 'cancel') {
@@ -40,7 +49,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 			await clearAdminState(kv, adminId);
 			await ctx.answerCallbackQuery();
 			// directUrl=true skips platform detection; no kv/adminId = non-interactive (auto-fallback on error)
-			await downloadAndSendMedia(bot, chatId, directMediaUrl, downloadPlatform || 'media', 'auto', msgId, true, { analytics: env.ANALYTICS, userId: adminId });
+			await downloadAndSendMedia(bot, chatId, directMediaUrl, downloadPlatform || 'media', 'auto', msgId, true, { analytics: env.ANALYTICS, userId: adminId, firstName });
 			return;
 		}
 
@@ -59,9 +68,10 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 			mode = 'auto';
 		} else if (action.startsWith('yt:') && qualities) {
 			// YouTube quality selection — find the matching quality URL and download directly
-			const selectedQuality = action.slice(3); // e.g. '720p'
+			const selectedQuality = action.slice(3); // e.g. '720p' or 'Audio'
 			const match = qualities.find(q => q.quality === selectedQuality);
 			if (match) {
+				const mediaType = selectedQuality === 'Audio' ? 'audio' as const : 'video' as const;
 				await downloadAndSendMedia(
 					bot,
 					chatId,
@@ -70,7 +80,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 					'auto',
 					msgId,
 					true, // directUrl flag — skip platform detection, download this URL directly
-					{ kv, adminId, analytics: env.ANALYTICS, userId: adminId },
+					{ kv, adminId, analytics: env.ANALYTICS, userId: adminId, mediaType, firstName },
 				);
 				return;
 			}
@@ -78,6 +88,6 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 			mode = 'auto';
 		}
 
-		await downloadAndSendMedia(bot, chatId, downloadUrl, downloadPlatform || 'Unknown', mode, msgId, undefined, { kv, adminId, analytics: env.ANALYTICS, userId: adminId });
+		await downloadAndSendMedia(bot, chatId, downloadUrl, downloadPlatform || 'Unknown', mode, msgId, undefined, { kv, adminId, analytics: env.ANALYTICS, userId: adminId, firstName });
 	});
 }

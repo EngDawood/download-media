@@ -23,7 +23,7 @@ export async function downloadAndSendMedia(
 	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
-	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number }
+	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio'; firstName?: string }
 ): Promise<void> {
 	const interactive = !!(options?.kv && options?.adminId) || !!options?.guestMode;
 	const userType = options?.guestMode ? 'guest' : 'admin';
@@ -44,16 +44,19 @@ export async function downloadAndSendMedia(
 		statusMessageId = msg.message_id;
 	}
 
+	// Track result outside try-catch so error handlers can access mp3Url/thumbnail/caption
+	let result: Awaited<ReturnType<typeof downloadMedia>> | undefined;
+
 	try {
-		// If directUrl, send the URL directly as a video (used for YouTube quality selection)
+		// If directUrl, send the URL directly (used for YouTube quality selection)
 		if (directUrl) {
-			const msg: TelegramMediaMessage = { type: 'video', url, caption: '' };
+			const msg: TelegramMediaMessage = { type: options?.mediaType || 'video', url, caption: '' };
 			await sendMediaToChannel(bot, chatId, msg, undefined, interactive);
 			await bot.api.editMessageText(chatId, statusMessageId!, 'Done.');
 			return;
 		}
 
-		const result = await downloadMedia(url, mode);
+		result = await downloadMedia(url, mode);
 
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
@@ -113,7 +116,18 @@ export async function downloadAndSendMedia(
 				};
 				await sendMediaToChannel(bot, chatId, msg, undefined, interactive);
 				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
-				await bot.api.editMessageText(chatId, statusMessageId!, doneText);
+
+				// YouTube: show MP3 button after successful video send
+				if (result.mp3Url && options?.kv) {
+					const mp3Keyboard = new InlineKeyboard().text('🎵 MP3', 'dl:yt:mp3');
+					await setAdminState(options.kv, options.adminId || userId, {
+						action: 'downloading_media',
+						context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url },
+					});
+					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: mp3Keyboard });
+				} else {
+					await bot.api.editMessageText(chatId, statusMessageId!, doneText);
+				}
 			}
 			return;
 		}
@@ -121,6 +135,34 @@ export async function downloadAndSendMedia(
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_empty' });
 		await bot.api.editMessageText(chatId, statusMessageId!, 'No media found.');
 	} catch (err: any) {
+		// YouTube: send thumbnail + mp4/mp3 URLs on TelegramUrlFetchError or too-large
+		if (result?.mp3Url && result?.thumbnail && (err instanceof TelegramUrlFetchError || /too large/i.test(err.message || ''))) {
+			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
+			const caption = result.caption || '';
+			const mp4Url = result.media?.[0]?.url || url;
+			const sorry = options?.firstName ? `😔 Sorry ${options.firstName}, this file is too large for Telegram.` : '😔 This file is too large for Telegram.';
+			const keyboard = new InlineKeyboard()
+				.url('🤖 Open @urluploadxbot', 'https://t.me/urluploadxbot');
+			const photoCaption = `${caption}\n\n${sorry}\n\nCopy the URL below, then send the link to @urluploadxbot\n\n🎬 Video:\n<code>${mp4Url}</code>\n\n🎵 Audio:\n<code>${result.mp3Url}</code>`;
+			// Send thumbnail with title/author + URLs in one message
+			try {
+				await bot.api.sendPhoto(chatId, result.thumbnail, {
+					caption: photoCaption,
+					parse_mode: 'HTML',
+					reply_markup: keyboard,
+				});
+			} catch {
+				// Thumbnail failed — fall back to text-only message
+				await bot.api.sendMessage(chatId, photoCaption, {
+					parse_mode: 'HTML',
+					reply_markup: keyboard,
+				});
+			}
+			// Clean up the status message
+			try { await bot.api.deleteMessage(chatId, statusMessageId!); } catch { /* ignore */ }
+			return;
+		}
+
 		// Telegram couldn't fetch the URL directly — show picker in interactive mode
 		if (err instanceof TelegramUrlFetchError && options?.kv && options?.adminId) {
 			await setAdminState(options.kv, options.adminId, {
@@ -131,6 +173,7 @@ export async function downloadAndSendMedia(
 					directMediaUrl: err.mediaUrl,
 				},
 			});
+			const sorry = options?.firstName ? `😔 Sorry ${options.firstName}, Telegram couldn't fetch this file.` : `😔 Telegram couldn't fetch this file.`;
 			const keyboard = new InlineKeyboard()
 				.text('📥 Download', 'dl:confirm')
 				.text('❌ Cancel', 'dl:cancel')
@@ -140,18 +183,19 @@ export async function downloadAndSendMedia(
 			await bot.api.editMessageText(
 				chatId,
 				statusMessageId!,
-				`Copy the URL below, then <a href="https://t.me/urluploadxbot">send the link to @urluploadxbot</a>\n\n<code>${err.mediaUrl}</code>`,
+				`${sorry}\n\nCopy the URL below, then send the link to @urluploadxbot\n\n<code>${err.mediaUrl}</code>`,
 				{ parse_mode: 'HTML', reply_markup: keyboard }
 			);
 			return;
 		} else if (err instanceof TelegramUrlFetchError && options?.guestMode) {
+			const sorry = options?.firstName ? `😔 Sorry ${options.firstName}, Telegram couldn't fetch this file.` : `😔 Telegram couldn't fetch this file.`;
 			const keyboard = new InlineKeyboard()
 				.url('🤖 Open @urluploadxbot', 'https://t.me/urluploadxbot')
 				.url('🌐 Open in Browser', err.mediaUrl);
 			await bot.api.editMessageText(
 				chatId,
 				statusMessageId!,
-				`Copy the URL below, then <a href="https://t.me/urluploadxbot">send the link to @urluploadxbot</a>\n\n<code>${err.mediaUrl}</code>`,
+				`${sorry}\n\nCopy the URL below, then send the link to @urluploadxbot\n\n<code>${err.mediaUrl}</code>`,
 				{ parse_mode: 'HTML', reply_markup: keyboard }
 			);
 			return;
@@ -162,13 +206,14 @@ export async function downloadAndSendMedia(
 		const msg = err.message || 'Unknown error';
 		// If file is too large for Telegram, send the link as text instead
 		if (msg.includes('too large') || msg.includes('Too large')) {
+			const sorry = options?.firstName ? `😔 Sorry ${options.firstName}, this file is too large for Telegram (50MB limit).` : `😔 This file is too large for Telegram (50MB limit).`;
 			const keyboard = new InlineKeyboard()
 				.url('🤖 Open @urluploadxbot', 'https://t.me/urluploadxbot')
 				.url('🌐 Open in Browser', url);
 			await bot.api.editMessageText(
 				chatId,
 				statusMessageId!,
-				`📦 <b>File Too Large</b>\nTelegram's 50MB limit exceeded.\n\nCopy the URL below, then <a href="https://t.me/urluploadxbot">send the link to @urluploadxbot</a>\n\n<code>${url}</code>`,
+				`${sorry}\n\nCopy the URL below, then send the link to @urluploadxbot\n\n<code>${url}</code>`,
 				{ parse_mode: 'HTML', reply_markup: keyboard }
 			);
 		} else {
