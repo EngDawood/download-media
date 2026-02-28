@@ -5,6 +5,7 @@ import { sendMediaToChannel } from './send-media';
 import { setAdminState } from '../storage/admin-state';
 import type { TelegramMediaMessage } from '../../../types/telegram';
 import { trackEvent } from '../../../utils/analytics';
+import { incrementSuccessStats, incrementErrorStats } from '../../../utils/stats';
 import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
 
 /**
@@ -53,6 +54,9 @@ export async function downloadAndSendMedia(
 		if (directUrl) {
 			const msg: TelegramMediaMessage = { type: options?.mediaType || 'video', url, caption: '' };
 			await sendMediaToChannel(bot, chatId, msg);
+			if (options?.kv && userId) {
+				await incrementSuccessStats(options.kv, { userId, firstName: options?.firstName || '', platform });
+			}
 			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.done'));
 			return;
 		}
@@ -61,6 +65,7 @@ export async function downloadAndSendMedia(
 
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
+			if (options?.kv) await incrementErrorStats(options.kv);
 			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.failed', { error: result.error || 'unknown error' }));
 			return;
 		}
@@ -95,6 +100,9 @@ export async function downloadAndSendMedia(
 					};
 					await sendMediaToChannel(bot, chatId, msg);
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
+					if (options?.kv && userId) {
+						await incrementSuccessStats(options.kv, { userId, firstName: options?.firstName || '', platform });
+					}
 					await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.sent_album', { count: Math.min(groupableItems.length, 10) }));
 				} else {
 					for (const item of result.media.slice(0, 10)) {
@@ -106,6 +114,9 @@ export async function downloadAndSendMedia(
 						await sendMediaToChannel(bot, chatId, msg);
 					}
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
+					if (options?.kv && userId) {
+						await incrementSuccessStats(options.kv, { userId, firstName: options?.firstName || '', platform });
+					}
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText);
 				}
 			} else {
@@ -117,6 +128,9 @@ export async function downloadAndSendMedia(
 				};
 				await sendMediaToChannel(bot, chatId, msg);
 				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
+				if (options?.kv && userId) {
+					await incrementSuccessStats(options.kv, { userId, firstName: options?.firstName || '', platform });
+				}
 
 				// YouTube: show MP3 button after successful video send
 				if (result.mp3Url && options?.kv) {
@@ -134,11 +148,13 @@ export async function downloadAndSendMedia(
 		}
 
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_empty' });
+		if (options?.kv) await incrementErrorStats(options.kv);
 		await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.no_media'));
 	} catch (err: any) {
 		// YouTube: send thumbnail + mp4/mp3 URLs when file is too large
 		if (result?.mp3Url && result?.thumbnail && /too large/i.test(err.message || '')) {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
+			if (options?.kv) await incrementErrorStats(options.kv);
 			const caption = result.caption || '';
 			const mp4Url = result.media?.[0]?.url || url;
 			const sorry = options?.firstName
@@ -168,6 +184,7 @@ export async function downloadAndSendMedia(
 
 		console.error('[downloader] Download and send error:', err);
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
+		if (options?.kv) await incrementErrorStats(options.kv);
 		const msg = err.message || 'Unknown error';
 		// If file is too large for Telegram, send the link as text instead
 		if (msg.includes('too large') || msg.includes('Too large')) {

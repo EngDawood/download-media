@@ -5,6 +5,7 @@ import { detectMediaUrl } from '../../../utils/url-detector';
 import { downloadAndSendMedia } from './download-and-send';
 import { fetchFacebookInfo, fetchTikTokInfo } from '../../media-downloader';
 import { checkSubscriptionGate } from './subscription-gate';
+import { incrementLinkStats } from '../../../utils/stats';
 import { t, getLocale } from '../../../i18n';
 
 /**
@@ -26,12 +27,17 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			const firstName = ctx.from?.first_name;
 			const locale = getLocale(ctx);
 
+			// Track link submission (fire-and-forget — don't block the download flow)
+			if (userId) {
+				incrementLinkStats(kv, { userId, firstName: firstName || '', platform }).catch(() => {});
+			}
+
 			if (!isAdmin) {
 				const blocked = await checkSubscriptionGate(ctx, kv, bot, env.ANALYTICS, platform);
 				if (blocked) return;
 
 				const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { guestMode: true, analytics: env.ANALYTICS, userId, firstName, locale });
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { guestMode: true, kv, analytics: env.ANALYTICS, userId, firstName, locale });
 				return;
 			}
 

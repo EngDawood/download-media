@@ -3,20 +3,38 @@ import { Bot } from 'grammy';
 
 type HonoEnv = { Bindings: Env };
 
-const BOT_COMMANDS = [
+// Shown to all users
+const GUEST_COMMANDS = [
 	{ command: 'start', description: 'Show supported platforms' },
 	{ command: 'help', description: 'How to use the bot' },
 	{ command: 'lang', description: 'Change bot language' },
 	{ command: 'cancel', description: 'Cancel current action' },
-	{ command: 'setchannel', description: 'Set required subscription channel (admin only)' },
 ];
 
-const BOT_COMMANDS_AR = [
+const GUEST_COMMANDS_AR = [
 	{ command: 'start', description: 'عرض المنصات المدعومة' },
 	{ command: 'help', description: 'طريقة استخدام البوت' },
 	{ command: 'lang', description: 'تغيير لغة البوت' },
 	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
-	{ command: 'setchannel', description: 'تعيين قناة الاشتراك (للمشرف فقط)' },
+];
+
+// Shown only in the admin's chat (overrides the global list for that chat)
+const ADMIN_COMMANDS = [
+	{ command: 'start', description: 'Show supported platforms' },
+	{ command: 'help', description: 'How to use the bot' },
+	{ command: 'lang', description: 'Change bot language' },
+	{ command: 'cancel', description: 'Cancel current action' },
+	{ command: 'setchannel', description: 'Set required subscription channel' },
+	{ command: 'stats', description: 'View usage statistics' },
+];
+
+const ADMIN_COMMANDS_AR = [
+	{ command: 'start', description: 'عرض المنصات المدعومة' },
+	{ command: 'help', description: 'طريقة استخدام البوت' },
+	{ command: 'lang', description: 'تغيير لغة البوت' },
+	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
+	{ command: 'setchannel', description: 'تعيين قناة الاشتراك' },
+	{ command: 'stats', description: 'عرض إحصائيات الاستخدام' },
 ];
 
 const SUPPORTED_PLATFORMS = [
@@ -31,11 +49,16 @@ const SUPPORTED_PLATFORMS = [
 export async function runSetup(env: Env, sendNotification: boolean = true): Promise<void> {
 	const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
+	const adminScope = { type: 'chat' as const, chat_id: adminId };
 
 	const [botInfo] = await Promise.all([
 		bot.api.getMe(),
-		bot.api.setMyCommands(BOT_COMMANDS),
-		bot.api.setMyCommands(BOT_COMMANDS_AR, { language_code: 'ar' }),
+		// Global: guests see only the public commands
+		bot.api.setMyCommands(GUEST_COMMANDS),
+		bot.api.setMyCommands(GUEST_COMMANDS_AR, { language_code: 'ar' }),
+		// Admin chat: override with full command list
+		bot.api.setMyCommands(ADMIN_COMMANDS, { scope: adminScope }),
+		bot.api.setMyCommands(ADMIN_COMMANDS_AR, { scope: adminScope, language_code: 'ar' }),
 		bot.api.setChatMenuButton({ menu_button: { type: 'commands' } }),
 	]);
 
@@ -62,5 +85,5 @@ export async function runSetup(env: Env, sendNotification: boolean = true): Prom
 /** GET /setup — manual setup route (kept as fallback). */
 export async function handleSetup(c: Context<HonoEnv>): Promise<Response> {
 	await runSetup(c.env, true);
-	return c.json({ ok: true, commands: BOT_COMMANDS.length });
+	return c.json({ ok: true, commands: GUEST_COMMANDS.length });
 }
