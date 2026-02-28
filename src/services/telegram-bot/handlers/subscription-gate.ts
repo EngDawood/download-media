@@ -2,6 +2,7 @@ import { Bot, Context } from 'grammy';
 import { getCached, setCached } from '../../../utils/cache';
 import { CACHE_PREFIX_USAGE_COUNT, KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE } from '../../../constants';
 import { trackEvent } from '../../../utils/analytics';
+import { t, getLocale } from '../../../i18n';
 
 const USAGE_TTL = 60 * 60 * 24 * 90; // 90 days
 const MEMBER_STATUSES = ['member', 'administrator', 'creator'];
@@ -15,7 +16,7 @@ export async function checkSubscriptionGate(
 	kv: KVNamespace,
 	bot: Bot,
 	analytics?: AnalyticsEngineDataset,
-	platform?: string
+	platform?: string,
 ): Promise<boolean> {
 	const channelUsername = await kv.get(KV_KEY_REQUIRED_CHANNEL);
 	if (!channelUsername) return false; // Gate disabled — no channel configured
@@ -43,20 +44,19 @@ export async function checkSubscriptionGate(
 
 	// User is not subscribed — track and show gate message
 	trackEvent(analytics, { userId, platform: platform ?? 'unknown', userType: 'guest', action: 'gate_blocked' });
+	const locale = getLocale(ctx);
 	const channelName = channelUsername.replace('@', '');
 	await ctx.reply(
-		`🔒 You've used your ${FREE_USES_BEFORE_GATE} free downloads\\!\n\n` +
-		`Join our channel to keep downloading:\n` +
-		`👉 [t\\.me/${channelName}](https://t.me/${channelName})`,
+		t(locale, 'gate.blocked', { freeUses: FREE_USES_BEFORE_GATE, channelName }),
 		{
 			parse_mode: 'MarkdownV2',
 			reply_markup: {
 				inline_keyboard: [[
-					{ text: '📢 Join Channel', url: `https://t.me/${channelName}` },
-					{ text: '✅ I Joined', callback_data: 'subscription:verify' }
-				]]
-			}
-		}
+					{ text: t(locale, 'gate.btn_join'), url: `https://t.me/${channelName}` },
+					{ text: t(locale, 'gate.btn_verify'), callback_data: 'subscription:verify' },
+				]],
+			},
+		},
 	);
 	return true; // Blocked
 }

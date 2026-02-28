@@ -4,6 +4,7 @@ import { registerAdminCommands } from './commands/admin-commands';
 import { registerTextInputHandler } from './handlers/text-input-handler';
 import { registerDownloadCallbacks } from './callbacks/download-callbacks';
 import { registerSubscriptionCallbacks } from './callbacks/subscription-callbacks';
+import { resolveLocale, DEFAULT_LOCALE, t, getLocale } from '../../i18n';
 
 /**
  * Create and configure Telegram bot instance with all handlers.
@@ -19,15 +20,16 @@ export function createBot(env: Env): Bot {
 	bot.catch(async (err) => {
 		console.error('Bot error:', err);
 		const ctx = err.ctx;
+		const locale = getLocale(ctx);
 		if (ctx.callbackQuery) {
 			try {
-				await ctx.answerCallbackQuery({ text: '⚠️ Error occurred. Please try again.' });
+				await ctx.answerCallbackQuery({ text: t(locale, 'error.callback') });
 			} catch (e) {
 				console.error('Failed to send error callback notification:', e);
 			}
 		} else {
 			try {
-				await ctx.reply('⚠️ An unexpected error occurred. Please try again.');
+				await ctx.reply(t(locale, 'error.general'));
 			} catch (e) {
 				console.error('Failed to send error reply:', e);
 			}
@@ -42,6 +44,17 @@ export function createBot(env: Env): Bot {
 		await next();
 	});
 
+	// Locale resolution middleware
+	bot.use(async (ctx, next) => {
+		const userId = ctx.from?.id;
+		if (userId) {
+			(ctx as any).locale = await resolveLocale(kv, userId, ctx.from?.language_code);
+		} else {
+			(ctx as any).locale = DEFAULT_LOCALE;
+		}
+		await next();
+	});
+
 	// Admin authentication middleware
 	bot.use(async (ctx, next) => {
 		if (isNaN(adminId)) {
@@ -49,14 +62,16 @@ export function createBot(env: Env): Bot {
 			await next();
 			return;
 		}
-		// Allow subscription verify for all users
-		if (ctx.callbackQuery?.data === 'subscription:verify') {
+		// Allow subscription verify and lang selection for all users
+		const cbData = ctx.callbackQuery?.data;
+		if (cbData === 'subscription:verify' || cbData?.startsWith('lang:')) {
 			await next();
 			return;
 		}
 		if (ctx.from?.id !== adminId && ctx.callbackQuery) {
 			console.log('[AUTH] Blocked non-admin callback:', ctx.from?.id);
-			await ctx.answerCallbackQuery({ text: 'Unauthorized' });
+			const locale = getLocale(ctx);
+			await ctx.answerCallbackQuery({ text: t(locale, 'error.unauthorized') });
 			return;
 		}
 		await next();

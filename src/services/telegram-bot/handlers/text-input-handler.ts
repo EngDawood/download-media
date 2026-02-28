@@ -5,6 +5,7 @@ import { detectMediaUrl } from '../../../utils/url-detector';
 import { downloadAndSendMedia } from './download-and-send';
 import { fetchFacebookInfo, fetchTikTokInfo } from '../../media-downloader';
 import { checkSubscriptionGate } from './subscription-gate';
+import { t, getLocale } from '../../../i18n';
 
 /**
  * Register the main text handler to process URL detection and download flows.
@@ -23,38 +24,39 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			const isAdmin = ctx.from?.id === adminId;
 			const userId = ctx.from?.id;
 			const firstName = ctx.from?.first_name;
+			const locale = getLocale(ctx);
 
 			if (!isAdmin) {
 				const blocked = await checkSubscriptionGate(ctx, kv, bot, env.ANALYTICS, platform);
 				if (blocked) return;
 
 				const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { guestMode: true, analytics: env.ANALYTICS, userId, firstName });
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { guestMode: true, analytics: env.ANALYTICS, userId, firstName, locale });
 				return;
 			}
 
 			// YouTube — auto-download (same as guest)
 			if (platform === 'YouTube') {
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName });
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, locale });
 				return;
 			}
 
 			// TikTok — image posts download directly; video posts show Video / Audio picker
 			if (platform === 'TikTok') {
-				const statusMsg = await ctx.reply('Fetching post info...');
+				const statusMsg = await ctx.reply(t(locale, 'input.fetching_post'));
 				const ttInfo = await fetchTikTokInfo(url);
 				if (ttInfo?.isImagePost) {
 					// Slideshow — auto-download, no picker needed
-					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName });
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, locale });
 				} else {
 					const keyboard = new InlineKeyboard()
-						.text('Video', 'dl:sd')
-						.text('Audio', 'dl:audio');
+						.text(t(locale, 'input.btn_video'), 'dl:sd')
+						.text(t(locale, 'input.btn_audio'), 'dl:audio');
 					await bot.api.editMessageText(
 						ctx.chat!.id,
 						statusMsg.message_id,
-						`<b>${platform}</b> — Choose format:`,
-						{ parse_mode: 'HTML', reply_markup: keyboard }
+						t(locale, 'input.choose_format', { platform }),
+						{ parse_mode: 'HTML', reply_markup: keyboard },
 					);
 					await setAdminState(kv, adminId, {
 						action: 'downloading_media',
@@ -66,7 +68,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 
 			// Facebook — show HD/SD picker if multiple qualities available
 			if (platform === 'Facebook') {
-				const statusMsg = await ctx.reply('Fetching video info...');
+				const statusMsg = await ctx.reply(t(locale, 'input.fetching_video'));
 				const fbInfo = await fetchFacebookInfo(url);
 				if (fbInfo) {
 					const keyboard = new InlineKeyboard()
@@ -75,28 +77,29 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 					await bot.api.editMessageText(
 						ctx.chat!.id,
 						statusMsg.message_id,
-						`<b>${platform}</b> — Choose quality:`,
-						{ parse_mode: 'HTML', reply_markup: keyboard }
+						t(locale, 'input.choose_quality', { platform }),
+						{ parse_mode: 'HTML', reply_markup: keyboard },
 					);
 					await setAdminState(kv, adminId, {
 						action: 'downloading_media',
 						context: { downloadUrl: url, downloadPlatform: platform },
 					});
 				} else {
-					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName });
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, locale });
 				}
 				return;
 			}
 
 			// Automatic download for other platforms
 			const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
-			await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName });
+			await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, locale });
 			return;
 		}
 
 		const state = await getAdminState(kv, adminId);
 		if (!state) {
-			await ctx.reply('No active action. Send a supported URL to download media.');
+			const locale = getLocale(ctx);
+			await ctx.reply(t(locale, 'input.no_action'));
 			return;
 		}
 	});

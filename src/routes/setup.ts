@@ -6,8 +6,17 @@ type HonoEnv = { Bindings: Env };
 const BOT_COMMANDS = [
 	{ command: 'start', description: 'Show supported platforms' },
 	{ command: 'help', description: 'How to use the bot' },
+	{ command: 'lang', description: 'Change bot language' },
 	{ command: 'cancel', description: 'Cancel current action' },
 	{ command: 'setchannel', description: 'Set required subscription channel (admin only)' },
+];
+
+const BOT_COMMANDS_AR = [
+	{ command: 'start', description: 'عرض المنصات المدعومة' },
+	{ command: 'help', description: 'طريقة استخدام البوت' },
+	{ command: 'lang', description: 'تغيير لغة البوت' },
+	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
+	{ command: 'setchannel', description: 'تعيين قناة الاشتراك (للمشرف فقط)' },
 ];
 
 const SUPPORTED_PLATFORMS = [
@@ -26,6 +35,7 @@ export async function runSetup(env: Env, sendNotification: boolean = true): Prom
 	const [botInfo] = await Promise.all([
 		bot.api.getMe(),
 		bot.api.setMyCommands(BOT_COMMANDS),
+		bot.api.setMyCommands(BOT_COMMANDS_AR, { language_code: 'ar' }),
 		bot.api.setChatMenuButton({ menu_button: { type: 'commands' } }),
 	]);
 
