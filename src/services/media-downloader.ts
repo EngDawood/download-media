@@ -394,7 +394,8 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 			}
 		}
 		if (media.length > 0) {
-			return { status: 'success', media, caption, thumbnail: twitterThumb };
+			// res.url has separate HD and SD items — keep only the best (first = HD)
+			return { status: 'success', media: [media[0]], caption, thumbnail: twitterThumb };
 		}
 	}
 	if (isUrl(res.url)) {
