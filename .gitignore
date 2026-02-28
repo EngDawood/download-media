@@ -166,7 +166,6 @@ dist
 !.env.example
 .wrangler/
 .agents/*
-.claude/*
 .gemini/*
 chat.md
 .vscode/*
