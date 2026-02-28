@@ -283,7 +283,7 @@ async function downloadTikTok(url: string, mode: string): Promise<DownloaderResu
 
 	// Fallback to 'ttdl' (alternative endpoint)
 	const res = await btchFetch('ttdl', url);
-	const caption = res.title || '';
+	const caption = buildCaption(res.title);
 	const ttdlThumb = isUrl(res.cover) ? res.cover : isUrl(res.thumbnail) ? res.thumbnail : undefined;
 	if (mode === 'audio' && Array.isArray(res.audio) && isUrl(res.audio[0])) {
 		const directAudio = decodeTiktokDirectUrl(res.audio[0]) || res.audio[0];
@@ -302,7 +302,7 @@ async function downloadInstagram(url: string): Promise<DownloaderResult> {
 		const res = await btchFetch('aio', url);
 		const data = res.data;
 		if (data) {
-			const caption = data.title || '';
+			const caption = buildCaption(data.title);
 			const thumbnail = data.thumbnail;
 			const media: MediaItem[] = [];
 
@@ -378,7 +378,7 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 	// Fallback to twitter endpoint
 	const res = await btchFetch('twitter', url);
 	// Note: res.creator is the API developer name, not the tweet author
-	const caption = res.title || '';
+	const caption = buildCaption(res.title);
 	const twitterThumb = isUrl(res.thumbnail) ? res.thumbnail : undefined;
 	if (Array.isArray(res.url) && res.url.length > 0) {
 		const media: MediaItem[] = [];
@@ -517,7 +517,7 @@ async function downloadFacebook(url: string, mode: string = 'auto'): Promise<Dow
 	const res = await btchFetch('fbdown', url);
 	const videoUrl = isUrl(res.HD) ? res.HD : isUrl(res.Normal_video) ? res.Normal_video : null;
 	if (videoUrl) {
-		return { status: 'success', media: [{ type: 'video', url: videoUrl }], caption: res.title || '' };
+		return { status: 'success', media: [{ type: 'video', url: videoUrl }], caption: buildCaption(res.title) };
 	}
 	return { status: 'error', error: 'No Facebook media found' };
 }
@@ -566,7 +566,7 @@ async function downloadThreads(url: string, mode: string): Promise<DownloaderRes
 	// API returns flat: { status, type: 'video'|'image'|'mixed', video?, image?, download?, title? }
 	const hasVideo = res.type === 'video' && isUrl(res.video);
 	const hasImage = (res.type === 'image' || res.type === 'mixed') && isUrl(res.image);
-	const threadsCap = res.title || '';
+	const threadsCap = buildCaption(res.title);
 
 	if (mode === 'audio' && hasVideo) {
 		return { status: 'success', media: [{ type: 'audio', url: res.video }], caption: threadsCap };
@@ -596,7 +596,7 @@ async function downloadSoundCloud(url: string): Promise<DownloaderResult> {
 	// API returns flat: { status, title, thumbnail, audio, downloadMp3, downloadArtwork }
 	const audioUrl = isUrl(res.downloadMp3) ? res.downloadMp3 : isUrl(res.audio) ? res.audio : null;
 	if (audioUrl) {
-		return { status: 'success', media: [{ type: 'audio', url: audioUrl }], caption: res.title || '', thumbnail: res.thumbnail };
+		return { status: 'success', media: [{ type: 'audio', url: audioUrl }], caption: buildCaption(res.title), thumbnail: res.thumbnail };
 	}
 	return { status: 'error', error: 'No SoundCloud audio found' };
 }
@@ -611,7 +611,7 @@ async function downloadSpotify(url: string): Promise<DownloaderResult> {
 			return {
 				status: 'success',
 				media: [{ type: 'audio', url: best.url, quality: best.quality }],
-				caption: data.title || '',
+				caption: buildCaption(data.title),
 				thumbnail: data.thumbnail,
 			};
 		}
@@ -656,7 +656,7 @@ async function downloadAIO(url: string, mode: string): Promise<DownloaderResult>
 	// Legacy flat fields fallback
 	try {
 		const res = await btchFetch('aio', url);
-		const fallbackCaption = res.data?.title || res.title || '';
+		const fallbackCaption = buildCaption(res.data?.title || res.title);
 		if (mode === 'audio' && isUrl(res.mp3)) {
 			return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption: fallbackCaption };
 		}
