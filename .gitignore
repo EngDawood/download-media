@@ -171,7 +171,6 @@ dist
 chat.md
 .vscode/*
 .agents/*
-.claude/*
 .gemini/*
 .archive/*
 mirror-scrapers-archive.ts
