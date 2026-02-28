@@ -1,0 +1,128 @@
+import { KV_KEY_STATS_GLOBAL, KV_KEY_STATS_DAY_PREFIX, KV_KEY_STATS_USER_PREFIX } from '../constants';
+
+interface GlobalStats {
+	totalLinks: number;
+	totalSuccess: number;
+	totalErrors: number;
+	totalUniqueUsers: number;
+	platforms: Record<string, number>;
+	topUsers: Array<{ userId: number; firstName: string; count: number }>;
+}
+
+interface DayStats {
+	links: number;
+	success: number;
+}
+
+interface UserStats {
+	count: number;
+	firstName: string;
+}
+
+export interface StatsReport {
+	global: GlobalStats;
+	today: DayStats;
+}
+
+const TOP_USERS_LIMIT = 10;
+const DAY_TTL_SECONDS = 30 * 24 * 3600;
+
+function defaultGlobal(): GlobalStats {
+	return { totalLinks: 0, totalSuccess: 0, totalErrors: 0, totalUniqueUsers: 0, platforms: {}, topUsers: [] };
+}
+
+function getTodayKey(): string {
+	const d = new Date();
+	const yyyy = d.getUTCFullYear();
+	const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+	const dd = String(d.getUTCDate()).padStart(2, '0');
+	return `${KV_KEY_STATS_DAY_PREFIX}${yyyy}-${mm}-${dd}`;
+}
+
+async function readGlobal(kv: KVNamespace): Promise<GlobalStats> {
+	const raw = await kv.get(KV_KEY_STATS_GLOBAL);
+	if (!raw) return defaultGlobal();
+	try {
+		return JSON.parse(raw) as GlobalStats;
+	} catch {
+		return defaultGlobal();
+	}
+}
+
+async function writeGlobal(kv: KVNamespace, stats: GlobalStats): Promise<void> {
+	await kv.put(KV_KEY_STATS_GLOBAL, JSON.stringify(stats));
+}
+
+async function updateDay(kv: KVNamespace, field: 'links' | 'success'): Promise<void> {
+	const key = getTodayKey();
+	const raw = await kv.get(key);
+	const day: DayStats = raw ? (JSON.parse(raw) as DayStats) : { links: 0, success: 0 };
+	day[field]++;
+	await kv.put(key, JSON.stringify(day), { expirationTtl: DAY_TTL_SECONDS });
+}
+
+/**
+ * Called when a supported URL is detected — counts link submissions and unique users.
+ */
+export async function incrementLinkStats(
+	kv: KVNamespace,
+	opts: { userId: number; firstName: string; platform: string },
+): Promise<void> {
+	const userKey = `${KV_KEY_STATS_USER_PREFIX}${opts.userId}`;
+	const [global, userRaw] = await Promise.all([readGlobal(kv), kv.get(userKey), updateDay(kv, 'links')]);
+
+	global.totalLinks++;
+	if (!userRaw) {
+		global.totalUniqueUsers++;
+	}
+
+	await writeGlobal(kv, global);
+}
+
+/**
+ * Called on a successful download — counts successes, per-platform, and top users.
+ */
+export async function incrementSuccessStats(
+	kv: KVNamespace,
+	opts: { userId: number; firstName: string; platform: string },
+): Promise<void> {
+	const userKey = `${KV_KEY_STATS_USER_PREFIX}${opts.userId}`;
+	const [global, userRaw] = await Promise.all([readGlobal(kv), kv.get(userKey), updateDay(kv, 'success')]);
+
+	global.totalSuccess++;
+	global.platforms[opts.platform] = (global.platforms[opts.platform] ?? 0) + 1;
+
+	const existingIdx = global.topUsers.findIndex((u) => u.userId === opts.userId);
+	if (existingIdx >= 0) {
+		global.topUsers[existingIdx].count++;
+		global.topUsers[existingIdx].firstName = opts.firstName;
+	} else {
+		global.topUsers.push({ userId: opts.userId, firstName: opts.firstName, count: 1 });
+	}
+	global.topUsers.sort((a, b) => b.count - a.count);
+	global.topUsers = global.topUsers.slice(0, TOP_USERS_LIMIT);
+
+	const userStats: UserStats = userRaw ? (JSON.parse(userRaw) as UserStats) : { count: 0, firstName: opts.firstName };
+	userStats.count++;
+	userStats.firstName = opts.firstName;
+
+	await Promise.all([writeGlobal(kv, global), kv.put(userKey, JSON.stringify(userStats))]);
+}
+
+/**
+ * Called on a failed or empty download.
+ */
+export async function incrementErrorStats(kv: KVNamespace): Promise<void> {
+	const global = await readGlobal(kv);
+	global.totalErrors++;
+	await writeGlobal(kv, global);
+}
+
+/**
+ * Returns global stats + today's summary for the /stats command.
+ */
+export async function getStatsReport(kv: KVNamespace): Promise<StatsReport> {
+	const [global, dayRaw] = await Promise.all([readGlobal(kv), kv.get(getTodayKey())]);
+	const today: DayStats = dayRaw ? (JSON.parse(dayRaw) as DayStats) : { links: 0, success: 0 };
+	return { global, today };
+}

@@ -16,6 +16,7 @@ export const en = {
 		'• Pinterest — Auto-download\n\n' +
 		'<b>Admin commands:</b>\n' +
 		'/setchannel @username — Set subscription channel\n' +
+		'/stats — View usage statistics\n' +
 		'/lang — Change bot language\n' +
 		'/cancel — Cancel current action\n' +
 		'/help — Full details',
@@ -38,6 +39,7 @@ export const en = {
 		'• Large files (&gt;50MB) show the direct URL to download manually\n\n' +
 		'<b>Admin commands:</b>\n' +
 		'<code>/setchannel @username</code> — Require users to join a channel after {freeUses} free downloads. Bot must be admin in that channel.\n' +
+		'<code>/stats</code> — View bot usage statistics.\n' +
 		'<code>/lang</code> — Change bot language.\n' +
 		'<code>/cancel</code> — Cancel the current download flow.',
 
@@ -124,6 +126,19 @@ export const en = {
 	'lang.current': '🌐 Current language: <b>{language}</b>',
 	'lang.pick': 'Choose your language:',
 	'lang.changed': '✅ Language changed to <b>{language}</b>.',
+
+	// --- /stats command (admin only) ---
+	'stats.header': '📊 <b>Bot Statistics</b>',
+	'stats.links': '📥 Links submitted: <b>{count}</b>',
+	'stats.success': '✅ Successful: <b>{count}</b>',
+	'stats.errors': '❌ Errors: <b>{count}</b>',
+	'stats.users': '👥 Unique users: <b>{count}</b>',
+	'stats.today': '📅 Today: <b>{links}</b> links, <b>{success}</b> successful',
+	'stats.platforms_header': '📱 <b>By Platform:</b>',
+	'stats.top_users_header': '👤 <b>Top Users:</b>',
+	'stats.user_row': '{rank}. {firstName} — {count} downloads',
+	'stats.no_data': 'No statistics yet. Send some links to start tracking.',
+	'stats.admin_only': '🔒 This command is for admins only.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

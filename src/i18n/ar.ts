@@ -18,6 +18,7 @@ export const ar: Translations = {
 		'• Pinterest — تحميل تلقائي\n\n' +
 		'<b>أوامر المشرف:</b>\n' +
 		'/setchannel @username — تعيين قناة الاشتراك\n' +
+		'/stats — عرض إحصائيات الاستخدام\n' +
 		'/lang — تغيير لغة البوت\n' +
 		'/cancel — إلغاء الإجراء الحالي\n' +
 		'/help — التفاصيل الكاملة',
@@ -40,6 +41,7 @@ export const ar: Translations = {
 		'• الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً\n\n' +
 		'<b>أوامر المشرف:</b>\n' +
 		'<code>/setchannel @username</code> — إلزام المستخدمين بالانضمام لقناة بعد {freeUses} تحميلات مجانية. يجب أن يكون البوت مشرفاً في القناة.\n' +
+		'<code>/stats</code> — عرض إحصائيات استخدام البوت.\n' +
 		'<code>/lang</code> — تغيير لغة البوت.\n' +
 		'<code>/cancel</code> — إلغاء عملية التحميل الحالية.',
 
@@ -126,4 +128,17 @@ export const ar: Translations = {
 	'lang.current': '🌐 اللغة الحالية: <b>{language}</b>',
 	'lang.pick': 'اختر لغتك:',
 	'lang.changed': '✅ تم تغيير اللغة إلى <b>{language}</b>.',
+
+	// --- /stats command (admin only) ---
+	'stats.header': '📊 <b>إحصائيات البوت</b>',
+	'stats.links': '📥 الروابط المُرسَلة: <b>{count}</b>',
+	'stats.success': '✅ ناجح: <b>{count}</b>',
+	'stats.errors': '❌ أخطاء: <b>{count}</b>',
+	'stats.users': '👥 مستخدمون فريدون: <b>{count}</b>',
+	'stats.today': '📅 اليوم: <b>{links}</b> روابط، <b>{success}</b> ناجح',
+	'stats.platforms_header': '📱 <b>حسب المنصة:</b>',
+	'stats.top_users_header': '👤 <b>أكثر المستخدمين:</b>',
+	'stats.user_row': '{rank}. {firstName} — {count} تحميلات',
+	'stats.no_data': 'لا توجد إحصائيات بعد. أرسل بعض الروابط لبدء التتبع.',
+	'stats.admin_only': '🔒 هذا الأمر للمشرف فقط.',
 };

@@ -2,6 +2,7 @@ import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState } from '../storage/admin-state';
 import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, CACHE_PREFIX_USER_LANG } from '../../../constants';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
+import { getStatsReport } from '../../../utils/stats';
 
 /**
  * Register basic information and control commands.
@@ -65,6 +66,51 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		const locale = getLocale(ctx);
 		await clearAdminState(kv, adminId);
 		await ctx.reply(t(locale, 'cancel.done'));
+	});
+
+	bot.command('stats', async (ctx) => {
+		const locale = getLocale(ctx);
+		if (ctx.from?.id !== adminId) {
+			await ctx.reply(t(locale, 'stats.admin_only'));
+			return;
+		}
+
+		const report = await getStatsReport(kv);
+		const g = report.global;
+
+		if (g.totalLinks === 0) {
+			await ctx.reply(t(locale, 'stats.no_data'));
+			return;
+		}
+
+		const lines: string[] = [
+			t(locale, 'stats.header'),
+			'',
+			t(locale, 'stats.links', { count: String(g.totalLinks) }),
+			t(locale, 'stats.success', { count: String(g.totalSuccess) }),
+			t(locale, 'stats.errors', { count: String(g.totalErrors) }),
+			t(locale, 'stats.users', { count: String(g.totalUniqueUsers) }),
+			'',
+			t(locale, 'stats.today', { links: String(report.today.links), success: String(report.today.success) }),
+		];
+
+		const sortedPlatforms = Object.entries(g.platforms).sort((a, b) => b[1] - a[1]);
+		if (sortedPlatforms.length > 0) {
+			lines.push('', t(locale, 'stats.platforms_header'));
+			for (const [platform, count] of sortedPlatforms.slice(0, 7)) {
+				lines.push(`• ${platform}: ${count}`);
+			}
+		}
+
+		if (g.topUsers.length > 0) {
+			lines.push('', t(locale, 'stats.top_users_header'));
+			for (let i = 0; i < Math.min(g.topUsers.length, 5); i++) {
+				const u = g.topUsers[i];
+				lines.push(t(locale, 'stats.user_row', { rank: String(i + 1), firstName: u.firstName, count: String(u.count) }));
+			}
+		}
+
+		await ctx.reply(lines.join('\n'), { parse_mode: 'HTML' });
 	});
 
 	bot.command('lang', async (ctx) => {
