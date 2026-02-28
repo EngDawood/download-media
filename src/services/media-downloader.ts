@@ -370,9 +370,10 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 	const aioResult = await tryAIO(url);
 	if (aioResult?.media) {
 		const videos = aioResult.media.filter(m => m.type === 'video');
-		// AIO returns all quality variants — keep only the best one (first = highest quality)
-		if (videos.length > 1) return { ...aioResult, media: [videos[0]] };
-		return aioResult;
+		// Always keep only the best quality video (first = highest quality)
+		// Also handles mixed results (video + photo items) by returning only the video
+		if (videos.length > 0) return { ...aioResult, media: [videos[0]] };
+		return aioResult; // photo tweet — return all photos
 	}
 
 	// Fallback to twitter endpoint
