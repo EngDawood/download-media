@@ -1,10 +1,11 @@
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { downloadMedia, formatFileSize } from '../../media-downloader';
-import { sendMediaToChannel, TelegramUrlFetchError } from './send-media';
+import { sendMediaToChannel } from './send-media';
 import { setAdminState } from '../storage/admin-state';
 import type { TelegramMediaMessage } from '../../../types/telegram';
 import { trackEvent } from '../../../utils/analytics';
+import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
 
 /**
  * Download media from a URL and send it to a chat.
@@ -23,13 +24,13 @@ export async function downloadAndSendMedia(
 	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
-	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio'; firstName?: string }
+	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio'; firstName?: string; locale?: Locale },
 ): Promise<void> {
-	const interactive = !!(options?.kv && options?.adminId) || !!options?.guestMode;
 	const userType = options?.guestMode ? 'guest' : 'admin';
 	const userId = options?.userId ?? 0;
-	const modeText = mode === 'audio' ? 'audio' : 'media';
-	const statusText = `Downloading ${modeText} from ${platform}...`;
+	const locale = options?.locale ?? DEFAULT_LOCALE;
+	const modeText = t(locale, mode === 'audio' ? 'download.mode_audio' : 'download.mode_media');
+	const statusText = t(locale, 'download.status', { modeText, platform });
 
 	if (statusMessageId) {
 		try {
@@ -51,8 +52,8 @@ export async function downloadAndSendMedia(
 		// If directUrl, send the URL directly (used for YouTube quality selection)
 		if (directUrl) {
 			const msg: TelegramMediaMessage = { type: options?.mediaType || 'video', url, caption: '' };
-			await sendMediaToChannel(bot, chatId, msg, undefined, interactive);
-			await bot.api.editMessageText(chatId, statusMessageId!, 'Done.');
+			await sendMediaToChannel(bot, chatId, msg);
+			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.done'));
 			return;
 		}
 
@@ -60,7 +61,7 @@ export async function downloadAndSendMedia(
 
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
-			await bot.api.editMessageText(chatId, statusMessageId!, `Download failed: ${result.error || 'unknown error'}`);
+			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.failed', { error: result.error || 'unknown error' }));
 			return;
 		}
 
@@ -76,7 +77,7 @@ export async function downloadAndSendMedia(
 				})
 				.filter(Boolean)
 				.join(', ');
-			const doneText = sizeInfo ? `Done. (${sizeInfo})` : 'Done.';
+			const doneText = sizeInfo ? t(locale, 'download.done_info', { info: sizeInfo }) : t(locale, 'download.done');
 
 			if (result.media.length > 1) {
 				const groupableItems = result.media.filter(m => m.type === 'photo' || m.type === 'video');
@@ -92,9 +93,9 @@ export async function downloadAndSendMedia(
 							parse_mode: 'HTML',
 						})),
 					};
-					await sendMediaToChannel(bot, chatId, msg, undefined, interactive);
+					await sendMediaToChannel(bot, chatId, msg);
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
-					await bot.api.editMessageText(chatId, statusMessageId!, `Sent ${Math.min(groupableItems.length, 10)} items as album.`);
+					await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.sent_album', { count: Math.min(groupableItems.length, 10) }));
 				} else {
 					for (const item of result.media.slice(0, 10)) {
 						const msg: TelegramMediaMessage = {
@@ -102,7 +103,7 @@ export async function downloadAndSendMedia(
 							url: item.url,
 							caption: caption,
 						};
-						await sendMediaToChannel(bot, chatId, msg, undefined, interactive);
+						await sendMediaToChannel(bot, chatId, msg);
 					}
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText);
@@ -114,12 +115,12 @@ export async function downloadAndSendMedia(
 					url: item.url,
 					caption: caption,
 				};
-				await sendMediaToChannel(bot, chatId, msg, undefined, interactive);
+				await sendMediaToChannel(bot, chatId, msg);
 				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 
 				// YouTube: show MP3 button after successful video send
 				if (result.mp3Url && options?.kv) {
-					const mp3Keyboard = new InlineKeyboard().text('🎵 MP3', 'dl:yt:mp3');
+					const mp3Keyboard = new InlineKeyboard().text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3');
 					await setAdminState(options.kv, options.adminId || userId, {
 						action: 'downloading_media',
 						context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url },
@@ -133,17 +134,19 @@ export async function downloadAndSendMedia(
 		}
 
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_empty' });
-		await bot.api.editMessageText(chatId, statusMessageId!, 'No media found.');
+		await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.no_media'));
 	} catch (err: any) {
-		// YouTube: send thumbnail + mp4/mp3 URLs on TelegramUrlFetchError or too-large
-		if (result?.mp3Url && result?.thumbnail && (err instanceof TelegramUrlFetchError || /too large/i.test(err.message || ''))) {
+		// YouTube: send thumbnail + mp4/mp3 URLs when file is too large
+		if (result?.mp3Url && result?.thumbnail && /too large/i.test(err.message || '')) {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			const caption = result.caption || '';
 			const mp4Url = result.media?.[0]?.url || url;
-			const sorry = options?.firstName ? `😔 Sorry ${options.firstName}, this file is too large for Telegram.` : '😔 This file is too large for Telegram.';
+			const sorry = options?.firstName
+				? t(locale, 'download.too_large_name', { firstName: options.firstName })
+				: t(locale, 'download.too_large');
 			const keyboard = new InlineKeyboard()
-				.url('🤖 Open @urluploadxbot', 'https://t.me/urluploadxbot');
-			const photoCaption = `${caption}\n\n${sorry}\n\nCopy the URL below, then send the link to @urluploadxbot\n\n🎬 Video:\n<code>${mp4Url}</code>\n\n🎵 Audio:\n<code>${result.mp3Url}</code>`;
+				.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot');
+			const photoCaption = `${caption}\n\n${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n🎬 Video:\n<code>${mp4Url}</code>\n\n🎵 Audio:\n<code>${result.mp3Url}</code>`;
 			// Send thumbnail with title/author + URLs in one message
 			try {
 				await bot.api.sendPhoto(chatId, result.thumbnail, {
@@ -163,61 +166,25 @@ export async function downloadAndSendMedia(
 			return;
 		}
 
-		// Telegram couldn't fetch the URL directly — show picker in interactive mode
-		if (err instanceof TelegramUrlFetchError && options?.kv && options?.adminId) {
-			await setAdminState(options.kv, options.adminId, {
-				action: 'downloading_media',
-				context: {
-					downloadUrl: url,
-					downloadPlatform: platform,
-					directMediaUrl: err.mediaUrl,
-				},
-			});
-			const sorry = options?.firstName ? `😔 Sorry ${options.firstName}, Telegram couldn't fetch this file.` : `😔 Telegram couldn't fetch this file.`;
-			const keyboard = new InlineKeyboard()
-				.text('📥 Download', 'dl:confirm')
-				.text('❌ Cancel', 'dl:cancel')
-				.row()
-				.url('🤖 Open @urluploadxbot', 'https://t.me/urluploadxbot')
-				.url('🌐 Open in Browser', err.mediaUrl);
-			await bot.api.editMessageText(
-				chatId,
-				statusMessageId!,
-				`${sorry}\n\nCopy the URL below, then send the link to @urluploadxbot\n\n<code>${err.mediaUrl}</code>`,
-				{ parse_mode: 'HTML', reply_markup: keyboard }
-			);
-			return;
-		} else if (err instanceof TelegramUrlFetchError && options?.guestMode) {
-			const sorry = options?.firstName ? `😔 Sorry ${options.firstName}, Telegram couldn't fetch this file.` : `😔 Telegram couldn't fetch this file.`;
-			const keyboard = new InlineKeyboard()
-				.url('🤖 Open @urluploadxbot', 'https://t.me/urluploadxbot')
-				.url('🌐 Open in Browser', err.mediaUrl);
-			await bot.api.editMessageText(
-				chatId,
-				statusMessageId!,
-				`${sorry}\n\nCopy the URL below, then send the link to @urluploadxbot\n\n<code>${err.mediaUrl}</code>`,
-				{ parse_mode: 'HTML', reply_markup: keyboard }
-			);
-			return;
-		}
-
 		console.error('[downloader] Download and send error:', err);
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 		const msg = err.message || 'Unknown error';
 		// If file is too large for Telegram, send the link as text instead
 		if (msg.includes('too large') || msg.includes('Too large')) {
-			const sorry = options?.firstName ? `😔 Sorry ${options.firstName}, this file is too large for Telegram (50MB limit).` : `😔 This file is too large for Telegram (50MB limit).`;
+			const sorry = options?.firstName
+				? t(locale, 'download.too_large_limit_name', { firstName: options.firstName })
+				: t(locale, 'download.too_large_limit');
 			const keyboard = new InlineKeyboard()
-				.url('🤖 Open @urluploadxbot', 'https://t.me/urluploadxbot')
-				.url('🌐 Open in Browser', url);
+				.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot')
+				.url(t(locale, 'download.btn_browser'), url);
 			await bot.api.editMessageText(
 				chatId,
 				statusMessageId!,
-				`${sorry}\n\nCopy the URL below, then send the link to @urluploadxbot\n\n<code>${url}</code>`,
-				{ parse_mode: 'HTML', reply_markup: keyboard }
+				`${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n<code>${url}</code>`,
+				{ parse_mode: 'HTML', reply_markup: keyboard },
 			);
 		} else {
-			await bot.api.editMessageText(chatId, statusMessageId!, `Error: ${msg}`);
+			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.error', { message: msg }));
 		}
 	}
 }

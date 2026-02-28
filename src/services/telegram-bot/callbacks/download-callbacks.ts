@@ -1,10 +1,11 @@
 import type { Bot } from 'grammy';
 import { getAdminState, clearAdminState } from '../storage/admin-state';
 import { downloadAndSendMedia } from '../handlers/download-and-send';
+import { t, getLocale } from '../../../i18n';
 
 /**
  * Register callback handlers for media download buttons.
- * Supports: dl:video, dl:audio, dl:hd, dl:sd, dl:yt:<quality>, dl:confirm, dl:cancel
+ * Supports: dl:video, dl:audio, dl:hd, dl:sd, dl:yt:<quality>, dl:cancel
  */
 export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): void {
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
@@ -15,41 +16,29 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 		const chatId = ctx.chat!.id;
 		const msgId = ctx.callbackQuery.message?.message_id;
 		const firstName = ctx.from?.first_name;
+		const locale = getLocale(ctx);
 		const state = await getAdminState(kv, adminId);
 
 		if (!state || state.action !== 'downloading_media' || !state.context?.downloadUrl) {
-			await ctx.answerCallbackQuery({ text: 'Session expired. Send the link again.' });
+			await ctx.answerCallbackQuery({ text: t(locale, 'callback.session_expired') });
 			return;
 		}
 
-		const { downloadUrl, downloadPlatform, qualities, directMediaUrl, mp3Url } = state.context;
+		const { downloadUrl, downloadPlatform, qualities, mp3Url } = state.context;
 
 		// YouTube MP3 — send the stored mp3 URL as audio
 		if (action === 'yt:mp3' && mp3Url) {
 			await clearAdminState(kv, adminId);
 			await ctx.answerCallbackQuery();
-			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, { analytics: env.ANALYTICS, userId: adminId, mediaType: 'audio', firstName });
+			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, { analytics: env.ANALYTICS, userId: adminId, mediaType: 'audio', firstName, locale });
 			return;
 		}
 
 		// Cancel — clear state and dismiss the message
 		if (action === 'cancel') {
 			await clearAdminState(kv, adminId);
-			await ctx.answerCallbackQuery({ text: 'Cancelled.' });
-			if (msgId) await bot.api.editMessageText(chatId, msgId, 'Cancelled.');
-			return;
-		}
-
-		// Confirm download — force download+upload of the rejected CDN URL
-		if (action === 'confirm') {
-			if (!directMediaUrl) {
-				await ctx.answerCallbackQuery({ text: 'Session expired. Send the link again.' });
-				return;
-			}
-			await clearAdminState(kv, adminId);
-			await ctx.answerCallbackQuery();
-			// directUrl=true skips platform detection; no kv/adminId = non-interactive (auto-fallback on error)
-			await downloadAndSendMedia(bot, chatId, directMediaUrl, downloadPlatform || 'media', 'auto', msgId, true, { analytics: env.ANALYTICS, userId: adminId, firstName });
+			await ctx.answerCallbackQuery({ text: t(locale, 'callback.cancelled') });
+			if (msgId) await bot.api.editMessageText(chatId, msgId, t(locale, 'callback.cancelled'));
 			return;
 		}
 
@@ -80,7 +69,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 					'auto',
 					msgId,
 					true, // directUrl flag — skip platform detection, download this URL directly
-					{ kv, adminId, analytics: env.ANALYTICS, userId: adminId, mediaType, firstName },
+					{ kv, adminId, analytics: env.ANALYTICS, userId: adminId, mediaType, firstName, locale },
 				);
 				return;
 			}
@@ -88,6 +77,6 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 			mode = 'auto';
 		}
 
-		await downloadAndSendMedia(bot, chatId, downloadUrl, downloadPlatform || 'Unknown', mode, msgId, undefined, { kv, adminId, analytics: env.ANALYTICS, userId: adminId, firstName });
+		await downloadAndSendMedia(bot, chatId, downloadUrl, downloadPlatform || 'Unknown', mode, msgId, undefined, { kv, adminId, analytics: env.ANALYTICS, userId: adminId, firstName, locale });
 	});
 }

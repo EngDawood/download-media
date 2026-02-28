@@ -1,6 +1,7 @@
-import type { Bot } from 'grammy';
+import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState } from '../storage/admin-state';
-import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE } from '../../../constants';
+import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, CACHE_PREFIX_USER_LANG } from '../../../constants';
+import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
 
 /**
  * Register basic information and control commands.
@@ -11,70 +12,39 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 	bot.command('start', async (ctx) => {
 		const isAdmin = ctx.from?.id === adminId;
 		const name = ctx.from?.first_name || '';
-		const greeting = name ? `Hi ${name}! 👋\n\n` : '';
+		const locale = getLocale(ctx);
+		const greeting = name ? t(locale, 'start.admin.greeting', { firstName: name }) : '';
 
 		if (isAdmin) {
-			await ctx.reply(
-				greeting +
-					'<b>Media Download Bot — Admin</b>\n\n' +
-					'Send any supported URL to download media.\n\n' +
-					'<b>Platforms:</b>\n' +
-					'• YouTube — Auto-download video (🎵 MP3 button after)\n' +
-					'• TikTok — Video/Audio picker (slideshows auto-download)\n' +
-					'• Facebook — HD/SD picker when available\n' +
-					'• Instagram — Auto-download\n' +
-					'• X / Twitter — Auto-download\n' +
-					'• Threads — Auto-download\n' +
-					'• SoundCloud — Audio\n' +
-					'• Spotify — Audio\n' +
-					'• Pinterest — Auto-download\n\n' +
-					'<b>Admin commands:</b>\n' +
-					'/setchannel @username — Set subscription channel\n' +
-					'/cancel — Cancel current action\n' +
-					'/help — Full details',
-				{ parse_mode: 'HTML' }
-			);
+			await ctx.reply(greeting + t(locale, 'start.admin.body'), { parse_mode: 'HTML' });
 			return;
 		}
 
 		// Guest: show channel requirement if configured
 		const channelUsername = await kv.get(KV_KEY_REQUIRED_CHANNEL);
 		const channelLine = channelUsername
-			? `\n⚡ <b>${FREE_USES_BEFORE_GATE} free downloads</b> — then join ${channelUsername} to keep going.\n`
+			? t(locale, 'start.guest.channel_line', { freeUses: FREE_USES_BEFORE_GATE, channel: channelUsername })
 			: '';
 
 		await ctx.reply(
 			greeting +
-				'<b>Media Download Bot</b>\n\n' +
-				'Send a URL from any supported platform and I\'ll download the media for you.\n\n' +
-				'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest\n' +
+				t(locale, 'start.guest.body') +
 				channelLine +
-				'\n/help — More info',
-			{ parse_mode: 'HTML' }
+				t(locale, 'start.guest.help_hint'),
+			{ parse_mode: 'HTML' },
 		);
 	});
 
 	bot.command('help', async (ctx) => {
 		const isAdmin = ctx.from?.id === adminId;
 		const name = ctx.from?.first_name || '';
-		const namePrefix = name ? `${name}, here's how it works:\n\n` : '';
+		const locale = getLocale(ctx);
+		const namePrefix = name ? t(locale, 'help.name_prefix', { firstName: name }) : '';
 
 		if (isAdmin) {
 			await ctx.reply(
-				namePrefix +
-					'<b>How to use — Admin</b>\n\n' +
-					'Send any supported URL. TikTok and Facebook show quality pickers; all others auto-download.\n\n' +
-					'<b>Quality pickers:</b>\n' +
-					'• <b>YouTube</b> — Auto-downloads video, offers 🎵 MP3 button\n' +
-					'• <b>TikTok</b> — Video/Audio (slideshows skip the picker)\n' +
-					'• <b>Facebook</b> — HD/SD when multiple qualities available\n\n' +
-					'<b>Large files (&gt;50MB):</b>\n' +
-					'Shows direct URL + <a href="https://t.me/urluploadxbot">@urluploadxbot</a> option.\n\n' +
-					'<b>Admin commands:</b>\n' +
-					'<code>/setchannel @username</code> — Require users to join a channel after ' +
-					`${FREE_USES_BEFORE_GATE} free downloads. Bot must be admin in that channel.\n` +
-					'<code>/cancel</code> — Cancel the current download flow.',
-				{ parse_mode: 'HTML' }
+				namePrefix + t(locale, 'help.admin.body', { freeUses: FREE_USES_BEFORE_GATE }),
+				{ parse_mode: 'HTML' },
 			);
 			return;
 		}
@@ -82,22 +52,49 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		// Guest
 		const channelUsername = await kv.get(KV_KEY_REQUIRED_CHANNEL);
 		const freeTierLine = channelUsername
-			? `\n<b>Free tier:</b> ${FREE_USES_BEFORE_GATE} downloads — then join ${channelUsername} to keep using the bot.`
+			? t(locale, 'help.guest.free_tier', { freeUses: FREE_USES_BEFORE_GATE, channel: channelUsername })
 			: '';
 
 		await ctx.reply(
-			namePrefix +
-				'<b>How to use</b>\n\n' +
-				'Send a URL and the bot downloads it for you.\n\n' +
-				'<b>Large files (&gt;50MB):</b>\n' +
-				'Shows the direct URL and a link to <a href="https://t.me/urluploadxbot">@urluploadxbot</a>.' +
-				freeTierLine,
-			{ parse_mode: 'HTML' }
+			namePrefix + t(locale, 'help.guest.body') + freeTierLine,
+			{ parse_mode: 'HTML' },
 		);
 	});
 
 	bot.command('cancel', async (ctx) => {
+		const locale = getLocale(ctx);
 		await clearAdminState(kv, adminId);
-		await ctx.reply('Action cancelled.');
+		await ctx.reply(t(locale, 'cancel.done'));
+	});
+
+	bot.command('lang', async (ctx) => {
+		const locale = getLocale(ctx);
+		const keyboard = new InlineKeyboard()
+			.text('English', 'lang:en')
+			.text('العربية', 'lang:ar');
+
+		await ctx.reply(
+			t(locale, 'lang.current', { language: localeName(locale) }) +
+				'\n\n' +
+				t(locale, 'lang.pick'),
+			{ parse_mode: 'HTML', reply_markup: keyboard },
+		);
+	});
+
+	bot.callbackQuery(/^lang:(\w+)$/, async (ctx) => {
+		const newLocale = ctx.match[1] as Locale;
+		if (!SUPPORTED_LOCALES.includes(newLocale)) {
+			await ctx.answerCallbackQuery({ text: 'Unknown language.' });
+			return;
+		}
+		const userId = ctx.from.id;
+		await kv.put(`${CACHE_PREFIX_USER_LANG}${userId}`, newLocale);
+		// Update ctx locale for the response
+		(ctx as any).locale = newLocale;
+		await ctx.editMessageText(
+			t(newLocale, 'lang.changed', { language: localeName(newLocale) }),
+			{ parse_mode: 'HTML' },
+		);
+		await ctx.answerCallbackQuery();
 	});
 }

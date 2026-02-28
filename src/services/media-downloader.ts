@@ -99,10 +99,10 @@ function decodeTiktokDirectUrl(proxyUrl: string): string | null {
 	} catch { return null; }
 }
 
-/** Build a caption string from title and author. */
-function buildCaption(title?: string, author?: string): string {
+/** Build a caption string from title. */
+function buildCaption(title?: string): string {
 	if (!title) return '';
-	return author ? `<b>${title}</b> — ${author}` : `<b>${title}</b>`;
+	return `<b>${title}</b>`;
 }
 
 /**
@@ -115,7 +115,7 @@ async function tryAIO(url: string, mode: string = 'auto'): Promise<DownloaderRes
 		const data = res.data;
 		if (!data) return null;
 
-		const caption = buildCaption(data.title, data.author?.full_name || data.author?.username);
+		const caption = buildCaption(data.title);
 		const thumbnail = data.thumbnail;
 		const media: MediaItem[] = [];
 
@@ -135,7 +135,7 @@ async function tryAIO(url: string, mode: string = 'auto'): Promise<DownloaderRes
 			}
 		}
 
-		// Handle video/audio links (if no gallery items found)
+		// Handle video/audio/photo links (if no gallery items found)
 		if (media.length === 0 && data.links) {
 			if (mode === 'audio') {
 				const audioLinks = data.links.audio;
@@ -155,6 +155,20 @@ async function tryAIO(url: string, mode: string = 'auto'): Promise<DownloaderRes
 					for (const v of entries as any[]) {
 						if (isUrl(v?.url)) {
 							media.push({ type: 'video', url: v.url, quality: v.q_text || v.resolution });
+						}
+					}
+				}
+			}
+			// Photo/image links (e.g. Twitter photo tweets)
+			if (media.length === 0) {
+				const photoLinks = data.links.photo || data.links.image;
+				if (photoLinks) {
+					const entries = Array.isArray(photoLinks) ? photoLinks : Object.values(photoLinks);
+					for (const p of entries as any[]) {
+						if (isUrl(p?.url)) {
+							media.push({ type: 'photo', url: p.url });
+						} else if (typeof p === 'string' && isUrl(p)) {
+							media.push({ type: 'photo', url: p });
 						}
 					}
 				}
@@ -239,7 +253,7 @@ async function downloadTikTok(url: string, mode: string): Promise<DownloaderResu
 		const res = await btchFetch('tiktok', url);
 		const data = res.data;
 		if (data) {
-			const caption = buildCaption(data.title, data.author?.nickname);
+			const caption = buildCaption(data.title);
 			const thumbnail = data.cover || data.origin_cover;
 
 			// Image/slideshow post
@@ -289,7 +303,6 @@ async function downloadInstagram(url: string): Promise<DownloaderResult> {
 		const data = res.data;
 		if (data) {
 			const caption = data.title || '';
-			const author = data.author?.username;
 			const thumbnail = data.thumbnail;
 			const media: MediaItem[] = [];
 
@@ -326,7 +339,7 @@ async function downloadInstagram(url: string): Promise<DownloaderResult> {
 				return {
 					status: 'success',
 					media,
-					caption: author ? `${caption}\n\n@${author}` : caption,
+					caption,
 					thumbnail,
 				};
 			}
@@ -387,6 +400,15 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 		const type = detectMediaType(res.url);
 		return { status: 'success', media: [{ type, url: res.url }], caption, thumbnail: twitterThumb };
 	}
+	// Photo tweets — check image/images fields
+	if (Array.isArray(res.images) && res.images.length > 0) {
+		const photos: MediaItem[] = res.images.filter((img: any) => isUrl(typeof img === 'string' ? img : img?.url))
+			.map((img: any) => ({ type: 'photo' as const, url: typeof img === 'string' ? img : img.url }));
+		if (photos.length > 0) return { status: 'success', media: photos, caption, thumbnail: twitterThumb };
+	}
+	if (isUrl(res.image)) {
+		return { status: 'success', media: [{ type: 'photo', url: res.image }], caption, thumbnail: twitterThumb };
+	}
 	return { status: 'error', error: 'No Twitter media found' };
 }
 
@@ -394,7 +416,7 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 	// Try youtube endpoint first — fast and reliable
 	try {
 		const res = await btchFetch('youtube', url);
-		const caption = buildCaption(res.title, res.author);
+		const caption = buildCaption(res.title);
 		const thumbnail = res.thumbnail;
 		if (mode === 'audio' && isUrl(res.mp3)) {
 			return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption, thumbnail };
@@ -420,7 +442,7 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 		const aio = await btchFetch('aio', url);
 		const data = aio.data;
 		if (data?.links) {
-			const caption = buildCaption(data.title, data.author?.full_name || data.author?.username);
+			const caption = buildCaption(data.title);
 			const thumbnail = data.thumbnail;
 
 			if (mode === 'audio' && data.links.audio?.length > 0) {
@@ -465,7 +487,7 @@ export async function fetchTikTokInfo(url: string): Promise<{ caption: string; i
 		const res = await btchFetch('tiktok', url);
 		const data = res.data;
 		if (data) {
-			const caption = buildCaption(data.title, data.author?.nickname);
+			const caption = buildCaption(data.title);
 			return {
 				caption,
 				isImagePost: Array.isArray(data.images) && data.images.length > 0,
@@ -615,11 +637,10 @@ async function downloadPinterest(url: string): Promise<DownloaderResult> {
 		const mediaUrl = isVideo ? item.video_url : isUrl(imageUrl) ? imageUrl : null;
 		if (mediaUrl) {
 			const caption = item.title || item.description || '';
-			const author = item.user?.full_name;
 			return {
 				status: 'success',
 				media: [{ type: isVideo ? 'video' : 'photo', url: mediaUrl }],
-				caption: buildCaption(caption, author),
+				caption: buildCaption(caption),
 				thumbnail: item?.images?.['236x']?.url,
 			};
 		}

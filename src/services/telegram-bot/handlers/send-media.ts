@@ -5,13 +5,6 @@ import type { TelegramMediaMessage, FormatSettings } from '../../../types/telegr
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB Telegram bot upload limit
 const MEDIA_CAPTION_LIMIT = 1024; // Telegram caption limit for photo/video/audio/mediagroup
 
-/** Thrown when Telegram rejects a URL (can't fetch it). Caller decides how to handle. */
-export class TelegramUrlFetchError extends Error {
-	constructor(public readonly mediaUrl: string) {
-		super(`Telegram could not fetch URL: ${mediaUrl}`);
-	}
-}
-
 function isTelegramUrlError(err: unknown): boolean {
 	return (
 		err instanceof GrammyError &&
@@ -44,16 +37,13 @@ async function sendWithCaption(
 /**
  * Send a formatted media message to a Telegram chat.
  * Handles text, photo, video, audio, and media group types.
- *
- * @param interactive When true, throws TelegramUrlFetchError on URL rejection (for user-facing
- *   download flow). When false (default), auto-falls back to download+upload silently (for cron).
+ * URL-first strategy: tries Telegram URL pass-through, then auto-downloads + uploads (up to 50MB).
  */
 export async function sendMediaToChannel(
 	bot: Bot,
 	chatId: number,
 	message: TelegramMediaMessage,
 	settings?: FormatSettings,
-	interactive = false
 ): Promise<void> {
 	const disableNotification = settings?.notification === 'muted';
 
@@ -62,13 +52,13 @@ export async function sendMediaToChannel(
 			await sendTextMessage(bot, chatId, message, disableNotification, settings);
 			break;
 		case 'photo':
-			await sendPhotoMessage(bot, chatId, message, disableNotification, interactive);
+			await sendPhotoMessage(bot, chatId, message, disableNotification);
 			break;
 		case 'video':
-			await sendVideoMessage(bot, chatId, message, disableNotification, interactive);
+			await sendVideoMessage(bot, chatId, message, disableNotification);
 			break;
 		case 'audio':
-			await sendAudioMessage(bot, chatId, message, disableNotification, interactive);
+			await sendAudioMessage(bot, chatId, message, disableNotification);
 			break;
 		case 'mediagroup':
 			await sendMediaGroupMessage(bot, chatId, message, disableNotification);
@@ -98,7 +88,6 @@ async function sendPhotoMessage(
 	chatId: number,
 	message: TelegramMediaMessage,
 	disableNotification: boolean,
-	interactive: boolean
 ): Promise<void> {
 	if (!message.url) throw new Error('Photo URL is missing');
 	const url = message.url;
@@ -109,7 +98,6 @@ async function sendPhotoMessage(
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
-		if (interactive) throw new TelegramUrlFetchError(url);
 		const file = await downloadAsInputFile(url, 'photo.jpg');
 		await sendWithCaption(
 			(caption) => bot.api.sendPhoto(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
@@ -123,7 +111,6 @@ async function sendVideoMessage(
 	chatId: number,
 	message: TelegramMediaMessage,
 	disableNotification: boolean,
-	interactive: boolean
 ): Promise<void> {
 	if (!message.url) throw new Error('Video URL is missing');
 	const url = message.url;
@@ -134,7 +121,6 @@ async function sendVideoMessage(
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
-		if (interactive) throw new TelegramUrlFetchError(url);
 		const file = await downloadAsInputFile(url, 'video.mp4');
 		await sendWithCaption(
 			(caption) => bot.api.sendVideo(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
@@ -148,7 +134,6 @@ async function sendAudioMessage(
 	chatId: number,
 	message: TelegramMediaMessage,
 	disableNotification: boolean,
-	interactive: boolean
 ): Promise<void> {
 	if (!message.url) throw new Error('Audio URL is missing');
 	const url = message.url;
@@ -159,7 +144,6 @@ async function sendAudioMessage(
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
-		if (interactive) throw new TelegramUrlFetchError(url);
 		const file = await downloadAsInputFile(url, 'audio.mp3');
 		await sendWithCaption(
 			(caption) => bot.api.sendAudio(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
