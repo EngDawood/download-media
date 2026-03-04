@@ -139,6 +139,25 @@ export const en = {
 	'stats.user_row': '{rank}. {firstName} — {count} downloads',
 	'stats.no_data': 'No statistics yet. Send some links to start tracking.',
 	'stats.admin_only': '🔒 This command is for admins only.',
+	'stats.btn_history': '📜 History',
+	'stats.btn_blocked': '🚫 Blocked',
+	'stats.btn_back': '⬅️ Back',
+	'stats.history_header': '📜 <b>Recent Downloads</b>',
+	'stats.no_history': 'No download history yet.',
+	'stats.blocked_header': '🚫 <b>Blocked Users</b>',
+	'stats.no_blocked': 'No users are blocked.',
+	'stats.unblock_hint': '<i>Use /unblock {userId} to unblock a user.</i>',
+
+	// --- /block & /unblock commands ---
+	'block.usage': 'Usage: /block {userId}',
+	'block.invalid_id': '⚠️ Invalid user ID. Must be a number.',
+	'block.success': '✅ User <code>{userId}</code> has been blocked.',
+	'unblock.usage': 'Usage: /unblock {userId}',
+	'unblock.success': '✅ User <code>{userId}</code> has been unblocked.',
+	'unblock.not_found': '⚠️ User <code>{userId}</code> was not in the blocklist.',
+
+	// --- blocked user message ---
+	'input.blocked': '🚫 You are blocked from using this bot.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

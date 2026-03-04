@@ -141,4 +141,23 @@ export const ar: Translations = {
 	'stats.user_row': '{rank}. {firstName} — {count} تحميلات',
 	'stats.no_data': 'لا توجد إحصائيات بعد. أرسل بعض الروابط لبدء التتبع.',
 	'stats.admin_only': '🔒 هذا الأمر للمشرف فقط.',
+	'stats.btn_history': '📜 السجل',
+	'stats.btn_blocked': '🚫 المحظورين',
+	'stats.btn_back': '⬅️ رجوع',
+	'stats.history_header': '📜 <b>التحميلات الأخيرة</b>',
+	'stats.no_history': 'لا يوجد سجل تحميلات بعد.',
+	'stats.blocked_header': '🚫 <b>المستخدمين المحظورين</b>',
+	'stats.no_blocked': 'لا يوجد مستخدمين محظورين.',
+	'stats.unblock_hint': '<i>استخدم /unblock {userId} لفك حظر مستخدم.</i>',
+
+	// --- /block & /unblock commands ---
+	'block.usage': 'الاستخدام: /block {userId}',
+	'block.invalid_id': '⚠️ معرّف مستخدم غير صالح. يجب أن يكون رقماً.',
+	'block.success': '✅ تم حظر المستخدم <code>{userId}</code>.',
+	'unblock.usage': 'الاستخدام: /unblock {userId}',
+	'unblock.success': '✅ تم فك حظر المستخدم <code>{userId}</code>.',
+	'unblock.not_found': '⚠️ المستخدم <code>{userId}</code> غير موجود في قائمة الحظر.',
+
+	// --- blocked user message ---
+	'input.blocked': '🚫 أنت محظور من استخدام هذا البوت.',
 };

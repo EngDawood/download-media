@@ -1,4 +1,11 @@
-import { KV_KEY_STATS_GLOBAL, KV_KEY_STATS_DAY_PREFIX, KV_KEY_STATS_USER_PREFIX } from '../constants';
+import {
+	KV_KEY_STATS_GLOBAL,
+	KV_KEY_STATS_DAY_PREFIX,
+	KV_KEY_STATS_USER_PREFIX,
+	KV_KEY_DOWNLOAD_HISTORY,
+	KV_KEY_BLOCKED_USERS,
+	DOWNLOAD_HISTORY_LIMIT,
+} from '../constants';
 
 interface GlobalStats {
 	totalLinks: number;
@@ -17,6 +24,16 @@ interface DayStats {
 interface UserStats {
 	count: number;
 	firstName: string;
+}
+
+export interface DownloadHistoryEntry {
+	url: string;
+	platform: string;
+	userId: number;
+	username?: string;
+	firstName: string;
+	timestamp: number;
+	success: boolean;
 }
 
 export interface StatsReport {
@@ -125,4 +142,83 @@ export async function getStatsReport(kv: KVNamespace): Promise<StatsReport> {
 	const [global, dayRaw] = await Promise.all([readGlobal(kv), kv.get(getTodayKey())]);
 	const today: DayStats = dayRaw ? (JSON.parse(dayRaw) as DayStats) : { links: 0, success: 0 };
 	return { global, today };
+}
+
+/**
+ * Add a download entry to the history log.
+ */
+export async function addDownloadHistory(
+	kv: KVNamespace,
+	entry: Omit<DownloadHistoryEntry, 'timestamp'>,
+): Promise<void> {
+	const raw = await kv.get(KV_KEY_DOWNLOAD_HISTORY);
+	const history: DownloadHistoryEntry[] = raw ? JSON.parse(raw) : [];
+	history.unshift({ ...entry, timestamp: Date.now() });
+	// Keep only last N entries
+	const trimmed = history.slice(0, DOWNLOAD_HISTORY_LIMIT);
+	await kv.put(KV_KEY_DOWNLOAD_HISTORY, JSON.stringify(trimmed));
+}
+
+/**
+ * Get download history (most recent first).
+ */
+export async function getDownloadHistory(kv: KVNamespace, limit = 20): Promise<DownloadHistoryEntry[]> {
+	const raw = await kv.get(KV_KEY_DOWNLOAD_HISTORY);
+	if (!raw) return [];
+	const history: DownloadHistoryEntry[] = JSON.parse(raw);
+	return history.slice(0, limit);
+}
+
+/**
+ * Block a user by ID.
+ */
+export async function blockUser(
+	kv: KVNamespace,
+	userId: number,
+	info: { username?: string; firstName: string },
+): Promise<void> {
+	const raw = await kv.get(KV_KEY_BLOCKED_USERS);
+	const blocked: Record<string, { username?: string; firstName: string; blockedAt: number }> = raw
+		? JSON.parse(raw)
+		: {};
+	blocked[String(userId)] = { ...info, blockedAt: Date.now() };
+	await kv.put(KV_KEY_BLOCKED_USERS, JSON.stringify(blocked));
+}
+
+/**
+ * Unblock a user by ID.
+ */
+export async function unblockUser(kv: KVNamespace, userId: number): Promise<boolean> {
+	const raw = await kv.get(KV_KEY_BLOCKED_USERS);
+	if (!raw) return false;
+	const blocked: Record<string, unknown> = JSON.parse(raw);
+	if (!blocked[String(userId)]) return false;
+	delete blocked[String(userId)];
+	await kv.put(KV_KEY_BLOCKED_USERS, JSON.stringify(blocked));
+	return true;
+}
+
+/**
+ * Check if a user is blocked.
+ */
+export async function isUserBlocked(kv: KVNamespace, userId: number): Promise<boolean> {
+	const raw = await kv.get(KV_KEY_BLOCKED_USERS);
+	if (!raw) return false;
+	const blocked: Record<string, unknown> = JSON.parse(raw);
+	return !!blocked[String(userId)];
+}
+
+/**
+ * Get list of blocked users.
+ */
+export async function getBlockedUsers(
+	kv: KVNamespace,
+): Promise<Array<{ userId: number; username?: string; firstName: string; blockedAt: number }>> {
+	const raw = await kv.get(KV_KEY_BLOCKED_USERS);
+	if (!raw) return [];
+	const blocked: Record<string, { username?: string; firstName: string; blockedAt: number }> = JSON.parse(raw);
+	return Object.entries(blocked).map(([id, info]) => ({
+		userId: parseInt(id, 10),
+		...info,
+	}));
 }

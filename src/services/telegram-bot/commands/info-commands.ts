@@ -2,7 +2,7 @@ import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState } from '../storage/admin-state';
 import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, CACHE_PREFIX_USER_LANG } from '../../../constants';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
-import { getStatsReport } from '../../../utils/stats';
+import { getStatsReport, getDownloadHistory, getBlockedUsers, blockUser, unblockUser } from '../../../utils/stats';
 
 /**
  * Register basic information and control commands.
@@ -110,7 +110,181 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			}
 		}
 
-		await ctx.reply(lines.join('\n'), { parse_mode: 'HTML' });
+		const keyboard = new InlineKeyboard()
+			.text(t(locale, 'stats.btn_history'), 'stats:history')
+			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked');
+
+		await ctx.reply(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: show download history
+	bot.callbackQuery('stats:history', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const history = await getDownloadHistory(kv, 15);
+		if (history.length === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_history') });
+			return;
+		}
+
+		const lines: string[] = [t(locale, 'stats.history_header'), ''];
+		for (const entry of history) {
+			const date = new Date(entry.timestamp).toLocaleString('en-GB', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short' });
+			const userDisplay = entry.username ? `@${entry.username}` : entry.firstName;
+			const status = entry.success ? '✅' : '❌';
+			lines.push(`${status} <b>${userDisplay}</b> (${entry.platform})`);
+			lines.push(`   <code>${entry.url.slice(0, 50)}${entry.url.length > 50 ? '...' : ''}</code>`);
+			lines.push(`   ${date} • ID: <code>${entry.userId}</code>`);
+			lines.push('');
+		}
+
+		const keyboard = new InlineKeyboard()
+			.text(t(locale, 'stats.btn_back'), 'stats:back');
+
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: show blocked users
+	bot.callbackQuery('stats:blocked', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const blocked = await getBlockedUsers(kv);
+
+		const lines: string[] = [t(locale, 'stats.blocked_header'), ''];
+
+		if (blocked.length === 0) {
+			lines.push(t(locale, 'stats.no_blocked'));
+		} else {
+			for (const user of blocked) {
+				const date = new Date(user.blockedAt).toLocaleString('en-GB', { timeZone: 'UTC', dateStyle: 'short' });
+				const userDisplay = user.username ? `@${user.username}` : user.firstName;
+				lines.push(`🚫 <b>${userDisplay}</b>`);
+				lines.push(`   ID: <code>${user.userId}</code> • ${date}`);
+				lines.push('');
+			}
+			lines.push(t(locale, 'stats.unblock_hint'));
+		}
+
+		const keyboard = new InlineKeyboard()
+			.text(t(locale, 'stats.btn_back'), 'stats:back');
+
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: back to main stats
+	bot.callbackQuery('stats:back', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const report = await getStatsReport(kv);
+		const g = report.global;
+
+		const lines: string[] = [
+			t(locale, 'stats.header'),
+			'',
+			t(locale, 'stats.links', { count: String(g.totalLinks) }),
+			t(locale, 'stats.success', { count: String(g.totalSuccess) }),
+			t(locale, 'stats.errors', { count: String(g.totalErrors) }),
+			t(locale, 'stats.users', { count: String(g.totalUniqueUsers) }),
+			'',
+			t(locale, 'stats.today', { links: String(report.today.links), success: String(report.today.success) }),
+		];
+
+		const sortedPlatforms = Object.entries(g.platforms).sort((a, b) => b[1] - a[1]);
+		if (sortedPlatforms.length > 0) {
+			lines.push('', t(locale, 'stats.platforms_header'));
+			for (const [platform, count] of sortedPlatforms.slice(0, 7)) {
+				lines.push(`• ${platform}: ${count}`);
+			}
+		}
+
+		if (g.topUsers.length > 0) {
+			lines.push('', t(locale, 'stats.top_users_header'));
+			for (let i = 0; i < Math.min(g.topUsers.length, 5); i++) {
+				const u = g.topUsers[i];
+				lines.push(t(locale, 'stats.user_row', { rank: String(i + 1), firstName: u.firstName, count: String(u.count) }));
+			}
+		}
+
+		const keyboard = new InlineKeyboard()
+			.text(t(locale, 'stats.btn_history'), 'stats:history')
+			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked');
+
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// /block command
+	bot.command('block', async (ctx) => {
+		const locale = getLocale(ctx);
+		if (ctx.from?.id !== adminId) {
+			await ctx.reply(t(locale, 'stats.admin_only'));
+			return;
+		}
+
+		const arg = ctx.match?.trim();
+		if (!arg) {
+			await ctx.reply(t(locale, 'block.usage'));
+			return;
+		}
+
+		const userId = parseInt(arg, 10);
+		if (isNaN(userId)) {
+			await ctx.reply(t(locale, 'block.invalid_id'));
+			return;
+		}
+
+		// Try to find user's name from stats
+		const userKey = `${KV_KEY_STATS_USER_PREFIX}${userId}`;
+		const userRaw = await kv.get(userKey);
+		let firstName = 'Unknown';
+		if (userRaw) {
+			try {
+				const userStats = JSON.parse(userRaw) as { firstName: string };
+				firstName = userStats.firstName;
+			} catch {}
+		}
+
+		await blockUser(kv, userId, { firstName });
+		await ctx.reply(t(locale, 'block.success', { userId: String(userId) }));
+	});
+
+	// /unblock command
+	bot.command('unblock', async (ctx) => {
+		const locale = getLocale(ctx);
+		if (ctx.from?.id !== adminId) {
+			await ctx.reply(t(locale, 'stats.admin_only'));
+			return;
+		}
+
+		const arg = ctx.match?.trim();
+		if (!arg) {
+			await ctx.reply(t(locale, 'unblock.usage'));
+			return;
+		}
+
+		const userId = parseInt(arg, 10);
+		if (isNaN(userId)) {
+			await ctx.reply(t(locale, 'block.invalid_id'));
+			return;
+		}
+
+		const removed = await unblockUser(kv, userId);
+		if (removed) {
+			await ctx.reply(t(locale, 'unblock.success', { userId: String(userId) }));
+		} else {
+			await ctx.reply(t(locale, 'unblock.not_found', { userId: String(userId) }));
+		}
 	});
 
 	bot.command('lang', async (ctx) => {
