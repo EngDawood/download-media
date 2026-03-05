@@ -1,11 +1,12 @@
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { getAdminState, setAdminState } from '../storage/admin-state';
-import { detectMediaUrl } from '../../../utils/url-detector';
+import { detectMediaUrl, isBlockedDomain } from '../../../utils/url-detector';
+import { CACHE_PREFIX_BLOCKED_URL } from '../../../constants';
 import { downloadAndSendMedia } from './download-and-send';
 import { fetchFacebookInfo, fetchTikTokInfo } from '../../media-downloader';
 import { checkSubscriptionGate } from './subscription-gate';
-import { incrementLinkStats, isUserBlocked } from '../../../utils/stats';
+import { incrementLinkStats, isUserBlocked, isDomainAllowlisted } from '../../../utils/stats';
 import { t, getLocale } from '../../../i18n';
 
 /**
@@ -27,6 +28,16 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			const firstName = ctx.from?.first_name;
 			const username = ctx.from?.username;
 			const locale = getLocale(ctx);
+
+			// Block adult content domains (skip if domain is permanently allowlisted by admin)
+			if (isBlockedDomain(url) && !(await isDomainAllowlisted(kv, url))) {
+				if (userId) {
+					await kv.put(`${CACHE_PREFIX_BLOCKED_URL}${userId}`, url, { expirationTtl: 3600 });
+				}
+				const keyboard = new InlineKeyboard().text(t(locale, 'input.blocked_domain_btn'), 'report:notadult');
+				await ctx.reply(t(locale, 'input.blocked_domain'), { reply_markup: keyboard });
+				return;
+			}
 
 			// Track link submission (fire-and-forget — don't block the download flow)
 			if (userId) {

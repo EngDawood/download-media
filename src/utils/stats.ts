@@ -4,6 +4,7 @@ import {
 	KV_KEY_STATS_USER_PREFIX,
 	KV_KEY_DOWNLOAD_HISTORY,
 	KV_KEY_BLOCKED_USERS,
+	KV_KEY_DOMAIN_ALLOWLIST,
 	DOWNLOAD_HISTORY_LIMIT,
 } from '../constants';
 
@@ -196,6 +197,33 @@ export async function unblockUser(kv: KVNamespace, userId: number): Promise<bool
 	delete blocked[String(userId)];
 	await kv.put(KV_KEY_BLOCKED_USERS, JSON.stringify(blocked));
 	return true;
+}
+
+/**
+ * Add a hostname to the permanent domain allowlist.
+ */
+export async function addDomainToAllowlist(kv: KVNamespace, hostname: string): Promise<void> {
+	const raw = await kv.get(KV_KEY_DOMAIN_ALLOWLIST);
+	const list: string[] = raw ? JSON.parse(raw) : [];
+	if (!list.includes(hostname)) {
+		list.push(hostname);
+		await kv.put(KV_KEY_DOMAIN_ALLOWLIST, JSON.stringify(list));
+	}
+}
+
+/**
+ * Check if a URL's hostname is in the permanent allowlist.
+ */
+export async function isDomainAllowlisted(kv: KVNamespace, url: string): Promise<boolean> {
+	try {
+		const hostname = new URL(url).hostname.replace(/^www\./, '');
+		const raw = await kv.get(KV_KEY_DOMAIN_ALLOWLIST);
+		if (!raw) return false;
+		const list: string[] = JSON.parse(raw);
+		return list.includes(hostname);
+	} catch {
+		return false;
+	}
 }
 
 /**

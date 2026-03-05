@@ -19,6 +19,8 @@ export const en = {
 		'/stats — View usage statistics\n' +
 		'/lang — Change bot language\n' +
 		'/cancel — Cancel current action\n' +
+		'/block {userId} — Block a user\n' +
+		'/unblock {userId} — Unblock a user\n' +
 		'/help — Full details',
 
 	// --- /start command (guest) ---
@@ -41,7 +43,9 @@ export const en = {
 		'<code>/setchannel @username</code> — Require users to join a channel after {freeUses} free downloads. Bot must be admin in that channel.\n' +
 		'<code>/stats</code> — View bot usage statistics.\n' +
 		'<code>/lang</code> — Change bot language.\n' +
-		'<code>/cancel</code> — Cancel the current download flow.',
+		'<code>/cancel</code> — Cancel the current download flow.\n' +
+		'<code>/block {userId}</code> — Block a user from using the bot.\n' +
+		'<code>/unblock {userId}</code> — Restore access for a user.',
 
 	// --- /help command (guest) ---
 	'help.guest.body':
@@ -158,6 +162,10 @@ export const en = {
 
 	// --- blocked user message ---
 	'input.blocked': '🚫 You are blocked from using this bot.',
+	'input.blocked_domain': '🚫 This domain is not allowed.',
+	'input.blocked_domain_btn': '✋ This is not adult content',
+	'report.sent': '✅ Your report has been sent to the admin.',
+	'report.admin_notify': '🚨 <b>Domain report</b>\n\nUser <b>{user}</b> (ID: <code>{userId}</code>) says this URL was wrongly blocked:\n<code>{url}</code>',
 } as const;
 
 export type TranslationKey = keyof typeof en;

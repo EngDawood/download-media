@@ -26,6 +26,8 @@ const ADMIN_COMMANDS = [
 	{ command: 'cancel', description: 'Cancel current action' },
 	{ command: 'setchannel', description: 'Set required subscription channel' },
 	{ command: 'stats', description: 'View usage statistics' },
+	{ command: 'block', description: 'Block a user by ID' },
+	{ command: 'unblock', description: 'Unblock a user by ID' },
 ];
 
 const ADMIN_COMMANDS_AR = [
@@ -35,6 +37,8 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
 	{ command: 'setchannel', description: 'تعيين قناة الاشتراك' },
 	{ command: 'stats', description: 'عرض إحصائيات الاستخدام' },
+	{ command: 'block', description: 'حظر مستخدم عبر المعرف' },
+	{ command: 'unblock', description: 'فك حظر مستخدم عبر المعرف' },
 ];
 
 const SUPPORTED_PLATFORMS = [

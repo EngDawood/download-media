@@ -1,6 +1,7 @@
 import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState } from '../storage/admin-state';
-import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, CACHE_PREFIX_USER_LANG } from '../../../constants';
+import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, CACHE_PREFIX_USER_LANG, CACHE_PREFIX_BLOCKED_URL } from '../../../constants';
+import { addDomainToAllowlist } from '../../../utils/stats';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
 import { getStatsReport, getDownloadHistory, getBlockedUsers, blockUser, unblockUser } from '../../../utils/stats';
 
@@ -136,7 +137,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			const userDisplay = entry.username ? `@${entry.username}` : entry.firstName;
 			const status = entry.success ? '✅' : '❌';
 			lines.push(`${status} <b>${userDisplay}</b> (${entry.platform})`);
-			lines.push(`   <code>${entry.url.slice(0, 50)}${entry.url.length > 50 ? '...' : ''}</code>`);
+			lines.push(`   <code>${entry.url}</code>`);
 			lines.push(`   ${date} • ID: <code>${entry.userId}</code>`);
 			lines.push('');
 		}
@@ -285,6 +286,80 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		} else {
 			await ctx.reply(t(locale, 'unblock.not_found', { userId: String(userId) }));
 		}
+	});
+
+	// Callback: user claims their blocked URL is not adult content
+	bot.callbackQuery('report:notadult', async (ctx) => {
+		const userId = ctx.from?.id;
+		const locale = getLocale(ctx);
+		if (!userId) {
+			await ctx.answerCallbackQuery();
+			return;
+		}
+
+		const url = await kv.get(`${CACHE_PREFIX_BLOCKED_URL}${userId}`);
+		if (!url) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'callback.session_expired') });
+			return;
+		}
+
+		const userDisplay = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name;
+		const adminKeyboard = new InlineKeyboard()
+			.text('✅ Accept (one-time)', `report:accept:${userId}`).row()
+			.text('✅ Whitelist domain', `report:whitelist:${userId}`).row()
+			.text('❌ Deny', `report:deny:${userId}`);
+
+		await bot.api.sendMessage(
+			adminId,
+			t('en', 'report.admin_notify', { user: userDisplay, userId: String(userId), url }),
+			{ parse_mode: 'HTML', reply_markup: adminKeyboard },
+		);
+
+		await ctx.answerCallbackQuery({ text: t(locale, 'report.sent') });
+		await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+	});
+
+	// Callback: admin accepts one-time — remove cached URL so user can retry once
+	bot.callbackQuery(/^report:accept:(\d+)$/, async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
+			return;
+		}
+		const reportedUserId = ctx.match[1];
+		await kv.delete(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`);
+		await ctx.answerCallbackQuery({ text: '✅ Accepted — user can retry the link.' });
+		await ctx.editMessageText(`${ctx.message?.text ?? ''}\n\n✅ <b>Accepted (one-time)</b> by admin.`, { parse_mode: 'HTML' });
+	});
+
+	// Callback: admin whitelists the domain permanently
+	bot.callbackQuery(/^report:whitelist:(\d+)$/, async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
+			return;
+		}
+		const reportedUserId = ctx.match[1];
+		const url = await kv.get(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`);
+		if (!url) {
+			await ctx.answerCallbackQuery({ text: '⚠️ URL expired, cannot whitelist.' });
+			return;
+		}
+		const hostname = new URL(url).hostname.replace(/^www\./, '');
+		await Promise.all([
+			addDomainToAllowlist(kv, hostname),
+			kv.delete(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`),
+		]);
+		await ctx.answerCallbackQuery({ text: `✅ ${hostname} added to allowlist.` });
+		await ctx.editMessageText(`${ctx.message?.text ?? ''}\n\n✅ <b>Whitelisted: <code>${hostname}</code></b> by admin.`, { parse_mode: 'HTML' });
+	});
+
+	// Callback: admin denies the report
+	bot.callbackQuery(/^report:deny:(\d+)$/, async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
+			return;
+		}
+		await ctx.answerCallbackQuery({ text: '❌ Report denied.' });
+		await ctx.editMessageText(`${ctx.message?.text ?? ''}\n\n❌ <b>Denied</b> by admin.`, { parse_mode: 'HTML' });
 	});
 
 	bot.command('lang', async (ctx) => {
