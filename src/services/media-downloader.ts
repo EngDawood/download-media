@@ -11,7 +11,7 @@ const BTCH_HEADERS = {
 };
 
 export interface MediaItem {
-	type: 'video' | 'photo' | 'audio';
+	type: 'video' | 'photo' | 'audio' | 'document';
 	url: string;
 	quality?: string;
 	filesize?: number;
@@ -78,9 +78,10 @@ function detectTypeFromJwtUrl(url: string): 'photo' | 'video' {
 	return 'video';
 }
 
-function detectMediaType(url: string): 'photo' | 'video' {
+function detectMediaType(url: string): 'photo' | 'video' | 'document' {
 	if (url.includes('rapidcdn.app')) return detectTypeFromJwtUrl(url);
 	if (/\.(jpg|jpeg|png|webp|heic|gif)/i.test(url)) return 'photo';
+	if (/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|7z|txt|csv)/i.test(url)) return 'document';
 	return 'video';
 }
 

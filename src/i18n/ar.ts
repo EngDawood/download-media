@@ -21,6 +21,8 @@ export const ar: Translations = {
 		'/stats — عرض إحصائيات الاستخدام\n' +
 		'/lang — تغيير لغة البوت\n' +
 		'/cancel — إلغاء الإجراء الحالي\n' +
+		'/block {userId} — حظر مستخدم\n' +
+		'/unblock {userId} — فك حظر مستخدم\n' +
 		'/help — التفاصيل الكاملة',
 
 	// --- /start command (guest) ---
@@ -43,7 +45,9 @@ export const ar: Translations = {
 		'<code>/setchannel @username</code> — إلزام المستخدمين بالانضمام لقناة بعد {freeUses} تحميلات مجانية. يجب أن يكون البوت مشرفاً في القناة.\n' +
 		'<code>/stats</code> — عرض إحصائيات استخدام البوت.\n' +
 		'<code>/lang</code> — تغيير لغة البوت.\n' +
-		'<code>/cancel</code> — إلغاء عملية التحميل الحالية.',
+		'<code>/cancel</code> — إلغاء عملية التحميل الحالية.\n' +
+		'<code>/block {userId}</code> — حظر مستخدم من استخدام البوت.\n' +
+		'<code>/unblock {userId}</code> — فك حظر مستخدم.',
 
 	// --- /help command (guest) ---
 	'help.guest.body':
@@ -160,4 +164,8 @@ export const ar: Translations = {
 
 	// --- blocked user message ---
 	'input.blocked': '🚫 أنت محظور من استخدام هذا البوت.',
+	'input.blocked_domain': '🚫 هذا النطاق غير مسموح به.',
+	'input.blocked_domain_btn': '✋ هذا الموقع ليس للبالغين',
+	'report.sent': '✅ تم إرسال بلاغك إلى المشرف.',
+	'report.admin_notify': '🚨 <b>بلاغ نطاق</b>\n\nالمستخدم <b>{user}</b> (ID: <code>{userId}</code>) يقول أن هذا الرابط حُظر بشكل خاطئ:\n<code>{url}</code>',
 };

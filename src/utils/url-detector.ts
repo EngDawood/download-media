@@ -3,6 +3,42 @@ export interface DetectedUrl {
 	platform: string;
 }
 
+const BLOCKED_DOMAINS = new Set([
+	'pornhub.com',
+	'xvideos.com',
+	'xnxx.com',
+	'xhamster.com',
+	'redtube.com',
+	'youporn.com',
+	'tube8.com',
+	'spankbang.com',
+	'eporner.com',
+	'thisvid.com',
+	'fapello.com',
+	'brazzers.com',
+	'bangbros.com',
+	'realitykings.com',
+	'sex.com',
+	'porn.com',
+	'rule34.xxx',
+	'onlyfans.com',
+	'sexarab.com',
+]);
+
+const ADULT_HOSTNAME_PATTERN = /\b(porn|sex|xxx|nude|nudes|nsfw|hentai|erotic|adult|onlyfans|fap|xvideos|xnxx|xhamster|sexarab)\b/i;
+
+/**
+ * Returns true if the URL's hostname is a known adult domain or contains adult content keywords.
+ */
+export function isBlockedDomain(url: string): boolean {
+	try {
+		const hostname = new URL(url).hostname.replace(/^www\./, '');
+		return BLOCKED_DOMAINS.has(hostname) || ADULT_HOSTNAME_PATTERN.test(hostname);
+	} catch {
+		return false;
+	}
+}
+
 const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	{ platform: 'YouTube', pattern: /https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch|shorts\/)|youtu\.be\/|music\.youtube\.com\/watch)\S+/i },
 	{ platform: 'Instagram', pattern: /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|stories)\/\S+/i },
