@@ -19,6 +19,9 @@ export const en = {
 		'/stats — View usage statistics\n' +
 		'/lang — Change bot language\n' +
 		'/cancel — Cancel current action\n' +
+		'/block {userId} — Block a user\n' +
+		'/unblock {userId} — Unblock a user\n' +
+		'/allowlist — Manage whitelisted domains\n' +
 		'/help — Full details',
 
 	// --- /start command (guest) ---
@@ -41,7 +44,10 @@ export const en = {
 		'<code>/setchannel @username</code> — Require users to join a channel after {freeUses} free downloads. Bot must be admin in that channel.\n' +
 		'<code>/stats</code> — View bot usage statistics.\n' +
 		'<code>/lang</code> — Change bot language.\n' +
-		'<code>/cancel</code> — Cancel the current download flow.',
+		'<code>/cancel</code> — Cancel the current download flow.\n' +
+		'<code>/block {userId}</code> — Block a user from using the bot.\n' +
+		'<code>/unblock {userId}</code> — Restore access for a user.\n' +
+		'<code>/allowlist</code> — View and remove whitelisted domains.',
 
 	// --- /help command (guest) ---
 	'help.guest.body':
@@ -139,6 +145,33 @@ export const en = {
 	'stats.user_row': '{rank}. {firstName} — {count} downloads',
 	'stats.no_data': 'No statistics yet. Send some links to start tracking.',
 	'stats.admin_only': '🔒 This command is for admins only.',
+	'stats.btn_history': '📜 History',
+	'stats.btn_blocked': '🚫 Blocked',
+	'stats.btn_back': '⬅️ Back',
+	'stats.history_header': '📜 <b>Recent Downloads</b>',
+	'stats.no_history': 'No download history yet.',
+	'stats.blocked_header': '🚫 <b>Blocked Users</b>',
+	'stats.no_blocked': 'No users are blocked.',
+	'stats.unblock_hint': '<i>Use /unblock {userId} to unblock a user.</i>',
+
+	// --- /block & /unblock commands ---
+	'block.usage': 'Usage: /block {userId}',
+	'block.invalid_id': '⚠️ Invalid user ID. Must be a number.',
+	'block.success': '✅ User <code>{userId}</code> has been blocked.',
+	'unblock.usage': 'Usage: /unblock {userId}',
+	'unblock.success': '✅ User <code>{userId}</code> has been unblocked.',
+	'unblock.not_found': '⚠️ User <code>{userId}</code> was not in the blocklist.',
+
+	// --- blocked user message ---
+	'input.blocked': '🚫 You are blocked from using this bot.',
+	'allowlist.header': '✅ <b>Whitelisted Domains</b>',
+	'allowlist.empty': 'No domains are whitelisted yet.',
+	'allowlist.removed': '🗑 <b>{hostname}</b> removed from allowlist.',
+	'allowlist.not_found': '⚠️ Domain not found in allowlist.',
+	'input.blocked_domain': '🚫 This domain is not allowed.',
+	'input.blocked_domain_btn': '✋ This is not adult content',
+	'report.sent': '✅ Your report has been sent to the admin.',
+	'report.admin_notify': '🚨 <b>Domain report</b>\n\nUser <b>{user}</b> (ID: <code>{userId}</code>) says this URL was wrongly blocked:\n<code>{url}</code>',
 } as const;
 
 export type TranslationKey = keyof typeof en;

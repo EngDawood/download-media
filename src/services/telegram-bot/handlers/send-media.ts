@@ -60,6 +60,9 @@ export async function sendMediaToChannel(
 		case 'audio':
 			await sendAudioMessage(bot, chatId, message, disableNotification);
 			break;
+		case 'document':
+			await sendDocumentMessage(bot, chatId, message, disableNotification);
+			break;
 		case 'mediagroup':
 			await sendMediaGroupMessage(bot, chatId, message, disableNotification);
 			break;
@@ -147,6 +150,31 @@ async function sendAudioMessage(
 		const file = await downloadAsInputFile(url, 'audio.mp3');
 		await sendWithCaption(
 			(caption) => bot.api.sendAudio(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			bot, chatId, message.caption, disableNotification
+		);
+	}
+}
+
+async function sendDocumentMessage(
+	bot: Bot,
+	chatId: number,
+	message: TelegramMediaMessage,
+	disableNotification: boolean,
+): Promise<void> {
+	if (!message.url) throw new Error('Document URL is missing');
+	const url = message.url;
+	// Derive filename from URL path
+	const filename = url.split('/').pop()?.split('?')[0] || 'document';
+	try {
+		await sendWithCaption(
+			(caption) => bot.api.sendDocument(chatId, url, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			bot, chatId, message.caption, disableNotification
+		);
+	} catch (err) {
+		if (!isTelegramUrlError(err)) throw err;
+		const file = await downloadAsInputFile(url, filename);
+		await sendWithCaption(
+			(caption) => bot.api.sendDocument(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
 			bot, chatId, message.caption, disableNotification
 		);
 	}
