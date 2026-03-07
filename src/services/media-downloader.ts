@@ -107,6 +107,35 @@ function buildCaption(title?: string): string {
 }
 
 /**
+ * Fetch the full tweet text via Twitter's public oEmbed API.
+ * Returns `"Author - full text"` or empty string on failure.
+ * Runs in parallel with the media fetch so no latency is added.
+ */
+async function fetchTwitterFullCaption(url: string): Promise<string> {
+	try {
+		const resp = await fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}&omit_script=true`);
+		if (!resp.ok) return '';
+		const data = await resp.json() as { html?: string; author_name?: string };
+		if (!data.html) return '';
+		// Extract tweet text from the <p> tag inside the blockquote
+		const match = data.html.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+		if (!match) return '';
+		const text = match[1]
+			.replace(/<a[^>]*>([^<]*)<\/a>/g, '$1') // <a>text</a> → text
+			.replace(/<[^>]+>/g, '')                  // strip remaining tags
+			.replace(/&amp;/g, '&')
+			.replace(/&lt;/g, '<')
+			.replace(/&gt;/g, '>')
+			.replace(/&quot;/g, '"')
+			.replace(/&#39;/g, "'")
+			.trim();
+		return text;
+	} catch {
+		return '';
+	}
+}
+
+/**
  * Try AIO endpoint first — returns richer data (caption, author, gallery, quality options).
  * Returns null if AIO fails or has no media, so caller can fall back to platform-specific endpoint.
  */
@@ -367,20 +396,24 @@ async function downloadInstagram(url: string): Promise<DownloaderResult> {
 }
 
 async function downloadTwitter(url: string): Promise<DownloaderResult> {
-	// Try AIO first — better for image tweets and captions
-	const aioResult = await tryAIO(url);
+	// Fetch full caption via oEmbed in parallel with media — no added latency
+	const [aioResult, fullText] = await Promise.all([
+		tryAIO(url),
+		fetchTwitterFullCaption(url),
+	]);
+	const caption = fullText ? `<b>${fullText}</b>` : undefined;
+
 	if (aioResult?.media) {
 		const videos = aioResult.media.filter(m => m.type === 'video');
 		// Always keep only the best quality video (first = highest quality)
-		// Also handles mixed results (video + photo items) by returning only the video
-		if (videos.length > 0) return { ...aioResult, media: [videos[0]] };
-		return aioResult; // photo tweet — return all photos
+		const base = videos.length > 0 ? { ...aioResult, media: [videos[0]] } : aioResult;
+		return caption ? { ...base, caption } : base;
 	}
 
 	// Fallback to twitter endpoint
 	const res = await btchFetch('twitter', url);
 	// Note: res.creator is the API developer name, not the tweet author
-	const caption = buildCaption(res.title);
+	const fallbackCaption = caption ?? buildCaption(res.title);
 	const twitterThumb = isUrl(res.thumbnail) ? res.thumbnail : undefined;
 	if (Array.isArray(res.url) && res.url.length > 0) {
 		const media: MediaItem[] = [];
@@ -396,29 +429,55 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 		}
 		if (media.length > 0) {
 			// res.url has separate HD and SD items — keep only the best (first = HD)
-			return { status: 'success', media: [media[0]], caption, thumbnail: twitterThumb };
+			return { status: 'success', media: [media[0]], caption: fallbackCaption, thumbnail: twitterThumb };
 		}
 	}
 	if (isUrl(res.url)) {
 		const type = detectMediaType(res.url);
-		return { status: 'success', media: [{ type, url: res.url }], caption, thumbnail: twitterThumb };
+		return { status: 'success', media: [{ type, url: res.url }], caption: fallbackCaption, thumbnail: twitterThumb };
 	}
 	// Photo tweets — check image/images fields
 	if (Array.isArray(res.images) && res.images.length > 0) {
 		const photos: MediaItem[] = res.images.filter((img: any) => isUrl(typeof img === 'string' ? img : img?.url))
 			.map((img: any) => ({ type: 'photo' as const, url: typeof img === 'string' ? img : img.url }));
-		if (photos.length > 0) return { status: 'success', media: photos, caption, thumbnail: twitterThumb };
+		if (photos.length > 0) return { status: 'success', media: photos, caption: fallbackCaption, thumbnail: twitterThumb };
 	}
 	if (isUrl(res.image)) {
-		return { status: 'success', media: [{ type: 'photo', url: res.image }], caption, thumbnail: twitterThumb };
+		return { status: 'success', media: [{ type: 'photo', url: res.image }], caption: fallbackCaption, thumbnail: twitterThumb };
 	}
 	return { status: 'error', error: 'No Twitter media found' };
 }
 
+/**
+ * Normalize a YouTube URL to canonical watch?v= form.
+ * Strips tracking params (?si=, &feature=, etc.) and converts short/shorts URLs.
+ * This improves btch API compatibility — some backends reject URLs with extra params.
+ */
+function normalizeYouTubeUrl(url: string): string {
+	try {
+		const u = new URL(url);
+		// youtu.be/{videoId}[?si=...]
+		if (u.hostname === 'youtu.be') {
+			const videoId = u.pathname.slice(1).split('/')[0];
+			if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+		}
+		// youtube.com/shorts/{videoId}
+		if (u.pathname.startsWith('/shorts/')) {
+			const videoId = u.pathname.split('/')[2];
+			if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+		}
+		// youtube.com/watch?v={videoId}[&si=...&feature=...]
+		const videoId = u.searchParams.get('v');
+		if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+	} catch { /* ignore — fall back to original */ }
+	return url;
+}
+
 async function downloadYouTube(url: string, mode: string): Promise<DownloaderResult> {
+	const cleanUrl = normalizeYouTubeUrl(url);
 	// Try youtube endpoint first — fast and reliable
 	try {
-		const res = await btchFetch('youtube', url);
+		const res = await btchFetch('youtube', cleanUrl);
 		const caption = buildCaption(res.title);
 		const thumbnail = res.thumbnail;
 		if (mode === 'audio' && isUrl(res.mp3)) {
@@ -442,7 +501,7 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 
 	// Fallback to AIO endpoint
 	try {
-		const aio = await btchFetch('aio', url);
+		const aio = await btchFetch('aio', cleanUrl);
 		const data = aio.data;
 		if (data?.links) {
 			const caption = buildCaption(data.title);

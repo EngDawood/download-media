@@ -12,5 +12,7 @@ export const KV_KEY_STATS_USER_PREFIX = 'stats:user:';
 export const KV_KEY_DOWNLOAD_HISTORY = 'stats:history';
 export const KV_KEY_BLOCKED_USERS = 'users:blocked';
 export const DOWNLOAD_HISTORY_LIMIT = 100;
+export const KV_KEY_FAILED_DOWNLOADS = 'stats:failed';
+export const FAILED_DOWNLOAD_LIMIT = 200;
 export const CACHE_PREFIX_BLOCKED_URL = 'blocked:url:';
 export const KV_KEY_DOMAIN_ALLOWLIST = 'blocked:allowlist';

@@ -2,7 +2,7 @@ import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState } from '../storage/admin-state';
 import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, CACHE_PREFIX_USER_LANG, CACHE_PREFIX_BLOCKED_URL } from '../../../constants';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
-import { getStatsReport, getDownloadHistory, getBlockedUsers, blockUser, unblockUser, addDomainToAllowlist, removeDomainFromAllowlist, getAllowlist } from '../../../utils/stats';
+import { getStatsReport, getDownloadHistory, getBlockedUsers, blockUser, unblockUser, addDomainToAllowlist, removeDomainFromAllowlist, getAllowlist, getFailedDownloads } from '../../../utils/stats';
 
 /**
  * Register basic information and control commands.
@@ -112,7 +112,8 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 		const keyboard = new InlineKeyboard()
 			.text(t(locale, 'stats.btn_history'), 'stats:history')
-			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked');
+			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked')
+			.text(t(locale, 'stats.btn_failed'), 'stats:failed');
 
 		await ctx.reply(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
@@ -179,6 +180,38 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
+	// Stats callback: show failed downloads
+	bot.callbackQuery('stats:failed', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const failed = await getFailedDownloads(kv, 15);
+
+		if (failed.length === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_failed') });
+			return;
+		}
+
+		const lines: string[] = [t(locale, 'stats.failed_header'), ''];
+		for (const entry of failed) {
+			const date = new Date(entry.timestamp).toLocaleString('en-GB', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short' });
+			const userDisplay = entry.username ? `@${entry.username}` : entry.firstName;
+			lines.push(`❌ <b>${userDisplay}</b> (${entry.platform})`);
+			lines.push(`   <i>${entry.errorReason}</i>`);
+			lines.push(`   <code>${entry.url}</code>`);
+			lines.push(`   ${date}`);
+			lines.push('');
+		}
+
+		const keyboard = new InlineKeyboard()
+			.text(t(locale, 'stats.btn_back'), 'stats:back');
+
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
 	// Stats callback: back to main stats
 	bot.callbackQuery('stats:back', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
@@ -218,7 +251,8 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 		const keyboard = new InlineKeyboard()
 			.text(t(locale, 'stats.btn_history'), 'stats:history')
-			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked');
+			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked')
+			.text(t(locale, 'stats.btn_failed'), 'stats:failed');
 
 		await ctx.answerCallbackQuery();
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });

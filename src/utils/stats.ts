@@ -6,6 +6,8 @@ import {
 	KV_KEY_BLOCKED_USERS,
 	KV_KEY_DOMAIN_ALLOWLIST,
 	DOWNLOAD_HISTORY_LIMIT,
+	KV_KEY_FAILED_DOWNLOADS,
+	FAILED_DOWNLOAD_LIMIT,
 } from '../constants';
 
 interface GlobalStats {
@@ -35,6 +37,16 @@ export interface DownloadHistoryEntry {
 	firstName: string;
 	timestamp: number;
 	success: boolean;
+}
+
+export interface FailedDownloadEntry {
+	url: string;
+	platform: string;
+	errorReason: string;
+	timestamp: number;
+	userId: number;
+	firstName: string;
+	username?: string;
 }
 
 export interface StatsReport {
@@ -272,4 +284,26 @@ export async function getBlockedUsers(
 		userId: parseInt(id, 10),
 		...info,
 	}));
+}
+
+/**
+ * Add a failed download entry to the failures log.
+ */
+export async function addFailedDownload(
+	kv: KVNamespace,
+	entry: Omit<FailedDownloadEntry, 'timestamp'>,
+): Promise<void> {
+	const raw = await kv.get(KV_KEY_FAILED_DOWNLOADS);
+	const list: FailedDownloadEntry[] = raw ? JSON.parse(raw) : [];
+	list.unshift({ ...entry, timestamp: Date.now() });
+	await kv.put(KV_KEY_FAILED_DOWNLOADS, JSON.stringify(list.slice(0, FAILED_DOWNLOAD_LIMIT)));
+}
+
+/**
+ * Get failed downloads log (most recent first).
+ */
+export async function getFailedDownloads(kv: KVNamespace, limit = 20): Promise<FailedDownloadEntry[]> {
+	const raw = await kv.get(KV_KEY_FAILED_DOWNLOADS);
+	if (!raw) return [];
+	return (JSON.parse(raw) as FailedDownloadEntry[]).slice(0, limit);
 }
