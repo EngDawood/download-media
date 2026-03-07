@@ -1,9 +1,8 @@
 import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState } from '../storage/admin-state';
 import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, CACHE_PREFIX_USER_LANG, CACHE_PREFIX_BLOCKED_URL } from '../../../constants';
-import { addDomainToAllowlist } from '../../../utils/stats';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
-import { getStatsReport, getDownloadHistory, getBlockedUsers, blockUser, unblockUser } from '../../../utils/stats';
+import { getStatsReport, getDownloadHistory, getBlockedUsers, blockUser, unblockUser, addDomainToAllowlist, removeDomainFromAllowlist, getAllowlist } from '../../../utils/stats';
 
 /**
  * Register basic information and control commands.
@@ -360,6 +359,52 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		}
 		await ctx.answerCallbackQuery({ text: '❌ Report denied.' });
 		await ctx.editMessageText(`${ctx.message?.text ?? ''}\n\n❌ <b>Denied</b> by admin.`, { parse_mode: 'HTML' });
+	});
+
+	// /allowlist — view and manage whitelisted domains
+	bot.command('allowlist', async (ctx) => {
+		const locale = getLocale(ctx);
+		if (ctx.from?.id !== adminId) {
+			await ctx.reply(t(locale, 'stats.admin_only'));
+			return;
+		}
+		const list = await getAllowlist(kv);
+		if (list.length === 0) {
+			await ctx.reply(`${t(locale, 'allowlist.header')}\n\n${t(locale, 'allowlist.empty')}`, { parse_mode: 'HTML' });
+			return;
+		}
+		const keyboard = new InlineKeyboard();
+		for (const hostname of list) {
+			keyboard.text(`🗑 ${hostname}`, `allowlist:rm:${hostname}`).row();
+		}
+		await ctx.reply(t(locale, 'allowlist.header'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Callback: remove a domain from the allowlist
+	bot.callbackQuery(/^allowlist:rm:(.+)$/, async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const hostname = ctx.match[1];
+		const removed = await removeDomainFromAllowlist(kv, hostname);
+		if (removed) {
+			await ctx.answerCallbackQuery({ text: `🗑 ${hostname} removed.` });
+			// Refresh the list
+			const list = await getAllowlist(kv);
+			if (list.length === 0) {
+				await ctx.editMessageText(`${t(locale, 'allowlist.header')}\n\n${t(locale, 'allowlist.empty')}`, { parse_mode: 'HTML' });
+			} else {
+				const keyboard = new InlineKeyboard();
+				for (const h of list) {
+					keyboard.text(`🗑 ${h}`, `allowlist:rm:${h}`).row();
+				}
+				await ctx.editMessageReplyMarkup({ reply_markup: keyboard });
+			}
+		} else {
+			await ctx.answerCallbackQuery({ text: t(locale, 'allowlist.not_found') });
+		}
 	});
 
 	bot.command('lang', async (ctx) => {

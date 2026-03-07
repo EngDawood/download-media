@@ -23,6 +23,7 @@ export const ar: Translations = {
 		'/cancel — إلغاء الإجراء الحالي\n' +
 		'/block {userId} — حظر مستخدم\n' +
 		'/unblock {userId} — فك حظر مستخدم\n' +
+		'/allowlist — إدارة النطاقات المسموح بها\n' +
 		'/help — التفاصيل الكاملة',
 
 	// --- /start command (guest) ---
@@ -47,7 +48,8 @@ export const ar: Translations = {
 		'<code>/lang</code> — تغيير لغة البوت.\n' +
 		'<code>/cancel</code> — إلغاء عملية التحميل الحالية.\n' +
 		'<code>/block {userId}</code> — حظر مستخدم من استخدام البوت.\n' +
-		'<code>/unblock {userId}</code> — فك حظر مستخدم.',
+		'<code>/unblock {userId}</code> — فك حظر مستخدم.\n' +
+		'<code>/allowlist</code> — عرض وحذف النطاقات المسموح بها.',
 
 	// --- /help command (guest) ---
 	'help.guest.body':
@@ -164,6 +166,10 @@ export const ar: Translations = {
 
 	// --- blocked user message ---
 	'input.blocked': '🚫 أنت محظور من استخدام هذا البوت.',
+	'allowlist.header': '✅ <b>النطاقات المسموح بها</b>',
+	'allowlist.empty': 'لا توجد نطاقات مسموح بها بعد.',
+	'allowlist.removed': '🗑 تم حذف <b>{hostname}</b> من القائمة البيضاء.',
+	'allowlist.not_found': '⚠️ النطاق غير موجود في القائمة البيضاء.',
 	'input.blocked_domain': '🚫 هذا النطاق غير مسموح به.',
 	'input.blocked_domain_btn': '✋ هذا الموقع ليس للبالغين',
 	'report.sent': '✅ تم إرسال بلاغك إلى المشرف.',

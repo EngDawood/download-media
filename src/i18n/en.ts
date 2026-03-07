@@ -21,6 +21,7 @@ export const en = {
 		'/cancel — Cancel current action\n' +
 		'/block {userId} — Block a user\n' +
 		'/unblock {userId} — Unblock a user\n' +
+		'/allowlist — Manage whitelisted domains\n' +
 		'/help — Full details',
 
 	// --- /start command (guest) ---
@@ -45,7 +46,8 @@ export const en = {
 		'<code>/lang</code> — Change bot language.\n' +
 		'<code>/cancel</code> — Cancel the current download flow.\n' +
 		'<code>/block {userId}</code> — Block a user from using the bot.\n' +
-		'<code>/unblock {userId}</code> — Restore access for a user.',
+		'<code>/unblock {userId}</code> — Restore access for a user.\n' +
+		'<code>/allowlist</code> — View and remove whitelisted domains.',
 
 	// --- /help command (guest) ---
 	'help.guest.body':
@@ -162,6 +164,10 @@ export const en = {
 
 	// --- blocked user message ---
 	'input.blocked': '🚫 You are blocked from using this bot.',
+	'allowlist.header': '✅ <b>Whitelisted Domains</b>',
+	'allowlist.empty': 'No domains are whitelisted yet.',
+	'allowlist.removed': '🗑 <b>{hostname}</b> removed from allowlist.',
+	'allowlist.not_found': '⚠️ Domain not found in allowlist.',
 	'input.blocked_domain': '🚫 This domain is not allowed.',
 	'input.blocked_domain_btn': '✋ This is not adult content',
 	'report.sent': '✅ Your report has been sent to the admin.',

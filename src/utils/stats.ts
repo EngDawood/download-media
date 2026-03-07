@@ -212,6 +212,29 @@ export async function addDomainToAllowlist(kv: KVNamespace, hostname: string): P
 }
 
 /**
+ * Remove a hostname from the permanent domain allowlist.
+ * Returns true if it was found and removed.
+ */
+export async function removeDomainFromAllowlist(kv: KVNamespace, hostname: string): Promise<boolean> {
+	const raw = await kv.get(KV_KEY_DOMAIN_ALLOWLIST);
+	if (!raw) return false;
+	const list: string[] = JSON.parse(raw);
+	const idx = list.indexOf(hostname);
+	if (idx === -1) return false;
+	list.splice(idx, 1);
+	await kv.put(KV_KEY_DOMAIN_ALLOWLIST, JSON.stringify(list));
+	return true;
+}
+
+/**
+ * Get all hostnames in the permanent domain allowlist.
+ */
+export async function getAllowlist(kv: KVNamespace): Promise<string[]> {
+	const raw = await kv.get(KV_KEY_DOMAIN_ALLOWLIST);
+	return raw ? JSON.parse(raw) : [];
+}
+
+/**
  * Check if a URL's hostname is in the permanent allowlist.
  */
 export async function isDomainAllowlisted(kv: KVNamespace, url: string): Promise<boolean> {
