@@ -5,7 +5,7 @@ import { sendMediaToChannel } from './send-media';
 import { setAdminState } from '../storage/admin-state';
 import type { TelegramMediaMessage } from '../../../types/telegram';
 import { trackEvent } from '../../../utils/analytics';
-import { incrementSuccessStats, incrementErrorStats, addDownloadHistory } from '../../../utils/stats';
+import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats';
 import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
 
 /**
@@ -50,7 +50,7 @@ export async function downloadAndSendMedia(
 	};
 
 	// Helper to record error + history
-	const recordError = async () => {
+	const recordError = async (errorReason: string) => {
 		if (!options?.kv) return;
 		await Promise.all([
 			incrementErrorStats(options.kv),
@@ -64,6 +64,14 @@ export async function downloadAndSendMedia(
 						success: false,
 					})
 				: Promise.resolve(),
+			addFailedDownload(options.kv, {
+				url,
+				platform,
+				errorReason,
+				userId,
+				firstName: options?.firstName || '',
+				username: options?.username,
+			}),
 		]);
 	};
 
@@ -97,7 +105,7 @@ export async function downloadAndSendMedia(
 
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
-			await recordError();
+			await recordError(result.error || 'API error');
 			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.failed', { error: result.error || 'unknown error' }));
 			return;
 		}
@@ -174,13 +182,13 @@ export async function downloadAndSendMedia(
 		}
 
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_empty' });
-		await recordError();
+		await recordError('No media found');
 		await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.no_media'));
 	} catch (err: any) {
 		// YouTube: send thumbnail + mp4/mp3 URLs when file is too large
 		if (result?.mp3Url && result?.thumbnail && /too large/i.test(err.message || '')) {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
-			await recordError();
+			await recordError('File too large (YouTube)');
 			const caption = result.caption || '';
 			const mp4Url = result.media?.[0]?.url || url;
 			const sorry = options?.firstName
@@ -210,7 +218,7 @@ export async function downloadAndSendMedia(
 
 		console.error('[downloader] Download and send error:', err);
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
-		await recordError();
+		await recordError(err.message || 'Unknown error');
 		const msg = err.message || 'Unknown error';
 		// If file is too large for Telegram, send the link as text instead
 		if (msg.includes('too large') || msg.includes('Too large')) {

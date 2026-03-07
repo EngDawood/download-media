@@ -15,10 +15,14 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 		const action = ctx.match[1]; // e.g. 'video', 'audio', 'hd', 'sd', 'yt:720p', 'confirm', 'cancel'
 		const chatId = ctx.chat!.id;
 		const msgId = ctx.callbackQuery.message?.message_id;
+		const userId = ctx.from?.id ?? adminId;
 		const firstName = ctx.from?.first_name;
 		const username = ctx.from?.username;
 		const locale = getLocale(ctx);
-		const state = await getAdminState(kv, adminId);
+		// MP3 button is available to all users — read state from the button presser's slot.
+		// All other callbacks are admin-only, so always read from adminId.
+		const stateOwner = action === 'yt:mp3' ? userId : adminId;
+		const state = await getAdminState(kv, stateOwner);
 
 		if (!state || state.action !== 'downloading_media' || !state.context?.downloadUrl) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'callback.session_expired') });
@@ -27,11 +31,11 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 
 		const { downloadUrl, downloadPlatform, qualities, mp3Url } = state.context;
 
-		// YouTube MP3 — send the stored mp3 URL as audio
+		// YouTube MP3 — send the stored mp3 URL as audio (available to all users)
 		if (action === 'yt:mp3' && mp3Url) {
-			await clearAdminState(kv, adminId);
+			await clearAdminState(kv, stateOwner);
 			await ctx.answerCallbackQuery();
-			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, { kv, analytics: env.ANALYTICS, userId: adminId, mediaType: 'audio', firstName, username, locale });
+			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, { kv, analytics: env.ANALYTICS, userId, mediaType: 'audio', firstName, username, locale });
 			return;
 		}
 
@@ -43,7 +47,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 			return;
 		}
 
-		await clearAdminState(kv, adminId);
+		await clearAdminState(kv, stateOwner);
 		await ctx.answerCallbackQuery();
 
 		let mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto';

@@ -76,9 +76,9 @@ export const en = {
 	'download.done': 'Done.',
 	'download.done_info': 'Done. ({info})',
 	'download.sent_album': 'Sent {count} items as album.',
-	'download.failed': 'Download failed: {error}',
-	'download.no_media': 'No media found.',
-	'download.error': 'Error: {message}',
+	'download.failed': "❌ Couldn't download this link.\n<i>{error}</i>",
+	'download.no_media': "😕 No media found at this link. It might be private, deleted, or unsupported.",
+	'download.error': "⚠️ Something went wrong while downloading. Please try again.",
 	'download.too_large': '😔 This file is too large for Telegram.',
 	'download.too_large_name': '😔 Sorry {firstName}, this file is too large for Telegram.',
 	'download.too_large_limit': '😔 This file is too large for Telegram (50MB limit).',
@@ -89,7 +89,7 @@ export const en = {
 	'download.btn_mp3': '🎵 MP3',
 
 	// --- callbacks ---
-	'callback.session_expired': 'Session expired. Send the link again.',
+	'callback.session_expired': "⏱ Session expired. Please send the link again to start fresh.",
 	'callback.cancelled': 'Cancelled.',
 
 	// --- subscription gate ---
@@ -153,6 +153,9 @@ export const en = {
 	'stats.blocked_header': '🚫 <b>Blocked Users</b>',
 	'stats.no_blocked': 'No users are blocked.',
 	'stats.unblock_hint': '<i>Use /unblock {userId} to unblock a user.</i>',
+	'stats.btn_failed': '❌ Failed',
+	'stats.failed_header': '❌ <b>Failed Downloads</b>',
+	'stats.no_failed': 'No failed downloads recorded.',
 
 	// --- /block & /unblock commands ---
 	'block.usage': 'Usage: /block {userId}',

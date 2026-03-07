@@ -78,9 +78,9 @@ export const ar: Translations = {
 	'download.done': 'تم.',
 	'download.done_info': 'تم. ({info})',
 	'download.sent_album': 'تم إرسال {count} عناصر كألبوم.',
-	'download.failed': 'فشل التحميل: {error}',
-	'download.no_media': 'لم يتم العثور على وسائط.',
-	'download.error': 'خطأ: {message}',
+	'download.failed': "❌ تعذّر تحميل هذا الرابط.\n<i>{error}</i>",
+	'download.no_media': "😕 لم يتم العثور على وسائط في هذا الرابط. قد يكون خاصاً أو محذوفاً أو غير مدعوم.",
+	'download.error': "⚠️ حدث خطأ أثناء التحميل. يرجى المحاولة مرة أخرى.",
 	'download.too_large': '😔 هذا الملف كبير جداً لـ Telegram.',
 	'download.too_large_name': '😔 عذراً {firstName}، هذا الملف كبير جداً لـ Telegram.',
 	'download.too_large_limit': '😔 هذا الملف كبير جداً لـ Telegram (الحد 50MB).',
@@ -91,7 +91,7 @@ export const ar: Translations = {
 	'download.btn_mp3': '🎵 MP3',
 
 	// --- callbacks ---
-	'callback.session_expired': 'انتهت الجلسة. أرسل الرابط مرة أخرى.',
+	'callback.session_expired': "⏱ انتهت الجلسة. يرجى إرسال الرابط مجدداً للبدء من جديد.",
 	'callback.cancelled': 'تم الإلغاء.',
 
 	// --- subscription gate ---
@@ -155,6 +155,9 @@ export const ar: Translations = {
 	'stats.blocked_header': '🚫 <b>المستخدمين المحظورين</b>',
 	'stats.no_blocked': 'لا يوجد مستخدمين محظورين.',
 	'stats.unblock_hint': '<i>استخدم /unblock {userId} لفك حظر مستخدم.</i>',
+	'stats.btn_failed': '❌ فشل',
+	'stats.failed_header': '❌ <b>التحميلات الفاشلة</b>',
+	'stats.no_failed': 'لا توجد تحميلات فاشلة مسجّلة.',
 
 	// --- /block & /unblock commands ---
 	'block.usage': 'الاستخدام: /block {userId}',
