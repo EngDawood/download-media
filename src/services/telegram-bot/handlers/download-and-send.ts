@@ -217,13 +217,14 @@ export async function downloadAndSendMedia(
 			const sorry = options?.firstName
 				? t(locale, 'download.too_large_limit_name', { firstName: options.firstName })
 				: t(locale, 'download.too_large_limit');
+			const mediaUrl = result?.media?.[0]?.url || url;
 			const keyboard = new InlineKeyboard()
 				.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot')
 				.url(t(locale, 'download.btn_browser'), url);
 			await bot.api.editMessageText(
 				chatId,
 				statusMessageId!,
-				`${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n<code>${url}</code>`,
+				`${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n<code>${mediaUrl}</code>`,
 				{ parse_mode: 'HTML', reply_markup: keyboard },
 			);
 		} else {

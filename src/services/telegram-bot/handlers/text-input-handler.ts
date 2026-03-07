@@ -29,8 +29,8 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			const username = ctx.from?.username;
 			const locale = getLocale(ctx);
 
-			// Block adult content domains (skip if domain is permanently allowlisted by admin)
-			if (isBlockedDomain(url) && !(await isDomainAllowlisted(kv, url))) {
+			// Block adult content domains for non-admin users (skip if allowlisted)
+			if (!isAdmin && isBlockedDomain(url) && !(await isDomainAllowlisted(kv, url))) {
 				if (userId) {
 					await kv.put(`${CACHE_PREFIX_BLOCKED_URL}${userId}`, url, { expirationTtl: 3600 });
 				}
