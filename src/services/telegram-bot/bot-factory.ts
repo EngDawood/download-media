@@ -4,6 +4,7 @@ import { registerAdminCommands } from './commands/admin-commands';
 import { registerTextInputHandler } from './handlers/text-input-handler';
 import { registerDownloadCallbacks } from './callbacks/download-callbacks';
 import { registerSubscriptionCallbacks } from './callbacks/subscription-callbacks';
+import { registerReportCallbacks } from './callbacks/report-callbacks';
 import { resolveLocale, DEFAULT_LOCALE, t, getLocale } from '../../i18n';
 
 /**
@@ -18,8 +19,10 @@ export function createBot(env: Env): Bot {
 
 	// Global error handler
 	bot.catch(async (err) => {
-		console.error('Bot error:', err);
 		const ctx = err.ctx;
+		const userId = ctx.from?.id;
+		const action = ctx.callbackQuery ? `callback:${ctx.callbackQuery.data}` : 'message';
+		console.error(`[bot] Unhandled error | userId=${userId} action=${action}:`, err.error);
 		const locale = getLocale(ctx);
 		if (ctx.callbackQuery) {
 			try {
@@ -64,7 +67,7 @@ export function createBot(env: Env): Bot {
 		}
 		// Allow subscription verify, lang selection, and MP3 button for all users
 		const cbData = ctx.callbackQuery?.data;
-		if (cbData === 'subscription:verify' || cbData?.startsWith('lang:') || cbData === 'dl:yt:mp3') {
+		if (cbData === 'subscription:verify' || cbData?.startsWith('lang:') || cbData === 'dl:yt:mp3' || cbData === 'report:issue' || cbData === 'dl:retry') {
 			await next();
 			return;
 		}
@@ -88,6 +91,9 @@ export function createBot(env: Env): Bot {
 
 	// Register text input handler (URL detection + multi-step download flows)
 	registerTextInputHandler(bot, env, kv);
+
+	// Register report callbacks: report:issue
+	registerReportCallbacks(bot, kv, adminId);
 
 	// Register download callback query handlers
 	bot.on('callback_query:data', async (ctx, next) => {

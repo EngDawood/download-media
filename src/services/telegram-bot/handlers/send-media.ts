@@ -235,7 +235,7 @@ async function sendMediaGroupMessage(
 async function downloadAsInputFile(url: string, filename: string): Promise<InputFile> {
 	const resp = await fetch(url, {
 		headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-		signal: AbortSignal.timeout(45_000),
+		signal: AbortSignal.timeout(20_000),
 	});
 	if (!resp.ok) throw new Error(`Failed to download media: ${resp.status}`);
 

@@ -30,7 +30,9 @@ app.post('/telegram', async (c) => {
 	const bot = createBot(c.env);
 	await bot.init();
 	const update = await c.req.json();
-	c.executionCtx.waitUntil(bot.handleUpdate(update));
+	c.executionCtx.waitUntil(
+		bot.handleUpdate(update).catch(err => console.error('[webhook] Unhandled update error:', err))
+	);
 	return c.json({ ok: true });
 });
 

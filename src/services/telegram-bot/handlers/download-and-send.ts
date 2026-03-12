@@ -2,11 +2,12 @@ import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { downloadMedia, formatFileSize } from '../../media-downloader';
 import { sendMediaToChannel } from './send-media';
-import { setAdminState } from '../storage/admin-state';
+import { setAdminState, clearAdminState } from '../storage/admin-state';
 import type { TelegramMediaMessage } from '../../../types/telegram';
 import { trackEvent } from '../../../utils/analytics';
 import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats';
 import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
+import { CACHE_PREFIX_REPORT } from '../../../constants';
 
 /**
  * Download media from a URL and send it to a chat.
@@ -49,9 +50,13 @@ export async function downloadAndSendMedia(
 		]);
 	};
 
-	// Helper to record error + history
+	// Helper to record error + history, and clear stale KV state
 	const recordError = async (errorReason: string) => {
 		if (!options?.kv) return;
+		// Clear admin state on failure to prevent stale state causing wrong downloads
+		if (options.adminId) {
+			clearAdminState(options.kv, options.adminId).catch(() => {});
+		}
 		await Promise.all([
 			incrementErrorStats(options.kv),
 			userId
@@ -71,8 +76,50 @@ export async function downloadAndSendMedia(
 				userId,
 				firstName: options?.firstName || '',
 				username: options?.username,
+				mode,
 			}),
 		]);
+	};
+
+	// Helper to edit the status message with an error.
+	// Admin: [🔄 Retry] [Cancelled]
+	// Guest: [🔄 Retry] [📬 Report to Admin] — stores context in KV so the report callback can send it
+	const showError = async (errorText: string, parseMode?: 'HTML', rawError?: string) => {
+		if (!options?.guestMode && options?.kv && options?.adminId) {
+			// Admin — retry + cancel
+			await setAdminState(options.kv, options.adminId, {
+				action: 'downloading_media',
+				context: { downloadUrl: url, downloadPlatform: platform, downloadMode: mode },
+			});
+			const keyboard = new InlineKeyboard()
+				.text(t(locale, 'download.btn_retry'), 'dl:retry')
+				.text(t(locale, 'callback.cancelled'), 'dl:cancel');
+			await bot.api.editMessageText(chatId, statusMessageId!, errorText, {
+				...(parseMode ? { parse_mode: parseMode } : {}),
+				reply_markup: keyboard,
+			});
+		} else {
+			// Guest — store report context in KV, show Retry + Report buttons
+			if (options?.kv && userId) {
+				const reportData = JSON.stringify({
+					url,
+					platform,
+					error: rawError || errorText.replace(/<[^>]+>/g, ''),
+					firstName: options.firstName || '',
+					username: options.username,
+				});
+				options.kv.put(`${CACHE_PREFIX_REPORT}${userId}`, reportData, { expirationTtl: 3600 }).catch(() => {});
+			}
+			const contactInfo = t(locale, 'download.contact_admin');
+			const fullText = `${errorText}\n\n<i>${contactInfo}</i>`;
+			const keyboard = new InlineKeyboard()
+				.text(t(locale, 'download.btn_retry'), 'dl:retry')
+				.text(t(locale, 'download.btn_report_admin'), 'report:issue');
+			await bot.api.editMessageText(chatId, statusMessageId!, fullText, {
+				parse_mode: 'HTML',
+				reply_markup: keyboard,
+			});
+		}
 	};
 
 	if (statusMessageId) {
@@ -106,7 +153,8 @@ export async function downloadAndSendMedia(
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			await recordError(result.error || 'API error');
-			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.failed', { error: result.error || 'unknown error' }));
+			const safeError = (result.error || 'unknown error').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			await showError(t(locale, 'download.failed', { error: safeError }), 'HTML', result.error);
 			return;
 		}
 
@@ -183,7 +231,7 @@ export async function downloadAndSendMedia(
 
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_empty' });
 		await recordError('No media found');
-		await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.no_media'));
+		await showError(t(locale, 'download.no_media'), undefined, 'No media found');
 	} catch (err: any) {
 		// YouTube: send thumbnail + mp4/mp3 URLs when file is too large
 		if (result?.mp3Url && result?.thumbnail && /too large/i.test(err.message || '')) {
@@ -236,7 +284,7 @@ export async function downloadAndSendMedia(
 				{ parse_mode: 'HTML', reply_markup: keyboard },
 			);
 		} else {
-			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.error', { message: msg }));
+			await showError(t(locale, 'download.error', { message: msg }), undefined, msg);
 		}
 	}
 }

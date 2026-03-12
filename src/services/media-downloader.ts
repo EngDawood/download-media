@@ -39,6 +39,7 @@ async function btchFetch(endpoint: string, url: string): Promise<any> {
 				signal: AbortSignal.timeout(30_000),
 			});
 			if (res.status >= 500) {
+				console.warn(`[btch] ${server} ${endpoint} → ${res.status}`);
 				lastError = new Error(`btch ${endpoint} returned ${res.status}`);
 				continue; // try next server
 			}
@@ -48,6 +49,7 @@ async function btchFetch(endpoint: string, url: string): Promise<any> {
 			if (data.error) throw new Error(`btch ${endpoint}: ${data.error}`);
 			return data;
 		} catch (err: any) {
+			console.warn(`[btch] ${server} ${endpoint} → ${err.name === 'TimeoutError' ? 'timeout' : err.message}`);
 			lastError = err;
 			// Only retry on network/timeout/5xx errors, not on 4xx or parse errors
 			if (err.name === 'TimeoutError' || err.message?.includes('returned 5')) continue;
@@ -271,7 +273,12 @@ export async function downloadMedia(url: string, mode: 'auto' | 'audio' | 'hd' |
 		return await downloadAIO(url, mode);
 	} catch (err: any) {
 		console.error('[downloader] Error:', err);
-		return { status: 'error', error: err.message || 'Unknown error' };
+		const raw: string = err.message || 'Unknown error';
+		// Don't expose internal btch API error details to the user
+		const userError = /btch |all servers failed|AggregateError/i.test(raw)
+			? 'Download service temporarily unavailable. Please try again or use the Retry button.'
+			: raw;
+		return { status: 'error', error: userError };
 	}
 }
 
@@ -448,36 +455,11 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 	return { status: 'error', error: 'No Twitter media found' };
 }
 
-/**
- * Normalize a YouTube URL to canonical watch?v= form.
- * Strips tracking params (?si=, &feature=, etc.) and converts short/shorts URLs.
- * This improves btch API compatibility — some backends reject URLs with extra params.
- */
-function normalizeYouTubeUrl(url: string): string {
-	try {
-		const u = new URL(url);
-		// youtu.be/{videoId}[?si=...]
-		if (u.hostname === 'youtu.be') {
-			const videoId = u.pathname.slice(1).split('/')[0];
-			if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
-		}
-		// youtube.com/shorts/{videoId}
-		if (u.pathname.startsWith('/shorts/')) {
-			const videoId = u.pathname.split('/')[2];
-			if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
-		}
-		// youtube.com/watch?v={videoId}[&si=...&feature=...]
-		const videoId = u.searchParams.get('v');
-		if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
-	} catch { /* ignore — fall back to original */ }
-	return url;
-}
-
 async function downloadYouTube(url: string, mode: string): Promise<DownloaderResult> {
-	const cleanUrl = normalizeYouTubeUrl(url);
+	// URL is already normalized by url-detector.ts (watch?v= form, no tracking params)
 	// Try youtube endpoint first — fast and reliable
 	try {
-		const res = await btchFetch('youtube', cleanUrl);
+		const res = await btchFetch('youtube', url);
 		const caption = buildCaption(res.title);
 		const thumbnail = res.thumbnail;
 		if (mode === 'audio' && isUrl(res.mp3)) {
@@ -501,7 +483,7 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 
 	// Fallback to AIO endpoint
 	try {
-		const aio = await btchFetch('aio', cleanUrl);
+		const aio = await btchFetch('aio', url);
 		const data = aio.data;
 		if (data?.links) {
 			const caption = buildCaption(data.title);

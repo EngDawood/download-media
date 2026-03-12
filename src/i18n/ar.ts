@@ -68,8 +68,8 @@ export const ar: Translations = {
 	'input.fetching_video': 'جاري جلب معلومات الفيديو...',
 	'input.choose_format': '<b>{platform}</b> — اختر الصيغة:',
 	'input.choose_quality': '<b>{platform}</b> — اختر الجودة:',
-	'input.btn_video': 'فيديو',
-	'input.btn_audio': 'صوت',
+	'input.btn_video': 'تحميل الفيديو',
+	'input.btn_audio': 'تحميل الصوت',
 
 	// --- download-and-send ---
 	'download.status': 'جاري تحميل {modeText} من {platform}...',
@@ -78,17 +78,17 @@ export const ar: Translations = {
 	'download.done': 'تم.',
 	'download.done_info': 'تم. ({info})',
 	'download.sent_album': 'تم إرسال {count} عناصر كألبوم.',
-	'download.failed': "❌ تعذّر تحميل هذا الرابط.\n<i>{error}</i>",
-	'download.no_media': "😕 لم يتم العثور على وسائط في هذا الرابط. قد يكون خاصاً أو محذوفاً أو غير مدعوم.",
-	'download.error': "⚠️ حدث خطأ أثناء التحميل. يرجى المحاولة مرة أخرى.",
-	'download.too_large': '😔 هذا الملف كبير جداً لـ Telegram.',
-	'download.too_large_name': '😔 عذراً {firstName}، هذا الملف كبير جداً لـ Telegram.',
-	'download.too_large_limit': '😔 هذا الملف كبير جداً لـ Telegram (الحد 50MB).',
-	'download.too_large_limit_name': '😔 عذراً {firstName}، هذا الملف كبير جداً لـ Telegram (الحد 50MB).',
+	'download.failed': "❌ فشل التحميل. قد يكون الرابط غير صالح أو غير مدعوم. يرجى التحقق من الرابط والمحاولة مرة أخرى.\n<i>الخطأ: {error}</i>",
+	'download.no_media': "😕 لم يتم العثور على وسائط. قد يكون المنشور خاصاً، محذوفاً، أو من منصة غير مدعومة. يرجى التحقق من الرابط والمحاولة مرة أخرى.",
+	'download.error': "⚠️ فشل التحميل. حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.",
+	'download.too_large': '😔 الملف كبير جداً. يحد Telegram من رفع الملفات إلى 50MB. يرجى تحميله يدوياً باستخدام الرابط أدناه.',
+	'download.too_large_name': '😔 عذراً {firstName}، الملف كبير جداً. يحد Telegram من رفع الملفات إلى 50MB. يرجى تحميله يدوياً باستخدام الرابط أدناه.',
+	'download.too_large_limit': '😔 الملف كبير جداً. يحد Telegram من رفع الملفات إلى 50MB. يرجى تحميله يدوياً باستخدام الرابط أدناه.',
+	'download.too_large_limit_name': '😔 عذراً {firstName}، الملف كبير جداً. يحد Telegram من رفع الملفات إلى 50MB. يرجى تحميله يدوياً باستخدام الرابط أدناه.',
 	'download.copy_url_hint': 'انسخ الرابط أدناه، ثم أرسله إلى @urluploadxbot',
-	'download.btn_urluploadxbot': '🤖 فتح @urluploadxbot',
+	'download.btn_urluploadxbot': '🤖 إرسال إلى @urluploadxbot',
 	'download.btn_browser': '🌐 فتح في المتصفح',
-	'download.btn_mp3': '🎵 MP3',
+	'download.btn_mp3': '🎵 استخراج الصوت',
 
 	// --- callbacks ---
 	'callback.session_expired': "⏱ انتهت الجلسة. يرجى إرسال الرابط مجدداً للبدء من جديد.",
@@ -96,23 +96,23 @@ export const ar: Translations = {
 
 	// --- subscription gate ---
 	'gate.blocked':
-		'🔒 لقد استخدمت {freeUses} تحميلات مجانية\\!\n\n' +
+		'🔒 تم الوصول للحد المجاني\\. لقد استخدمت {freeUses} تحميلات مجانية\\!\n\n' +
 		'انضم لقناتنا لمتابعة التحميل:\n' +
 		'👉 [t\\.me/{channelName}](https://t.me/{channelName})',
 	'gate.btn_join': '📢 انضم للقناة',
-	'gate.btn_verify': '✅ انضممت',
+	'gate.btn_verify': '✅ التحقق من الاشتراك',
 
 	// --- subscription callbacks ---
 	'gate.access_granted_alert': '✅ تم منح الوصول!',
 	'gate.welcome_alert': '✅ أهلاً! يمكنك الآن استخدام البوت.',
 	'gate.subscribed':
 		'✅ *تم منح الوصول\\!*\n\nأنت مشترك في [{channel}](https://t.me/{channelName})\\.\nأرسل رابط لتحميل الوسائط\\.',
-	'gate.not_joined': '⚠️ لم تنضم بعد. يرجى الانضمام للقناة أولاً!',
-	'gate.verify_failed': '⚠️ فشل التحقق. حاول مرة أخرى.',
+	'gate.not_joined': '⚠️ لم يتم العثور على اشتراك. يرجى الانضمام للقناة أولاً، ثم النقر على تحقق.',
+	'gate.verify_failed': '⚠️ فشل التحقق. لم نتمكن من تأكيد اشتراكك. يرجى المحاولة مرة أخرى.',
 
 	// --- bot-factory errors ---
-	'error.callback': '⚠️ حدث خطأ. يرجى المحاولة مرة أخرى.',
-	'error.general': '⚠️ حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
+	'error.callback': '⚠️ فشل الإجراء. حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
+	'error.general': '⚠️ فشل الإجراء. حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
 	'error.unauthorized': 'غير مصرح',
 
 	// --- admin commands ---
@@ -147,15 +147,15 @@ export const ar: Translations = {
 	'stats.user_row': '{rank}. {firstName} — {count} تحميلات',
 	'stats.no_data': 'لا توجد إحصائيات بعد. أرسل بعض الروابط لبدء التتبع.',
 	'stats.admin_only': '🔒 هذا الأمر للمشرف فقط.',
-	'stats.btn_history': '📜 السجل',
-	'stats.btn_blocked': '🚫 المحظورين',
+	'stats.btn_history': '📜 عرض السجل',
+	'stats.btn_blocked': '🚫 عرض المحظورين',
 	'stats.btn_back': '⬅️ رجوع',
 	'stats.history_header': '📜 <b>التحميلات الأخيرة</b>',
 	'stats.no_history': 'لا يوجد سجل تحميلات بعد.',
 	'stats.blocked_header': '🚫 <b>المستخدمين المحظورين</b>',
 	'stats.no_blocked': 'لا يوجد مستخدمين محظورين.',
 	'stats.unblock_hint': '<i>استخدم /unblock {userId} لفك حظر مستخدم.</i>',
-	'stats.btn_failed': '❌ فشل',
+	'stats.btn_failed': '❌ عرض الفاشلة',
 	'stats.failed_header': '❌ <b>التحميلات الفاشلة</b>',
 	'stats.no_failed': 'لا توجد تحميلات فاشلة مسجّلة.',
 
@@ -168,13 +168,13 @@ export const ar: Translations = {
 	'unblock.not_found': '⚠️ المستخدم <code>{userId}</code> غير موجود في قائمة الحظر.',
 
 	// --- blocked user message ---
-	'input.blocked': '🚫 أنت محظور من استخدام هذا البوت.',
+	'input.blocked': '🚫 تم رفض الوصول. لقد تم حظرك من استخدام هذا البوت.',
 	'allowlist.header': '✅ <b>النطاقات المسموح بها</b>',
 	'allowlist.empty': 'لا توجد نطاقات مسموح بها بعد.',
 	'allowlist.removed': '🗑 تم حذف <b>{hostname}</b> من القائمة البيضاء.',
 	'allowlist.not_found': '⚠️ النطاق غير موجود في القائمة البيضاء.',
-	'input.blocked_domain': '🚫 هذا النطاق غير مسموح به.',
-	'input.blocked_domain_btn': '✋ هذا الموقع ليس للبالغين',
+	'input.blocked_domain': '🚫 تم حظر المحتوى. هذا النطاق غير مسموح به بسبب سياسات الأمان.',
+	'input.blocked_domain_btn': '✋ الإبلاغ عن محتوى آمن',
 	'report.sent': '✅ تم إرسال بلاغك إلى المشرف.',
 	'report.admin_notify': '🚨 <b>بلاغ نطاق</b>\n\nالمستخدم <b>{user}</b> (ID: <code>{userId}</code>) يقول أن هذا الرابط حُظر بشكل خاطئ:\n<code>{url}</code>',
 };

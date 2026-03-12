@@ -52,7 +52,9 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 
 		let mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto';
 
-		if (action === 'audio') {
+		if (action === 'retry') {
+			mode = (state.context?.downloadMode as 'auto' | 'audio' | 'hd' | 'sd') || 'auto';
+		} else if (action === 'audio') {
 			mode = 'audio';
 		} else if (action === 'hd') {
 			mode = 'hd';

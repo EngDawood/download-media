@@ -22,6 +22,7 @@ export const en = {
 		'/block {userId} — Block a user\n' +
 		'/unblock {userId} — Unblock a user\n' +
 		'/allowlist — Manage whitelisted domains\n' +
+		'/broadcast — Send a message to all users\n' +
 		'/help — Full details',
 
 	// --- /start command (guest) ---
@@ -47,7 +48,8 @@ export const en = {
 		'<code>/cancel</code> — Cancel the current download flow.\n' +
 		'<code>/block {userId}</code> — Block a user from using the bot.\n' +
 		'<code>/unblock {userId}</code> — Restore access for a user.\n' +
-		'<code>/allowlist</code> — View and remove whitelisted domains.',
+		'<code>/allowlist</code> — View and remove whitelisted domains.\n' +
+		'<code>/broadcast</code> — Send a message to all users.',
 
 	// --- /help command (guest) ---
 	'help.guest.body':
@@ -62,12 +64,12 @@ export const en = {
 
 	// --- text-input-handler ---
 	'input.no_action': 'No active action. Send a supported URL to download media.',
-	'input.fetching_post': 'Fetching post info...',
+	'input.fetching_post': 'Fetching post info...', 
 	'input.fetching_video': 'Fetching video info...',
 	'input.choose_format': '<b>{platform}</b> — Choose format:',
 	'input.choose_quality': '<b>{platform}</b> — Choose quality:',
-	'input.btn_video': 'Video',
-	'input.btn_audio': 'Audio',
+	'input.btn_video': 'Download Video',
+	'input.btn_audio': 'Download Audio',
 
 	// --- download-and-send ---
 	'download.status': 'Downloading {modeText} from {platform}...',
@@ -76,17 +78,22 @@ export const en = {
 	'download.done': 'Done.',
 	'download.done_info': 'Done. ({info})',
 	'download.sent_album': 'Sent {count} items as album.',
-	'download.failed': "❌ Couldn't download this link.\n<i>{error}</i>",
-	'download.no_media': "😕 No media found at this link. It might be private, deleted, or unsupported.",
-	'download.error': "⚠️ Something went wrong while downloading. Please try again.",
-	'download.too_large': '😔 This file is too large for Telegram.',
-	'download.too_large_name': '😔 Sorry {firstName}, this file is too large for Telegram.',
-	'download.too_large_limit': '😔 This file is too large for Telegram (50MB limit).',
-	'download.too_large_limit_name': '😔 Sorry {firstName}, this file is too large for Telegram (50MB limit).',
+	'download.failed': "❌ Download failed. The link might be invalid or unsupported. Please check the link and try again.\n<i>Error: {error}</i>",
+	'download.no_media': "😕 No media found. The post might be private, deleted, or from an unsupported platform. Please check the link and try again.",
+	'download.error': "⚠️ Download failed. An unexpected error occurred. Please try again.",
+	'download.too_large': '😔 File too large. Telegram limits file uploads to 50MB. Please download it manually using the link below.',
+	'download.too_large_name': '😔 Sorry {firstName}, the file is too large. Telegram limits file uploads to 50MB. Please download it manually using the link below.',
+	'download.too_large_limit': '😔 File too large. Telegram limits file uploads to 50MB. Please download it manually using the link below.',
+	'download.too_large_limit_name': '😔 Sorry {firstName}, the file is too large. Telegram limits file uploads to 50MB. Please download it manually using the link below.',
 	'download.copy_url_hint': 'Copy the URL below, then send the link to @urluploadxbot',
-	'download.btn_urluploadxbot': '🤖 Open @urluploadxbot',
+	'download.btn_urluploadxbot': '🤖 Send to @urluploadxbot',
 	'download.btn_browser': '🌐 Open in Browser',
-	'download.btn_mp3': '🎵 MP3',
+	'download.btn_mp3': '🎵 Extract Audio',
+	'download.btn_retry': '🔄 Retry Download',
+	'download.btn_report_admin': '📬 Report Issue',
+	'download.contact_admin': 'If you believe this is a bot error, you can report it to the admin.',
+	'download.report_sent': '✅ Your report has been sent to the admin.',
+	'download.admin_error_report': '🚨 <b>Failed Download Report</b>\n\n👤 User: {user}\n📱 Platform: {platform}\n🔗 URL: <code>{url}</code>\n❌ Error: <code>{error}</code>',
 
 	// --- callbacks ---
 	'callback.session_expired': "⏱ Session expired. Please send the link again to start fresh.",
@@ -94,23 +101,23 @@ export const en = {
 
 	// --- subscription gate ---
 	'gate.blocked':
-		"🔒 You've used your {freeUses} free downloads\\!\n\n" +
-		'Join our channel to keep downloading:\n' +
+		"🔒 Free limit reached\\. You've used your {freeUses} free downloads\\!\n\n" +
+		'Join our channel to continue downloading:\n' +
 		'👉 [t\\.me/{channelName}](https://t.me/{channelName})',
 	'gate.btn_join': '📢 Join Channel',
-	'gate.btn_verify': '✅ I Joined',
+	'gate.btn_verify': '✅ Verify Subscription',
 
 	// --- subscription callbacks ---
 	'gate.access_granted_alert': '✅ Access granted!',
 	'gate.welcome_alert': '✅ Welcome! You can now use the bot.',
 	'gate.subscribed':
 		"✅ *Access granted\\!*\n\nYou're subscribed to [{channel}](https://t.me/{channelName})\\.\nSend a URL to download media\\.",
-	'gate.not_joined': "⚠️ You haven't joined yet. Please join the channel first!",
-	'gate.verify_failed': '⚠️ Verification failed. Try again.',
+	'gate.not_joined': "⚠️ Subscription not found. Please join the channel first, then tap Verify.",
+	'gate.verify_failed': "⚠️ Verification failed. We couldn't confirm your subscription. Please try again.",
 
 	// --- bot-factory errors ---
-	'error.callback': '⚠️ Error occurred. Please try again.',
-	'error.general': '⚠️ An unexpected error occurred. Please try again.',
+	'error.callback': '⚠️ Action failed. An unexpected error occurred. Please try again.',
+	'error.general': '⚠️ Action failed. An unexpected error occurred. Please try again.',
 	'error.unauthorized': 'Unauthorized',
 
 	// --- admin commands ---
@@ -135,25 +142,32 @@ export const en = {
 
 	// --- /stats command (admin only) ---
 	'stats.header': '📊 <b>Bot Statistics</b>',
+	'stats.start_users': '🚀 Users started bot: <b>{count}</b>',
 	'stats.links': '📥 Links submitted: <b>{count}</b>',
-	'stats.success': '✅ Successful: <b>{count}</b>',
+	'stats.success': '✅ Successful: <b>{count}</b> ({rate}%)',
 	'stats.errors': '❌ Errors: <b>{count}</b>',
-	'stats.users': '👥 Unique users: <b>{count}</b>',
+	'stats.users': '👥 Unique downloaders: <b>{count}</b>',
 	'stats.today': '📅 Today: <b>{links}</b> links, <b>{success}</b> successful',
 	'stats.platforms_header': '📱 <b>By Platform:</b>',
 	'stats.top_users_header': '👤 <b>Top Users:</b>',
 	'stats.user_row': '{rank}. {firstName} — {count} downloads',
 	'stats.no_data': 'No statistics yet. Send some links to start tracking.',
 	'stats.admin_only': '🔒 This command is for admins only.',
-	'stats.btn_history': '📜 History',
-	'stats.btn_blocked': '🚫 Blocked',
+	'stats.btn_daily': '📅 View Daily',
+	'stats.btn_history': '📜 View History',
+	'stats.btn_blocked': '🚫 View Blocked',
 	'stats.btn_back': '⬅️ Back',
+	'stats.daily_header': '📅 <b>Daily Stats — Last 7 Days</b>',
+	'stats.today_label': 'Today',
+	'stats.yesterday_label': 'Yesterday',
+	'stats.daily_row': '<b>{label}:</b> {links} links, {success} ✅',
+	'stats.daily_row_empty': '<b>{label}:</b> —',
 	'stats.history_header': '📜 <b>Recent Downloads</b>',
 	'stats.no_history': 'No download history yet.',
 	'stats.blocked_header': '🚫 <b>Blocked Users</b>',
 	'stats.no_blocked': 'No users are blocked.',
 	'stats.unblock_hint': '<i>Use /unblock {userId} to unblock a user.</i>',
-	'stats.btn_failed': '❌ Failed',
+	'stats.btn_failed': '❌ View Failed',
 	'stats.failed_header': '❌ <b>Failed Downloads</b>',
 	'stats.no_failed': 'No failed downloads recorded.',
 
@@ -166,15 +180,26 @@ export const en = {
 	'unblock.not_found': '⚠️ User <code>{userId}</code> was not in the blocklist.',
 
 	// --- blocked user message ---
-	'input.blocked': '🚫 You are blocked from using this bot.',
+	'input.blocked': '🚫 Access denied. You have been blocked from using this bot.',
 	'allowlist.header': '✅ <b>Whitelisted Domains</b>',
 	'allowlist.empty': 'No domains are whitelisted yet.',
 	'allowlist.removed': '🗑 <b>{hostname}</b> removed from allowlist.',
 	'allowlist.not_found': '⚠️ Domain not found in allowlist.',
-	'input.blocked_domain': '🚫 This domain is not allowed.',
-	'input.blocked_domain_btn': '✋ This is not adult content',
+	'input.instagram_story_unsupported': "📖 Unsupported format. Instagram Stories are not supported yet.",
+	'input.blocked_domain': '🚫 Content blocked. This domain is not allowed due to safety policies.',
+	'input.blocked_domain_btn': '✋ Report Safe Content',
 	'report.sent': '✅ Your report has been sent to the admin.',
 	'report.admin_notify': '🚨 <b>Domain report</b>\n\nUser <b>{user}</b> (ID: <code>{userId}</code>) says this URL was wrongly blocked:\n<code>{url}</code>',
+
+	// --- /broadcast command ---
+	'broadcast.prompt': '📣 Type the message you want to broadcast to all users.\n\nUse /cancel to abort.',
+	'broadcast.preview': '📣 <b>Broadcast Preview:</b>\n\n{message}\n\n<i>Send this to all users?</i>',
+	'broadcast.btn_confirm': '✅ Send',
+	'broadcast.btn_cancel': '❌ Cancel',
+	'broadcast.sending': '📤 Sending to all users...', 
+	'broadcast.done': '✅ Broadcast sent to <b>{sent}</b> users. <b>{failed}</b> failed.',
+	'broadcast.no_users': '⚠️ No users to broadcast to yet.',
+	'broadcast.cancelled': '❌ Broadcast cancelled.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

@@ -29,6 +29,7 @@ const ADMIN_COMMANDS = [
 	{ command: 'block', description: 'Block a user by ID' },
 	{ command: 'unblock', description: 'Unblock a user by ID' },
 	{ command: 'allowlist', description: 'Manage whitelisted domains' },
+	{ command: 'broadcast', description: 'Send a message to all users' },
 ];
 
 const ADMIN_COMMANDS_AR = [
@@ -41,6 +42,7 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'block', description: 'حظر مستخدم عبر المعرف' },
 	{ command: 'unblock', description: 'فك حظر مستخدم عبر المعرف' },
 	{ command: 'allowlist', description: 'إدارة النطاقات المسموح بها' },
+	{ command: 'broadcast', description: 'إرسال رسالة لجميع المستخدمين' },
 ];
 
 const SUPPORTED_PLATFORMS = [
