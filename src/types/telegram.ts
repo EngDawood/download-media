@@ -10,7 +10,7 @@ export interface FormatSettings {
 
 // Admin conversation state for multi-step flows
 export interface AdminState {
-	action: 'downloading_media';
+	action: 'downloading_media' | 'awaiting_broadcast';
 	context?: {
 		downloadUrl?: string;
 		downloadPlatform?: string;
@@ -20,6 +20,10 @@ export interface AdminState {
 		downloadCaption?: string;
 		/** YouTube mp3 URL for audio button after video send */
 		mp3Url?: string;
+		/** Pending broadcast message text */
+		broadcastMessage?: string;
+		/** Download mode stored for retry button */
+		downloadMode?: 'auto' | 'audio' | 'hd' | 'sd';
 	};
 }
 

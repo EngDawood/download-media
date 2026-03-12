@@ -29,6 +29,12 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			const username = ctx.from?.username;
 			const locale = getLocale(ctx);
 
+			// Instagram Stories are not supported — notify user and stop
+			if (platform === 'Instagram' && url.includes('/stories/')) {
+				await ctx.reply(t(locale, 'input.instagram_story_unsupported'));
+				return;
+			}
+
 			// Block adult content domains for non-admin users (skip if allowlisted)
 			if (!isAdmin && isBlockedDomain(url) && !(await isDomainAllowlisted(kv, url))) {
 				if (userId) {
@@ -74,6 +80,9 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 				const ttInfo = await fetchTikTokInfo(url);
 				if (ttInfo?.isImagePost) {
 					// Slideshow — auto-download, no picker needed
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
+				} else if (ttInfo === null) {
+					// Info fetch timed out or failed — best-effort auto-download
 					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
 				} else {
 					const keyboard = new InlineKeyboard()
@@ -124,6 +133,24 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 		}
 
 		const state = await getAdminState(kv, adminId);
+
+		// Handle broadcast message input
+		if (state?.action === 'awaiting_broadcast' && ctx.from?.id === adminId) {
+			const locale = getLocale(ctx);
+			await setAdminState(kv, adminId, {
+				action: 'awaiting_broadcast',
+				context: { broadcastMessage: text },
+			});
+			const keyboard = new InlineKeyboard()
+				.text(t(locale, 'broadcast.btn_confirm'), 'broadcast:confirm')
+				.text(t(locale, 'broadcast.btn_cancel'), 'broadcast:cancel');
+			await ctx.reply(
+				t(locale, 'broadcast.preview', { message: text }),
+				{ parse_mode: 'HTML', reply_markup: keyboard },
+			);
+			return;
+		}
+
 		if (!state) {
 			const locale = getLocale(ctx);
 			await ctx.reply(t(locale, 'input.no_action'));

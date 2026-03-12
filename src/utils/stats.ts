@@ -2,6 +2,7 @@ import {
 	KV_KEY_STATS_GLOBAL,
 	KV_KEY_STATS_DAY_PREFIX,
 	KV_KEY_STATS_USER_PREFIX,
+	KV_KEY_STATS_STARTED_PREFIX,
 	KV_KEY_DOWNLOAD_HISTORY,
 	KV_KEY_BLOCKED_USERS,
 	KV_KEY_DOMAIN_ALLOWLIST,
@@ -15,6 +16,7 @@ interface GlobalStats {
 	totalSuccess: number;
 	totalErrors: number;
 	totalUniqueUsers: number;
+	totalStartUsers: number;
 	platforms: Record<string, number>;
 	topUsers: Array<{ userId: number; firstName: string; count: number }>;
 }
@@ -47,6 +49,7 @@ export interface FailedDownloadEntry {
 	userId: number;
 	firstName: string;
 	username?: string;
+	mode?: string;
 }
 
 export interface StatsReport {
@@ -58,7 +61,7 @@ const TOP_USERS_LIMIT = 10;
 const DAY_TTL_SECONDS = 30 * 24 * 3600;
 
 function defaultGlobal(): GlobalStats {
-	return { totalLinks: 0, totalSuccess: 0, totalErrors: 0, totalUniqueUsers: 0, platforms: {}, topUsers: [] };
+	return { totalLinks: 0, totalSuccess: 0, totalErrors: 0, totalUniqueUsers: 0, totalStartUsers: 0, platforms: {}, topUsers: [] };
 }
 
 function getTodayKey(): string {
@@ -146,6 +149,44 @@ export async function incrementErrorStats(kv: KVNamespace): Promise<void> {
 	const global = await readGlobal(kv);
 	global.totalErrors++;
 	await writeGlobal(kv, global);
+}
+
+/**
+ * Increments the count of unique users who have used /start.
+ * Only counts each user once.
+ */
+export async function incrementStartUsers(kv: KVNamespace, userId: number): Promise<void> {
+	const startedKey = `${KV_KEY_STATS_STARTED_PREFIX}${userId}`;
+	const [global, alreadyStarted] = await Promise.all([readGlobal(kv), kv.get(startedKey)]);
+	if (alreadyStarted) return;
+	global.totalStartUsers = (global.totalStartUsers ?? 0) + 1;
+	await Promise.all([writeGlobal(kv, global), kv.put(startedKey, '1')]);
+}
+
+/**
+ * Returns stats for the last N days (most recent first).
+ */
+export async function getDailyStats(kv: KVNamespace, days = 7): Promise<Array<{ date: string; links: number; success: number }>> {
+	const dates: string[] = [];
+	for (let i = 0; i < days; i++) {
+		const d = new Date();
+		d.setUTCDate(d.getUTCDate() - i);
+		const yyyy = d.getUTCFullYear();
+		const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+		const dd = String(d.getUTCDate()).padStart(2, '0');
+		dates.push(`${yyyy}-${mm}-${dd}`);
+	}
+	const results = await Promise.all(dates.map((date) => kv.get(`${KV_KEY_STATS_DAY_PREFIX}${date}`)));
+	return dates.map((date, i) => {
+		const raw = results[i];
+		if (!raw) return { date, links: 0, success: 0 };
+		try {
+			const day = JSON.parse(raw) as DayStats;
+			return { date, links: day.links, success: day.success };
+		} catch {
+			return { date, links: 0, success: 0 };
+		}
+	});
 }
 
 /**

@@ -39,16 +39,159 @@ export function isBlockedDomain(url: string): boolean {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Per-platform URL normalization
+// Converts variant/mobile/tracking URLs to a clean canonical form before
+// passing to the btch API. This improves compatibility and avoids failures
+// caused by extra query params or unsupported subdomains.
+// ---------------------------------------------------------------------------
+
+function normalizeYouTube(url: string): string {
+	try {
+		const u = new URL(url);
+		// Short link: youtu.be/{videoId}
+		if (u.hostname === 'youtu.be') {
+			const videoId = u.pathname.slice(1).split('/')[0];
+			if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+		}
+		// Shorts: /shorts/{videoId}
+		if (u.pathname.startsWith('/shorts/')) {
+			const videoId = u.pathname.split('/')[2];
+			if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+		}
+		// Live: /live/{videoId}
+		if (u.pathname.startsWith('/live/')) {
+			const videoId = u.pathname.split('/')[2];
+			if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+		}
+		// Standard or mobile watch URL — strip all params except v=
+		const videoId = u.searchParams.get('v');
+		if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+	} catch { /* fall through */ }
+	return url;
+}
+
+function normalizeInstagram(url: string): string {
+	try {
+		const u = new URL(url);
+		// Keep only /{type}/{shortcode}/ — strip igshid, img_index, hl, etc.
+		const parts = u.pathname.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			return `https://www.instagram.com/${parts[0]}/${parts[1]}/`;
+		}
+	} catch { /* fall through */ }
+	return url;
+}
+
+function normalizeTikTok(url: string): string {
+	try {
+		const u = new URL(url);
+		// Short links (vm / vt) — keep path only, no params
+		if (u.hostname === 'vm.tiktok.com' || u.hostname === 'vt.tiktok.com') {
+			return `https://${u.hostname}${u.pathname}`;
+		}
+		// All others (www / m) → www, path only, strip _t, _r, is_from_webapp, etc.
+		return `https://www.tiktok.com${u.pathname}`;
+	} catch { /* fall through */ }
+	return url;
+}
+
+function normalizeFacebook(url: string): string {
+	try {
+		const u = new URL(url);
+		// Short links — keep as-is
+		if (u.hostname === 'fb.watch') return url;
+		// Normalize mobile / web variants → www
+		// watch/?v= URLs need the v param preserved
+		if (u.pathname.startsWith('/watch')) {
+			const v = u.searchParams.get('v');
+			return v
+				? `https://www.facebook.com/watch/?v=${v}`
+				: `https://www.facebook.com/watch/`;
+		}
+		// All other paths (reel, share/r, share/v, username/videos) — path only
+		return `https://www.facebook.com${u.pathname}`;
+	} catch { /* fall through */ }
+	return url;
+}
+
+function normalizeTwitter(url: string): string {
+	try {
+		const u = new URL(url);
+		// Normalize x.com → twitter.com for consistent btch API handling
+		// Keep only the path (strips UTM and other tracking params)
+		const host = u.hostname.replace('x.com', 'twitter.com').replace(/^www\./, '');
+		return `https://${host}${u.pathname}`;
+	} catch { /* fall through */ }
+	return url;
+}
+
+/**
+ * Normalize a detected URL to its canonical form, stripping tracking params
+ * and converting variant/mobile URLs to standard ones.
+ */
+function normalizeUrl(url: string, platform: string): string {
+	switch (platform) {
+		case 'YouTube':   return normalizeYouTube(url);
+		case 'Instagram': return normalizeInstagram(url);
+		case 'TikTok':    return normalizeTikTok(url);
+		case 'Facebook':  return normalizeFacebook(url);
+		case 'Twitter':   return normalizeTwitter(url);
+		default:          return url;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Detection patterns — broad enough to catch variant/mobile URLs.
+// Normalization (above) handles converting them to canonical form.
+// ---------------------------------------------------------------------------
+
 const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
-	{ platform: 'YouTube', pattern: /https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch|shorts\/)|youtu\.be\/|music\.youtube\.com\/watch)\S+/i },
-	{ platform: 'Instagram', pattern: /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|stories)\/\S+/i },
-	{ platform: 'TikTok', pattern: /https?:\/\/(?:(?:www|vm|vt)\.)?tiktok\.com\/\S+/i },
-	{ platform: 'Twitter', pattern: /https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/\S+\/status\/\S+/i },
-	{ platform: 'Facebook', pattern: /https?:\/\/(?:(?:www\.)?facebook\.com\/(?:share\/r\/|watch\/|\S+\/videos\/)|fb\.watch\/)\S+/i },
-	{ platform: 'Threads', pattern: /https?:\/\/(?:www\.)?threads\.(?:net|com)\/@\S+\/post\/\S+/i },
-	{ platform: 'SoundCloud', pattern: /https?:\/\/(?:www\.)?soundcloud\.com\/\S+\/\S+/i },
-	{ platform: 'Spotify', pattern: /https?:\/\/(?:open\.)?spotify\.com\/track\/\S+/i },
-	{ platform: 'Pinterest', pattern: /https?:\/\/(?:[a-z]{2}\.)?pinterest\.com\/pin\/\S+|https?:\/\/pin\.it\/\S+/i },
+	// YouTube: www / m / music subdomains; watch, shorts, live, youtu.be
+	{
+		platform: 'YouTube',
+		pattern: /https?:\/\/(?:(?:www|m)\.)?(?:youtube\.com\/(?:watch|shorts\/|live\/)|youtu\.be\/|music\.youtube\.com\/watch)\S+/i,
+	},
+	// Instagram: /p/, /reel/, /tv/ (IGTV), /stories/ — www optional
+	{
+		platform: 'Instagram',
+		pattern: /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv|stories)\/\S+/i,
+	},
+	// TikTok: www / vm / vt / m subdomains
+	{
+		platform: 'TikTok',
+		pattern: /https?:\/\/(?:(?:www|vm|vt|m)\.)?tiktok\.com\/\S+/i,
+	},
+	// Twitter / X
+	{
+		platform: 'Twitter',
+		pattern: /https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/\S+\/status\/\S+/i,
+	},
+	// Facebook: www / m / web subdomains; share/r, share/v, watch, reel, /videos/; fb.watch
+	{
+		platform: 'Facebook',
+		pattern: /https?:\/\/(?:(?:www|m|web)\.)?facebook\.com\/(?:share\/[rv]\/|watch\/?|reel\/|\S+\/videos\/)\S*|https?:\/\/fb\.watch\/\S+/i,
+	},
+	// Threads
+	{
+		platform: 'Threads',
+		pattern: /https?:\/\/(?:www\.)?threads\.(?:net|com)\/@\S+\/post\/\S+/i,
+	},
+	// SoundCloud
+	{
+		platform: 'SoundCloud',
+		pattern: /https?:\/\/(?:www\.)?soundcloud\.com\/\S+\/\S+/i,
+	},
+	// Spotify
+	{
+		platform: 'Spotify',
+		pattern: /https?:\/\/(?:open\.)?spotify\.com\/track\/\S+/i,
+	},
+	// Pinterest
+	{
+		platform: 'Pinterest',
+		pattern: /https?:\/\/(?:[a-z]{2}\.)?pinterest\.com\/pin\/\S+|https?:\/\/pin\.it\/\S+/i,
+	},
 ];
 
 /** Generic URL pattern — catches any https:// URL not matched by specific platforms. */
@@ -56,13 +199,14 @@ const GENERIC_URL_PATTERN = /https?:\/\/\S+/i;
 
 /**
  * Detect the first supported media platform URL in message text.
+ * Returns a normalized (canonical) URL alongside the platform name.
  * Falls back to a generic URL match so the AIO endpoint can try any link.
  */
 export function detectMediaUrl(text: string): DetectedUrl | null {
 	for (const { platform, pattern } of PLATFORM_PATTERNS) {
 		const match = text.match(pattern);
 		if (match) {
-			return { url: match[0], platform };
+			return { url: normalizeUrl(match[0], platform), platform };
 		}
 	}
 	// Generic fallback — let AIO try any URL

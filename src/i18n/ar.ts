@@ -24,6 +24,7 @@ export const ar: Translations = {
 		'/block {userId} — حظر مستخدم\n' +
 		'/unblock {userId} — فك حظر مستخدم\n' +
 		'/allowlist — إدارة النطاقات المسموح بها\n' +
+		'/broadcast — إرسال رسالة لجميع المستخدمين\n' +
 		'/help — التفاصيل الكاملة',
 
 	// --- /start command (guest) ---
@@ -49,7 +50,8 @@ export const ar: Translations = {
 		'<code>/cancel</code> — إلغاء عملية التحميل الحالية.\n' +
 		'<code>/block {userId}</code> — حظر مستخدم من استخدام البوت.\n' +
 		'<code>/unblock {userId}</code> — فك حظر مستخدم.\n' +
-		'<code>/allowlist</code> — عرض وحذف النطاقات المسموح بها.',
+		'<code>/allowlist</code> — عرض وحذف النطاقات المسموح بها.\n' +
+		'<code>/broadcast</code> — إرسال رسالة لجميع المستخدمين.',
 
 	// --- /help command (guest) ---
 	'help.guest.body':
@@ -64,7 +66,7 @@ export const ar: Translations = {
 
 	// --- text-input-handler ---
 	'input.no_action': 'لا يوجد إجراء نشط. أرسل رابط مدعوم لتحميل الوسائط.',
-	'input.fetching_post': 'جاري جلب معلومات المنشور...',
+	'input.fetching_post': 'جاري جلب معلومات المنشور...', 
 	'input.fetching_video': 'جاري جلب معلومات الفيديو...',
 	'input.choose_format': '<b>{platform}</b> — اختر الصيغة:',
 	'input.choose_quality': '<b>{platform}</b> — اختر الجودة:',
@@ -89,6 +91,11 @@ export const ar: Translations = {
 	'download.btn_urluploadxbot': '🤖 إرسال إلى @urluploadxbot',
 	'download.btn_browser': '🌐 فتح في المتصفح',
 	'download.btn_mp3': '🎵 استخراج الصوت',
+	'download.btn_retry': '🔄 إعادة محاولة التحميل',
+	'download.btn_report_admin': '📬 الإبلاغ عن مشكلة',
+	'download.contact_admin': 'إذا كنت تعتقد أن هذا خطأ من البوت، أرسل رسالة للمشرف بالخطأ هذا.',
+	'download.report_sent': '✅ تم إرسال التقرير للمشرف.',
+	'download.admin_error_report': '🚨 <b>تقرير تحميل فاشل</b>\n\n👤 المستخدم: {user}\n📱 المنصة: {platform}\n🔗 الرابط: <code>{url}</code>\n❌ الخطأ: <code>{error}</code>',
 
 	// --- callbacks ---
 	'callback.session_expired': "⏱ انتهت الجلسة. يرجى إرسال الرابط مجدداً للبدء من جديد.",
@@ -96,9 +103,9 @@ export const ar: Translations = {
 
 	// --- subscription gate ---
 	'gate.blocked':
-		'🔒 تم الوصول للحد المجاني\\. لقد استخدمت {freeUses} تحميلات مجانية\\!\n\n' +
+		'🔒 تم الوصول للحد المجاني\. لقد استخدمت {freeUses} تحميلات مجانية\!\n\n' +
 		'انضم لقناتنا لمتابعة التحميل:\n' +
-		'👉 [t\\.me/{channelName}](https://t.me/{channelName})',
+		'👉 [t\.me/{channelName}](https://t.me/{channelName})',
 	'gate.btn_join': '📢 انضم للقناة',
 	'gate.btn_verify': '✅ التحقق من الاشتراك',
 
@@ -106,7 +113,10 @@ export const ar: Translations = {
 	'gate.access_granted_alert': '✅ تم منح الوصول!',
 	'gate.welcome_alert': '✅ أهلاً! يمكنك الآن استخدام البوت.',
 	'gate.subscribed':
-		'✅ *تم منح الوصول\\!*\n\nأنت مشترك في [{channel}](https://t.me/{channelName})\\.\nأرسل رابط لتحميل الوسائط\\.',
+		'✅ *تم منح الوصول\!*
+
+أنت مشترك في [{channel}](https://t.me/{channelName})\.
+أرسل رابط لتحميل الوسائط\.',
 	'gate.not_joined': '⚠️ لم يتم العثور على اشتراك. يرجى الانضمام للقناة أولاً، ثم النقر على تحقق.',
 	'gate.verify_failed': '⚠️ فشل التحقق. لم نتمكن من تأكيد اشتراكك. يرجى المحاولة مرة أخرى.',
 
@@ -119,16 +129,24 @@ export const ar: Translations = {
 	'setchannel.usage': 'الاستخدام: /setchannel @channelname',
 	'setchannel.bot_info_fail': '⚠️ تعذر الحصول على معلومات البوت. حاول مرة أخرى.',
 	'setchannel.not_admin':
-		'⚠️ أنا في *{channel}* لكنني لست مشرفاً هناك\\.\n\n' +
-		'يرجى ترقيتي لمشرف في القناة، ثم حاول مرة أخرى\\.',
+		'⚠️ أنا في *{channel}* لكنني لست مشرفاً هناك\.
+
+' +
+		'يرجى ترقيتي لمشرف في القناة، ثم حاول مرة أخرى\.',
 	'setchannel.not_found':
-		'❌ تعذر العثور على القناة *{channel}* أو ليس لدي صلاحية الوصول\\.\n\n' +
-		'تأكد من:\n' +
-		'1\\. القناة موجودة\n' +
-		'2\\. أضفتني كمشرف',
+		'❌ تعذر العثور على القناة *{channel}* أو ليس لدي صلاحية الوصول\.
+
+' +
+		'تأكد من:
+' +
+		'1\. القناة موجودة
+' +
+		'2\. أضفتني كمشرف',
 	'setchannel.success':
-		'✅ تم تعيين القناة المطلوبة [{channel}](https://t.me/{channelName})\\.\n\n' +
-		'سيحتاج المستخدمون للانضمام إليها بعد {freeUses} تحميلات مجانية\\.',
+		'✅ تم تعيين القناة المطلوبة [{channel}](https://t.me/{channelName})\.
+
+' +
+		'سيحتاج المستخدمون للانضمام إليها بعد {freeUses} تحميلات مجانية\.',
 
 	// --- /lang command ---
 	'lang.current': '🌐 اللغة الحالية: <b>{language}</b>',
@@ -137,19 +155,26 @@ export const ar: Translations = {
 
 	// --- /stats command (admin only) ---
 	'stats.header': '📊 <b>إحصائيات البوت</b>',
+	'stats.start_users': '🚀 المستخدمون الذين بدأوا البوت: <b>{count}</b>',
 	'stats.links': '📥 الروابط المُرسَلة: <b>{count}</b>',
-	'stats.success': '✅ ناجح: <b>{count}</b>',
+	'stats.success': '✅ ناجح: <b>{count}</b> ({rate}%)',
 	'stats.errors': '❌ أخطاء: <b>{count}</b>',
-	'stats.users': '👥 مستخدمون فريدون: <b>{count}</b>',
+	'stats.users': '👥 مستخدمون نشطون: <b>{count}</b>',
 	'stats.today': '📅 اليوم: <b>{links}</b> روابط، <b>{success}</b> ناجح',
 	'stats.platforms_header': '📱 <b>حسب المنصة:</b>',
 	'stats.top_users_header': '👤 <b>أكثر المستخدمين:</b>',
 	'stats.user_row': '{rank}. {firstName} — {count} تحميلات',
 	'stats.no_data': 'لا توجد إحصائيات بعد. أرسل بعض الروابط لبدء التتبع.',
 	'stats.admin_only': '🔒 هذا الأمر للمشرف فقط.',
+	'stats.btn_daily': '📅 عرض اليومي',
 	'stats.btn_history': '📜 عرض السجل',
 	'stats.btn_blocked': '🚫 عرض المحظورين',
 	'stats.btn_back': '⬅️ رجوع',
+	'stats.daily_header': '📅 <b>الإحصاء اليومي — آخر 7 أيام</b>',
+	'stats.today_label': 'اليوم',
+	'stats.yesterday_label': 'أمس',
+	'stats.daily_row': '<b>{label}:</b> {links} روابط، {success} ✅',
+	'stats.daily_row_empty': '<b>{label}:</b> —',
 	'stats.history_header': '📜 <b>التحميلات الأخيرة</b>',
 	'stats.no_history': 'لا يوجد سجل تحميلات بعد.',
 	'stats.blocked_header': '🚫 <b>المستخدمين المحظورين</b>',
@@ -173,8 +198,19 @@ export const ar: Translations = {
 	'allowlist.empty': 'لا توجد نطاقات مسموح بها بعد.',
 	'allowlist.removed': '🗑 تم حذف <b>{hostname}</b> من القائمة البيضاء.',
 	'allowlist.not_found': '⚠️ النطاق غير موجود في القائمة البيضاء.',
+	'input.instagram_story_unsupported': '📖 صيغة غير مدعومة. قصص Instagram غير مدعومة حالياً.',
 	'input.blocked_domain': '🚫 تم حظر المحتوى. هذا النطاق غير مسموح به بسبب سياسات الأمان.',
 	'input.blocked_domain_btn': '✋ الإبلاغ عن محتوى آمن',
 	'report.sent': '✅ تم إرسال بلاغك إلى المشرف.',
 	'report.admin_notify': '🚨 <b>بلاغ نطاق</b>\n\nالمستخدم <b>{user}</b> (ID: <code>{userId}</code>) يقول أن هذا الرابط حُظر بشكل خاطئ:\n<code>{url}</code>',
+
+	// --- /broadcast command ---
+	'broadcast.prompt': '📣 اكتب الرسالة التي تريد بثها لجميع المستخدمين.\n\nاستخدم /cancel للإلغاء.',
+	'broadcast.preview': '📣 <b>معاينة البث:</b>\n\n{message}\n\n<i>هل تريد إرسال هذا لجميع المستخدمين؟</i>',
+	'broadcast.btn_confirm': '✅ إرسال',
+	'broadcast.btn_cancel': '❌ إلغاء',
+	'broadcast.sending': '📤 جاري الإرسال لجميع المستخدمين...', 
+	'broadcast.done': '✅ تم إرسال الرسالة إلى <b>{sent}</b> مستخدم. <b>{failed}</b> فشل.',
+	'broadcast.no_users': '⚠️ لا يوجد مستخدمون للبث إليهم بعد.',
+	'broadcast.cancelled': '❌ تم إلغاء البث.',
 };
