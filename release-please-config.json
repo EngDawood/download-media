@@ -6,7 +6,7 @@
         "src/",
         "scripts/",
         "package.json",
-        "package-lock.json",
+        "pnpm-lock.yaml",
         "wrangler.jsonc",
         "tsconfig.json"
       ]
