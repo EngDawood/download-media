@@ -7,6 +7,11 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -15,4 +20,7 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-      
+    groups:
+      actions:
+        patterns:
+          - "*"

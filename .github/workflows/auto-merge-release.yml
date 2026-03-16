@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - master
+      - dev
 
 permissions:
   pull-requests: write
@@ -17,13 +18,11 @@ permissions:
 jobs:
   automerge:
     runs-on: ubuntu-latest
-    # Only run on pull requests created by the release-please bot
-    if: github.event.pull_request.user.login == 'google-github-actions-bot' || contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
+    # Only run on PRs created by release-please bot
+    if: github.actor == 'github-actions[bot]' || contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
     steps:
       - name: Enable Auto-Merge
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
-          # Requires a Personal Access Token or fine-grained token with repo scopes if branch protection is strict, 
-          # but GITHUB_TOKEN works if branch protection rules allow it.
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
