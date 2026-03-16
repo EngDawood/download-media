@@ -13,7 +13,7 @@
 		"postinstall": "node scripts/gen-deploy-id.cjs"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.12.4",
+		"@cloudflare/vitest-pool-workers": "^0.12.21",
 		"@commitlint/cli": "^20.5.0",
 		"@commitlint/config-conventional": "^20.5.0",
 		"@eslint/js": "^10.0.1",
@@ -26,7 +26,7 @@
 		"wrangler": "^4.74.0"
 	},
 	"dependencies": {
-		"grammy": "^1.40.0",
+		"grammy": "^1.41.1",
 		"hono": "^4.12.8"
 	}
 }
