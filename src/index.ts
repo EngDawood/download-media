@@ -12,6 +12,7 @@ app.get('/setup', handleSetup);
 
 app.post('/telegram', async (c) => {
 	const secret = c.req.header('X-Telegram-Bot-Api-Secret-Token');
+	// @ts-ignore: TELEGRAM_WEBHOOK_SECRET is an optional secret not defined in worker-configuration.d.ts
 	if (c.env.TELEGRAM_WEBHOOK_SECRET && secret !== c.env.TELEGRAM_WEBHOOK_SECRET) {
 		return c.json({ error: 'Unauthorized' }, 401);
 	}

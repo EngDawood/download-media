@@ -76,7 +76,26 @@ telegram-bot/
 
 **Implementation:** `text-input-handler.ts` — checks `isAdmin` before showing pickers.
 
-## 2026-02-xx: GET /setup route for bot initialization
+## 2026-03-08: Failed download logging
+
+**Context:** Errors were only counted in global stats. The admin could not see which URLs were failing or why, making it impossible to identify unsupported platforms or recurring issues.
+
+**Decision:** Persist every failed download to `stats:failed` KV key (separate from `stats:history`) with the URL, platform, specific error reason, timestamp, and user info. Limit to 200 entries. Expose via new "❌ Failed" tab in `/stats`.
+
+**Implementation:**
+- `FailedDownloadEntry` interface and `addFailedDownload()` / `getFailedDownloads()` in `src/utils/stats.ts`
+- `recordError(errorReason: string)` in `download-and-send.ts` — 4 call sites pass specific reasons
+- `stats:failed` callback handler in `info-commands.ts`; keyboard in both `/stats` and `stats:back` handlers
+
+## 2026-03-08: Twitter/X full caption via oEmbed
+
+**Context:** The btch API returns a truncated `title` for Twitter/X posts (cuts off mid-sentence with `...`).
+
+**Decision:** Call Twitter's public oEmbed API (`https://publish.twitter.com/oembed`) in parallel with `tryAIO()` to get the full tweet text. No author prefix — tweet text only. Falls back to btch title if oEmbed fails.
+
+**Implementation:** `fetchTwitterFullCaption(url)` in `media-downloader.ts`, called via `Promise.all([tryAIO(url), fetchTwitterFullCaption(url)])` at the top of `downloadTwitter()`. Caption override applied to both AIO and fallback paths.
+
+## 2026-03-08: GET /setup route for bot initialization
 
 **Context:** Bot commands and menu button need to be registered once with Telegram. Originally done via a one-off script.
 

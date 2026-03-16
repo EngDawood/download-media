@@ -197,6 +197,31 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 /** Generic URL pattern — catches any https:// URL not matched by specific platforms. */
 const GENERIC_URL_PATTERN = /https?:\/\/\S+/i;
 
+/** Detects if the URL points directly to a file based on its extension. */
+export function getDirectFileMediaType(url: string): 'video' | 'audio' | 'photo' | 'document' | null {
+	try {
+		const u = new URL(url);
+		
+		// Ensure the path actually has a file name with an extension
+		const filename = u.pathname.split('/').pop();
+		if (!filename || !filename.includes('.')) return null;
+
+		const ext = filename.split('.').pop()?.toLowerCase();
+		if (!ext) return null;
+
+		if (['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext)) return 'video';
+		if (['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac'].includes(ext)) return 'audio';
+		if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'].includes(ext)) return 'photo';
+		if (['html', 'htm', 'php', 'asp', 'aspx', 'jsp'].includes(ext)) return null; // Not a downloadable media/file
+		if (ext.length > 15) return null; // Unlikely to be a valid file extension
+
+		// Default unknown types to 'document' so they are sent as files
+		return 'document';
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Detect the first supported media platform URL in message text.
  * Returns a normalized (canonical) URL alongside the platform name.

@@ -28,6 +28,16 @@ So practically:
 
 Current implementation: `send-media.ts` tries URL-first, catches `TelegramUrlFetchError`, shows interactive buttons.
 
+## Twitter/X Captions Truncated
+
+**Symptom:** Bot sends tweet media with caption ending in `...` mid-sentence.
+
+**Cause:** The btch API truncates the `title` field for Twitter/X posts.
+
+**Fix (already applied):** `fetchTwitterFullCaption()` in `media-downloader.ts` calls `https://publish.twitter.com/oembed?url=...` to get the full text. Runs in parallel with `tryAIO()` — no latency added.
+
+**If oEmbed stops working:** The function returns `''` on any error, and the code falls back to btch `title` (`caption ?? buildCaption(res.title)`). Check oEmbed manually: `curl "https://publish.twitter.com/oembed?url={tweetUrl}"`.
+
 ## btch API Failures
 
 If all 4 btch backend servers fail:

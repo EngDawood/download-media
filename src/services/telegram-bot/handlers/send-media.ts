@@ -3,7 +3,7 @@ import type { Bot } from 'grammy';
 import type { TelegramMediaMessage, FormatSettings } from '../../../types/telegram';
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB Telegram bot upload limit
-const MEDIA_CAPTION_LIMIT = 1024; // Telegram caption limit for photo/video/audio/mediagroup
+export const MEDIA_CAPTION_LIMIT = 1024; // Telegram caption limit for photo/video/audio/mediagroup
 
 function isTelegramUrlError(err: unknown): boolean {
 	return (
@@ -15,7 +15,7 @@ function isTelegramUrlError(err: unknown): boolean {
 }
 
 /** If caption fits, attach it to media. If too long, send media without caption then post caption as separate text. */
-async function sendWithCaption(
+export async function sendWithCaption(
 	send: (caption: string) => Promise<unknown>,
 	bot: Bot,
 	chatId: number,

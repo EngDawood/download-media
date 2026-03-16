@@ -62,7 +62,8 @@
       "WebFetch(domain:jobs.qtbbank.com)",
       "Bash(powershell -Command \"$input | Select-String -Pattern ''single-job-items|job-tittle|items-link|col-xl-10'' -AllMatches\")",
       "Bash(findstr:*)",
-      "Bash(del \"C:\\\\Users\\\\LEGION\\\\codebase\\\\jobs\\\\temp_qtb.html\" \"C:\\\\Users\\\\LEGION\\\\codebase\\\\jobs\\\\temp_yldf.html\" \"C:\\\\Users\\\\LEGION\\\\codebase\\\\jobs\\\\temp_qtb_detail.html\" \"C:\\\\Users\\\\LEGION\\\\codebase\\\\jobs\\\\temp_kuraimi_detail.html\")"
+      "Bash(del \"C:\\\\Users\\\\LEGION\\\\codebase\\\\jobs\\\\temp_qtb.html\" \"C:\\\\Users\\\\LEGION\\\\codebase\\\\jobs\\\\temp_yldf.html\" \"C:\\\\Users\\\\LEGION\\\\codebase\\\\jobs\\\\temp_qtb_detail.html\" \"C:\\\\Users\\\\LEGION\\\\codebase\\\\jobs\\\\temp_kuraimi_detail.html\")",
+      "Bash(node_modules/.bin/tsc:*)"
     ],
     "deny": [
       "Read(./.env)",

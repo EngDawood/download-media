@@ -214,6 +214,19 @@ export async function addDownloadHistory(
 }
 
 /**
+ * Get download history for today (most recent first).
+ */
+export async function getTodayDownloadHistory(kv: KVNamespace, limit = 50): Promise<DownloadHistoryEntry[]> {
+	const raw = await kv.get(KV_KEY_DOWNLOAD_HISTORY);
+	if (!raw) return [];
+	const history: DownloadHistoryEntry[] = JSON.parse(raw);
+	const startOfDay = new Date();
+	startOfDay.setUTCHours(0, 0, 0, 0);
+	const startTs = startOfDay.getTime();
+	return history.filter((e) => e.timestamp >= startTs).slice(0, limit);
+}
+
+/**
  * Get download history (most recent first).
  */
 export async function getDownloadHistory(kv: KVNamespace, limit = 20): Promise<DownloadHistoryEntry[]> {

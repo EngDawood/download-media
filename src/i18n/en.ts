@@ -16,6 +16,8 @@ export const en = {
 		'• Pinterest — Auto-download\n\n' +
 		'<b>Admin commands:</b>\n' +
 		'/setchannel @username — Set subscription channel\n' +
+		'/setfreeuses {count} — Set free downloads limit\n' +
+		'/adminstats — View detailed statistics\n' +
 		'/stats — View usage statistics\n' +
 		'/lang — Change bot language\n' +
 		'/cancel — Cancel current action\n' +
@@ -42,8 +44,9 @@ export const en = {
 		'• <b>Facebook</b> — HD/SD when multiple qualities available\n' +
 		'• Large files (&gt;50MB) show the direct URL to download manually\n\n' +
 		'<b>Admin commands:</b>\n' +
-		'<code>/setchannel @username</code> — Require users to join a channel after {freeUses} free downloads. Bot must be admin in that channel.\n' +
-		'<code>/stats</code> — View bot usage statistics.\n' +
+		'<code>/setchannel @username</code> — Require users to join a channel after {freeUses} free downloads.\n' +
+		'<code>/setfreeuses {count}</code> — Change the number of free downloads allowed.\n' +
+		'<code>/stats</code> or <code>/adminstats</code> — View bot usage statistics.\n' +
 		'<code>/lang</code> — Change bot language.\n' +
 		'<code>/cancel</code> — Cancel the current download flow.\n' +
 		'<code>/block {userId}</code> — Block a user from using the bot.\n' +
@@ -134,6 +137,9 @@ export const en = {
 	'setchannel.success':
 		'✅ Required channel set to [{channel}](https://t.me/{channelName})\\.\n\n' +
 		'Users will need to join it after {freeUses} free downloads\\.',
+	'setfreeuses.usage': 'Usage: /setfreeuses {number}',
+	'setfreeuses.success': '✅ Free uses limit updated to <b>{count}</b>.',
+	'setfreeuses.invalid': '⚠️ Invalid number.',
 
 	// --- /lang command ---
 	'lang.current': '🌐 Current language: <b>{language}</b>',
@@ -155,6 +161,7 @@ export const en = {
 	'stats.admin_only': '🔒 This command is for admins only.',
 	'stats.btn_daily': '📅 View Daily',
 	'stats.btn_history': '📜 View History',
+	'stats.btn_today_history': '📜 Today History',
 	'stats.btn_blocked': '🚫 View Blocked',
 	'stats.btn_back': '⬅️ Back',
 	'stats.daily_header': '📅 <b>Daily Stats — Last 7 Days</b>',
@@ -163,6 +170,7 @@ export const en = {
 	'stats.daily_row': '<b>{label}:</b> {links} links, {success} ✅',
 	'stats.daily_row_empty': '<b>{label}:</b> —',
 	'stats.history_header': '📜 <b>Recent Downloads</b>',
+	'stats.today_history_header': '📜 <b>Downloads Today</b>',
 	'stats.no_history': 'No download history yet.',
 	'stats.blocked_header': '🚫 <b>Blocked Users</b>',
 	'stats.no_blocked': 'No users are blocked.',

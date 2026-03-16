@@ -1,5 +1,5 @@
 import { Bot } from 'grammy';
-import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE } from '../../../constants';
+import { KV_KEY_REQUIRED_CHANNEL, KV_KEY_FREE_USES, FREE_USES_BEFORE_GATE } from '../../../constants';
 import { t, getLocale } from '../../../i18n';
 
 const ADMIN_STATUSES = ['administrator', 'creator'];
@@ -52,5 +52,25 @@ export function registerAdminCommands(bot: Bot, env: Env, kv: KVNamespace): void
 			t(locale, 'setchannel.success', { channel: channelUsername, channelName, freeUses: FREE_USES_BEFORE_GATE }),
 			{ parse_mode: 'MarkdownV2' },
 		);
+	});
+
+	bot.command('setfreeuses', async (ctx) => {
+		if (ctx.from?.id !== adminId) return;
+
+		const locale = getLocale(ctx);
+		const arg = ctx.match?.trim();
+		if (!arg) {
+			await ctx.reply(t(locale, 'setfreeuses.usage'));
+			return;
+		}
+
+		const count = parseInt(arg, 10);
+		if (isNaN(count) || count < 0) {
+			await ctx.reply(t(locale, 'setfreeuses.invalid'));
+			return;
+		}
+
+		await kv.put(KV_KEY_FREE_USES, String(count));
+		await ctx.reply(t(locale, 'setfreeuses.success', { count: String(count) }), { parse_mode: 'HTML' });
 	});
 }

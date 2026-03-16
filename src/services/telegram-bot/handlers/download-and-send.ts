@@ -1,7 +1,7 @@
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { downloadMedia, formatFileSize } from '../../media-downloader';
-import { sendMediaToChannel } from './send-media';
+import { sendMediaToChannel, sendWithCaption } from './send-media';
 import { setAdminState, clearAdminState } from '../storage/admin-state';
 import type { TelegramMediaMessage } from '../../../types/telegram';
 import { trackEvent } from '../../../utils/analytics';
@@ -26,7 +26,7 @@ export async function downloadAndSendMedia(
 	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
-	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio'; firstName?: string; username?: string; locale?: Locale },
+	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; firstName?: string; username?: string; locale?: Locale },
 ): Promise<void> {
 	const userType = options?.guestMode ? 'guest' : 'admin';
 	const userId = options?.userId ?? 0;
@@ -245,15 +245,23 @@ export async function downloadAndSendMedia(
 			const keyboard = new InlineKeyboard()
 				.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot');
 			const photoCaption = `${caption}\n\n${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n🎬 Video:\n<code>${mp4Url}</code>\n\n🎵 Audio:\n<code>${result.mp3Url}</code>`;
-			// Send thumbnail with title/author + URLs in one message
+
+			// Send with caption logic (splits if too long for photo, falls back to text if photo fails)
 			try {
-				await bot.api.sendPhoto(chatId, result.thumbnail, {
-					caption: photoCaption,
-					parse_mode: 'HTML',
-					reply_markup: keyboard,
-				});
+				await sendWithCaption(
+					(cap) =>
+						bot.api.sendPhoto(chatId, result!.thumbnail!, {
+							caption: cap,
+							parse_mode: 'HTML',
+							reply_markup: keyboard,
+						}),
+					bot,
+					chatId,
+					photoCaption,
+					false,
+				);
 			} catch {
-				// Thumbnail failed — fall back to text-only message
+				// Entire photo operation failed — fall back to plain text
 				await bot.api.sendMessage(chatId, photoCaption, {
 					parse_mode: 'HTML',
 					reply_markup: keyboard,

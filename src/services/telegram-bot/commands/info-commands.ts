@@ -1,8 +1,28 @@
 import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState, getAdminState, setAdminState } from '../storage/admin-state';
-import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, CACHE_PREFIX_USER_LANG, CACHE_PREFIX_BLOCKED_URL, KV_KEY_STATS_USER_PREFIX, KV_KEY_STATS_STARTED_PREFIX } from '../../../constants';
+import {
+	KV_KEY_REQUIRED_CHANNEL,
+	FREE_USES_BEFORE_GATE,
+	CACHE_PREFIX_USER_LANG,
+	CACHE_PREFIX_BLOCKED_URL,
+	KV_KEY_STATS_USER_PREFIX,
+	KV_KEY_STATS_STARTED_PREFIX,
+} from '../../../constants';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
-import { getStatsReport, getDownloadHistory, getBlockedUsers, blockUser, unblockUser, addDomainToAllowlist, removeDomainFromAllowlist, getAllowlist, getFailedDownloads, incrementStartUsers, getDailyStats } from '../../../utils/stats';
+import {
+	getStatsReport,
+	getDownloadHistory,
+	getBlockedUsers,
+	blockUser,
+	unblockUser,
+	addDomainToAllowlist,
+	removeDomainFromAllowlist,
+	getAllowlist,
+	getFailedDownloads,
+	incrementStartUsers,
+	getDailyStats,
+	getTodayDownloadHistory,
+} from '../../../utils/stats';
 import type { StatsReport } from '../../../utils/stats';
 
 /**
@@ -31,13 +51,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			? t(locale, 'start.guest.channel_line', { freeUses: FREE_USES_BEFORE_GATE, channel: channelUsername })
 			: '';
 
-		await ctx.reply(
-			greeting +
-				t(locale, 'start.guest.body') +
-				channelLine +
-				t(locale, 'start.guest.help_hint'),
-			{ parse_mode: 'HTML' },
-		);
+		await ctx.reply(greeting + t(locale, 'start.guest.body') + channelLine + t(locale, 'start.guest.help_hint'), { parse_mode: 'HTML' });
 	});
 
 	bot.command('help', async (ctx) => {
@@ -47,10 +61,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		const namePrefix = name ? t(locale, 'help.name_prefix', { firstName: name }) : '';
 
 		if (isAdmin) {
-			await ctx.reply(
-				namePrefix + t(locale, 'help.admin.body', { freeUses: FREE_USES_BEFORE_GATE }),
-				{ parse_mode: 'HTML' },
-			);
+			await ctx.reply(namePrefix + t(locale, 'help.admin.body', { freeUses: FREE_USES_BEFORE_GATE }), { parse_mode: 'HTML' });
 			return;
 		}
 
@@ -60,10 +71,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			? t(locale, 'help.guest.free_tier', { freeUses: FREE_USES_BEFORE_GATE, channel: channelUsername })
 			: '';
 
-		await ctx.reply(
-			namePrefix + t(locale, 'help.guest.body') + freeTierLine,
-			{ parse_mode: 'HTML' },
-		);
+		await ctx.reply(namePrefix + t(locale, 'help.guest.body') + freeTierLine, { parse_mode: 'HTML' });
 	});
 
 	bot.command('cancel', async (ctx) => {
@@ -108,13 +116,15 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 	function buildStatsKeyboard(locale: Locale): InlineKeyboard {
 		return new InlineKeyboard()
 			.text(t(locale, 'stats.btn_daily'), 'stats:daily')
+			.row()
+			.text(t(locale, 'stats.btn_today_history'), 'stats:today_history')
 			.text(t(locale, 'stats.btn_history'), 'stats:history')
 			.row()
 			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked')
 			.text(t(locale, 'stats.btn_failed'), 'stats:failed');
 	}
 
-	bot.command('stats', async (ctx) => {
+	bot.command(['stats', 'adminstats'], async (ctx) => {
 		const locale = getLocale(ctx);
 		if (ctx.from?.id !== adminId) {
 			await ctx.reply(t(locale, 'stats.admin_only'));
@@ -160,6 +170,35 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		if (!hasData) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_data') });
 			return;
+		}
+
+		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: show today's download history
+	bot.callbackQuery('stats:today_history', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const history = await getTodayDownloadHistory(kv, 15);
+		if (history.length === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_history') });
+			return;
+		}
+
+		const lines: string[] = [t(locale, 'stats.today_history_header'), ''];
+		for (const entry of history) {
+			const time = new Date(entry.timestamp).toLocaleString('en-GB', { timeZone: 'UTC', timeStyle: 'short' });
+			const userDisplay = entry.username ? `@${entry.username}` : entry.firstName;
+			const status = entry.success ? '✅' : '❌';
+			lines.push(`${status} <b>${userDisplay}</b> (${entry.platform})`);
+			lines.push(`   <code>${entry.url}</code>`);
+			lines.push(`   ${time} • ID: <code>${entry.userId}</code>`);
+			lines.push('');
 		}
 
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
@@ -298,7 +337,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		}
 
 		await blockUser(kv, userId, { firstName });
-		await ctx.reply(t(locale, 'block.success', { userId: String(userId) }));
+		await ctx.reply(t(locale, 'block.success', { userId: String(userId) }), { parse_mode: 'HTML' });
 	});
 
 	// /unblock command
@@ -323,9 +362,9 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 		const removed = await unblockUser(kv, userId);
 		if (removed) {
-			await ctx.reply(t(locale, 'unblock.success', { userId: String(userId) }));
+			await ctx.reply(t(locale, 'unblock.success', { userId: String(userId) }), { parse_mode: 'HTML' });
 		} else {
-			await ctx.reply(t(locale, 'unblock.not_found', { userId: String(userId) }));
+			await ctx.reply(t(locale, 'unblock.not_found', { userId: String(userId) }), { parse_mode: 'HTML' });
 		}
 	});
 
@@ -346,15 +385,16 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 		const userDisplay = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name;
 		const adminKeyboard = new InlineKeyboard()
-			.text('✅ Accept (one-time)', `report:accept:${userId}`).row()
-			.text('✅ Whitelist domain', `report:whitelist:${userId}`).row()
+			.text('✅ Accept (one-time)', `report:accept:${userId}`)
+			.row()
+			.text('✅ Whitelist domain', `report:whitelist:${userId}`)
+			.row()
 			.text('❌ Deny', `report:deny:${userId}`);
 
-		await bot.api.sendMessage(
-			adminId,
-			t('en', 'report.admin_notify', { user: userDisplay, userId: String(userId), url }),
-			{ parse_mode: 'HTML', reply_markup: adminKeyboard },
-		);
+		await bot.api.sendMessage(adminId, t('en', 'report.admin_notify', { user: userDisplay, userId: String(userId), url }), {
+			parse_mode: 'HTML',
+			reply_markup: adminKeyboard,
+		});
 
 		await ctx.answerCallbackQuery({ text: t(locale, 'report.sent') });
 		await ctx.editMessageReplyMarkup({ reply_markup: undefined });
@@ -369,7 +409,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		const reportedUserId = ctx.match[1];
 		await kv.delete(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`);
 		await ctx.answerCallbackQuery({ text: '✅ Accepted — user can retry the link.' });
-		await ctx.editMessageText(`${ctx.message?.text ?? ''}\n\n✅ <b>Accepted (one-time)</b> by admin.`, { parse_mode: 'HTML' });
+		await ctx.editMessageText(`${ctx.callbackQuery?.message?.text ?? ''}\n\n✅ <b>Accepted (one-time)</b> by admin.`, { parse_mode: 'HTML' });
 	});
 
 	// Callback: admin whitelists the domain permanently
@@ -385,12 +425,11 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 		const hostname = new URL(url).hostname.replace(/^www\./, '');
-		await Promise.all([
-			addDomainToAllowlist(kv, hostname),
-			kv.delete(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`),
-		]);
+		await Promise.all([addDomainToAllowlist(kv, hostname), kv.delete(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`)]);
 		await ctx.answerCallbackQuery({ text: `✅ ${hostname} added to allowlist.` });
-		await ctx.editMessageText(`${ctx.message?.text ?? ''}\n\n✅ <b>Whitelisted: <code>${hostname}</code></b> by admin.`, { parse_mode: 'HTML' });
+		await ctx.editMessageText(`${ctx.callbackQuery?.message?.text ?? ''}\n\n✅ <b>Whitelisted: <code>${hostname}</code></b> by admin.`, {
+			parse_mode: 'HTML',
+		});
 	});
 
 	// Callback: admin denies the report
@@ -400,7 +439,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 		await ctx.answerCallbackQuery({ text: '❌ Report denied.' });
-		await ctx.editMessageText(`${ctx.message?.text ?? ''}\n\n❌ <b>Denied</b> by admin.`, { parse_mode: 'HTML' });
+		await ctx.editMessageText(`${ctx.callbackQuery?.message?.text ?? ''}\n\n❌ <b>Denied</b> by admin.`, { parse_mode: 'HTML' });
 	});
 
 	// /allowlist — view and manage whitelisted domains
@@ -451,16 +490,12 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 	bot.command('lang', async (ctx) => {
 		const locale = getLocale(ctx);
-		const keyboard = new InlineKeyboard()
-			.text('English', 'lang:en')
-			.text('العربية', 'lang:ar');
+		const keyboard = new InlineKeyboard().text('English', 'lang:en').text('العربية', 'lang:ar');
 
-		await ctx.reply(
-			t(locale, 'lang.current', { language: localeName(locale) }) +
-				'\n\n' +
-				t(locale, 'lang.pick'),
-			{ parse_mode: 'HTML', reply_markup: keyboard },
-		);
+		await ctx.reply(t(locale, 'lang.current', { language: localeName(locale) }) + '\n\n' + t(locale, 'lang.pick'), {
+			parse_mode: 'HTML',
+			reply_markup: keyboard,
+		});
 	});
 
 	bot.callbackQuery(/^lang:(\w+)$/, async (ctx) => {
@@ -473,10 +508,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await kv.put(`${CACHE_PREFIX_USER_LANG}${userId}`, newLocale);
 		// Update ctx locale for the response
 		(ctx as any).locale = newLocale;
-		await ctx.editMessageText(
-			t(newLocale, 'lang.changed', { language: localeName(newLocale) }),
-			{ parse_mode: 'HTML' },
-		);
+		await ctx.editMessageText(t(newLocale, 'lang.changed', { language: localeName(newLocale) }), { parse_mode: 'HTML' });
 		await ctx.answerCallbackQuery();
 	});
 
@@ -539,10 +571,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			}
 		}
 
-		await ctx.editMessageText(
-			t(locale, 'broadcast.done', { sent: String(sent), failed: String(failed) }),
-			{ parse_mode: 'HTML' },
-		);
+		await ctx.editMessageText(t(locale, 'broadcast.done', { sent: String(sent), failed: String(failed) }), { parse_mode: 'HTML' });
 	});
 
 	// Callback: admin cancels broadcast

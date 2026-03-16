@@ -3,6 +3,7 @@ export const CACHE_PREFIX_TELEGRAM_STATE = 'telegram:state:';
 export const CACHE_PREFIX_USAGE_COUNT = 'telegram:usage:';
 export const CACHE_PREFIX_USER_LANG = 'telegram:lang:';
 export const KV_KEY_REQUIRED_CHANNEL = 'telegram:config:required_channel';
+export const KV_KEY_FREE_USES = 'telegram:config:free_uses';
 export const FREE_USES_BEFORE_GATE = 5;
 
 // Stats KV keys

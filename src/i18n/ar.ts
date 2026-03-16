@@ -18,6 +18,8 @@ export const ar: Translations = {
 		'• Pinterest — تحميل تلقائي\n\n' +
 		'<b>أوامر المشرف:</b>\n' +
 		'/setchannel @username — تعيين قناة الاشتراك\n' +
+		'/setfreeuses {count} — تعيين حد التحميل المجاني\n' +
+		'/adminstats — عرض إحصائيات مفصلة\n' +
 		'/stats — عرض إحصائيات الاستخدام\n' +
 		'/lang — تغيير لغة البوت\n' +
 		'/cancel — إلغاء الإجراء الحالي\n' +
@@ -44,8 +46,9 @@ export const ar: Translations = {
 		'• <b>Facebook</b> — HD/SD عند توفر جودات متعددة\n' +
 		'• الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً\n\n' +
 		'<b>أوامر المشرف:</b>\n' +
-		'<code>/setchannel @username</code> — إلزام المستخدمين بالانضمام لقناة بعد {freeUses} تحميلات مجانية. يجب أن يكون البوت مشرفاً في القناة.\n' +
-		'<code>/stats</code> — عرض إحصائيات استخدام البوت.\n' +
+		'<code>/setchannel @username</code> — إلزام المستخدمين بالانضمام لقناة بعد {freeUses} تحميلات مجانية.\n' +
+		'<code>/setfreeuses {count}</code> — تغيير عدد مرات التحميل المجانية المسموح بها.\n' +
+		'<code>/stats</code> أو <code>/adminstats</code> — عرض إحصائيات استخدام البوت.\n' +
 		'<code>/lang</code> — تغيير لغة البوت.\n' +
 		'<code>/cancel</code> — إلغاء عملية التحميل الحالية.\n' +
 		'<code>/block {userId}</code> — حظر مستخدم من استخدام البوت.\n' +
@@ -113,10 +116,7 @@ export const ar: Translations = {
 	'gate.access_granted_alert': '✅ تم منح الوصول!',
 	'gate.welcome_alert': '✅ أهلاً! يمكنك الآن استخدام البوت.',
 	'gate.subscribed':
-		'✅ *تم منح الوصول\!*
-
-أنت مشترك في [{channel}](https://t.me/{channelName})\.
-أرسل رابط لتحميل الوسائط\.',
+		'✅ *تم منح الوصول\\!*\n\nأنت مشترك في [{channel}](https://t.me/{channelName})\\.\nأرسل رابط لتحميل الوسائط\\.',
 	'gate.not_joined': '⚠️ لم يتم العثور على اشتراك. يرجى الانضمام للقناة أولاً، ثم النقر على تحقق.',
 	'gate.verify_failed': '⚠️ فشل التحقق. لم نتمكن من تأكيد اشتراكك. يرجى المحاولة مرة أخرى.',
 
@@ -129,24 +129,19 @@ export const ar: Translations = {
 	'setchannel.usage': 'الاستخدام: /setchannel @channelname',
 	'setchannel.bot_info_fail': '⚠️ تعذر الحصول على معلومات البوت. حاول مرة أخرى.',
 	'setchannel.not_admin':
-		'⚠️ أنا في *{channel}* لكنني لست مشرفاً هناك\.
-
-' +
-		'يرجى ترقيتي لمشرف في القناة، ثم حاول مرة أخرى\.',
+		'⚠️ أنا في *{channel}* لكنني لست مشرفاً هناك\\.\n\n' +
+		'يرجى ترقيتي لمشرف في القناة، ثم حاول مرة أخرى\\.',
 	'setchannel.not_found':
-		'❌ تعذر العثور على القناة *{channel}* أو ليس لدي صلاحية الوصول\.
-
-' +
-		'تأكد من:
-' +
-		'1\. القناة موجودة
-' +
-		'2\. أضفتني كمشرف',
+		'❌ تعذر العثور على القناة *{channel}* أو ليس لدي صلاحية الوصول\\.\n\n' +
+		'تأكد من:\n' +
+		'1\\. القناة موجودة\n' +
+		'2\\. أضفتني كمشرف',
 	'setchannel.success':
-		'✅ تم تعيين القناة المطلوبة [{channel}](https://t.me/{channelName})\.
-
-' +
-		'سيحتاج المستخدمون للانضمام إليها بعد {freeUses} تحميلات مجانية\.',
+		'✅ تم تعيين القناة المطلوبة [{channel}](https://t.me/{channelName})\\.\n\n' +
+		'سيحتاج المستخدمون للانضمام إليها بعد {freeUses} تحميلات مجانية\\.',
+	'setfreeuses.usage': 'الاستخدام: /setfreeuses {number}',
+	'setfreeuses.success': '✅ تم تحديث حد التحميل المجاني إلى <b>{count}</b>.',
+	'setfreeuses.invalid': '⚠️ رقم غير صالح.',
 
 	// --- /lang command ---
 	'lang.current': '🌐 اللغة الحالية: <b>{language}</b>',
@@ -168,6 +163,7 @@ export const ar: Translations = {
 	'stats.admin_only': '🔒 هذا الأمر للمشرف فقط.',
 	'stats.btn_daily': '📅 عرض اليومي',
 	'stats.btn_history': '📜 عرض السجل',
+	'stats.btn_today_history': '📜 سجل اليوم',
 	'stats.btn_blocked': '🚫 عرض المحظورين',
 	'stats.btn_back': '⬅️ رجوع',
 	'stats.daily_header': '📅 <b>الإحصاء اليومي — آخر 7 أيام</b>',
@@ -176,6 +172,7 @@ export const ar: Translations = {
 	'stats.daily_row': '<b>{label}:</b> {links} روابط، {success} ✅',
 	'stats.daily_row_empty': '<b>{label}:</b> —',
 	'stats.history_header': '📜 <b>التحميلات الأخيرة</b>',
+	'stats.today_history_header': '📜 <b>تحميلات اليوم</b>',
 	'stats.no_history': 'لا يوجد سجل تحميلات بعد.',
 	'stats.blocked_header': '🚫 <b>المستخدمين المحظورين</b>',
 	'stats.no_blocked': 'لا يوجد مستخدمين محظورين.',

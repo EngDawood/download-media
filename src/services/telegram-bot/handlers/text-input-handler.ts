@@ -1,7 +1,7 @@
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { getAdminState, setAdminState } from '../storage/admin-state';
-import { detectMediaUrl, isBlockedDomain } from '../../../utils/url-detector';
+import { detectMediaUrl, isBlockedDomain, getDirectFileMediaType } from '../../../utils/url-detector';
 import { CACHE_PREFIX_BLOCKED_URL } from '../../../constants';
 import { downloadAndSendMedia } from './download-and-send';
 import { fetchFacebookInfo, fetchTikTokInfo } from '../../media-downloader';
@@ -62,6 +62,14 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			if (!isAdmin) {
 				const gateBlocked = await checkSubscriptionGate(ctx, kv, bot, env.ANALYTICS, platform);
 				if (gateBlocked) return;
+
+				const directMediaType = getDirectFileMediaType(url);
+				if (directMediaType) {
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, { 
+						guestMode: true, kv, analytics: env.ANALYTICS, userId, firstName, username, locale, mediaType: directMediaType 
+					});
+					return;
+				}
 
 				const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
 				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { guestMode: true, kv, analytics: env.ANALYTICS, userId, firstName, username, locale });
@@ -127,6 +135,14 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			}
 
 			// Automatic download for other platforms
+			const directMediaType = getDirectFileMediaType(url);
+			if (directMediaType) {
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, { 
+					kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, mediaType: directMediaType 
+				});
+				return;
+			}
+
 			const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
 			await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
 			return;

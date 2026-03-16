@@ -1,6 +1,6 @@
 import { Bot, Context } from 'grammy';
 import { getCached, setCached } from '../../../utils/cache';
-import { CACHE_PREFIX_USAGE_COUNT, KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE } from '../../../constants';
+import { CACHE_PREFIX_USAGE_COUNT, KV_KEY_REQUIRED_CHANNEL, KV_KEY_FREE_USES, FREE_USES_BEFORE_GATE } from '../../../constants';
 import { trackEvent } from '../../../utils/analytics';
 import { t, getLocale } from '../../../i18n';
 
@@ -18,9 +18,14 @@ export async function checkSubscriptionGate(
 	analytics?: AnalyticsEngineDataset,
 	platform?: string,
 ): Promise<boolean> {
-	const channelUsername = await kv.get(KV_KEY_REQUIRED_CHANNEL);
+	const [channelUsername, freeUsesStr] = await Promise.all([
+		kv.get(KV_KEY_REQUIRED_CHANNEL),
+		kv.get(KV_KEY_FREE_USES),
+	]);
+
 	if (!channelUsername) return false; // Gate disabled — no channel configured
 
+	const freeUsesLimit = freeUsesStr ? parseInt(freeUsesStr, 10) : FREE_USES_BEFORE_GATE;
 	const userId = ctx.from!.id;
 
 	// Increment usage counter
@@ -31,7 +36,7 @@ export async function checkSubscriptionGate(
 	await setCached(kv, usageKey, String(newUsage), USAGE_TTL);
 
 	// Allow within free tier
-	if (newUsage <= FREE_USES_BEFORE_GATE) return false;
+	if (newUsage <= freeUsesLimit) return false;
 
 	// Check channel membership
 	try {
@@ -47,7 +52,7 @@ export async function checkSubscriptionGate(
 	const locale = getLocale(ctx);
 	const channelName = channelUsername.replace('@', '');
 	await ctx.reply(
-		t(locale, 'gate.blocked', { freeUses: FREE_USES_BEFORE_GATE, channelName }),
+		t(locale, 'gate.blocked', { freeUses: freeUsesLimit, channelName }),
 		{
 			parse_mode: 'MarkdownV2',
 			reply_markup: {

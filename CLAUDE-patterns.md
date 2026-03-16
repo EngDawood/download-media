@@ -63,17 +63,19 @@ interface AdminState {
 
 ## Platform-Specific Download Strategy
 
-| Platform | Primary endpoint | Fallback | Picker |
-|----------|-----------------|----------|--------|
-| TikTok | `tiktok` (rich) | `ttdl` | Video/Audio (admin) |
-| Instagram | `aio` | `igdl` | None (auto) |
-| Twitter/X | `aio` | `twitter` | None (auto) |
-| YouTube | `aio` | `youtube` | Quality list (admin) |
-| Facebook | `aio` | `fbdown` | HD/SD (admin, if multi-quality) |
-| Threads | `aio` | `threads` | None (auto) |
-| SoundCloud | `soundcloud` | — | None (auto, audio) |
-| Spotify | `spotify` | — | None (auto, audio) |
-| Pinterest | `aio` | `pinterest` | None (auto) |
+| Platform | Primary endpoint | Fallback | Caption source | Picker |
+|----------|-----------------|----------|---------------|--------|
+| TikTok | `tiktok` (rich) | `ttdl` | btch `title` | Video/Audio (admin) |
+| Instagram | `aio` | `igdl` | btch `title` | None (auto) |
+| Twitter/X | `aio` | `twitter` | **oEmbed full text** (btch truncates) | None (auto) |
+| YouTube | `aio` | `youtube` | btch `title` | Quality list (admin) |
+| Facebook | `aio` | `fbdown` | btch `title` | HD/SD (admin, if multi-quality) |
+| Threads | `aio` | `threads` | btch `title` | None (auto) |
+| SoundCloud | `soundcloud` | — | btch `title` | None (auto, audio) |
+| Spotify | `spotify` | — | btch `title` | None (auto, audio) |
+| Pinterest | `aio` | `pinterest` | btch `title` | None (auto) |
+
+**Twitter/X caption note:** The btch API truncates tweet text in `title`. `downloadTwitter()` calls `fetchTwitterFullCaption()` using Twitter's public oEmbed API (`https://publish.twitter.com/oembed?url=...`) in parallel with `tryAIO()`. Returns just the tweet text (no author prefix). Falls back to btch title if oEmbed fails.
 
 ## Callback Data Format
 
@@ -83,6 +85,26 @@ interface AdminState {
 - `dl:sd` — download SD quality
 - `dl:yt:{quality}` — download specific YouTube quality (e.g., `dl:yt:1080p`)
 - `dl:confirm` — confirm download from stored `directMediaUrl` in KV
+
+## Failed Download Logging
+
+`addFailedDownload(kv, entry)` in `src/utils/stats.ts` — called from `recordError()` in `download-and-send.ts` at every error path.
+
+```typescript
+interface FailedDownloadEntry {
+    url: string;
+    platform: string;
+    errorReason: string;  // 'API error' | 'No media found' | 'File too large (YouTube)' | err.message
+    timestamp: number;
+    userId: number;
+    firstName: string;
+    username?: string;
+}
+```
+
+- KV key: `stats:failed` — last 200 entries, prepended (newest first)
+- Admin viewable via `/stats` → "❌ Failed" button (`stats:failed` callback in `info-commands.ts`)
+- `recordError(errorReason: string)` — always pass the specific reason string
 
 ## Error Handling Patterns
 

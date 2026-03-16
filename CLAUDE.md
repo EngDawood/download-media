@@ -17,11 +17,12 @@ No RSS. No channel subscriptions. No cron jobs. Download only.
 
 ## Commands
 
-* `npm run dev` — Start local dev server (port 8787)
-* `npm run deploy` — Deploy to Cloudflare Workers
-* `npm run cf-typegen` — Regenerate worker-configuration.d.ts from wrangler.jsonc
-* `npx wrangler secret put TELEGRAM_BOT_TOKEN` — Set bot token
-* `npx wrangler secret put TELEGRAM_WEBHOOK_SECRET` — Set webhook secret
+* `npm` — is not avaliable so use bun instead
+* `bun run dev` — Start local dev server (port 8787) or bun , pnpm if npm not worked.
+* `bun run deploy` — Deploy to Cloudflare Workers
+* `bun run cf-typegen` — Regenerate worker-configuration.d.ts from wrangler.jsonc
+* `bunx wrangler secret put TELEGRAM_BOT_TOKEN` — Set bot token
+* `bunx wrangler secret put TELEGRAM_WEBHOOK_SECRET` — Set webhook secret
 
 ## Architecture
 
