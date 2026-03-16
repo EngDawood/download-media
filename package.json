@@ -3,16 +3,22 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
+		"check": "tsc --noEmit && eslint src && prettier src --check",
+		"fix": "eslint src --fix && prettier src --write",
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"test": "vitest",
+		"changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0",
 		"cf-typegen": "wrangler types",
 		"postinstall": "node scripts/gen-deploy-id.cjs"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.12.4",
+		"@commitlint/cli": "^20.5.0",
+		"@commitlint/config-conventional": "^20.5.0",
 		"@types/node": "^25.2.3",
+		"conventional-changelog-cli": "^5.0.0",
 		"typescript": "^5.5.2",
 		"vitest": "~3.2.0",
 		"wrangler": "^4.65.0"
