@@ -166,13 +166,12 @@ dist
 !.env.example
 .wrangler/
 .agents/*
-.claude/*
 .gemini/*
 chat.md
 .vscode/*
 .agents/*
-.claude/*
 .gemini/*
 .archive/*
 mirror-scrapers-archive.ts
 reports/*
+src/_deploy-id.ts
