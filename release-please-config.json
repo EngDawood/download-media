@@ -1,0 +1,15 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "include-paths": [
+        "src/",
+        "scripts/",
+        "package.json",
+        "package-lock.json",
+        "wrangler.jsonc",
+        "tsconfig.json"
+      ]
+    }
+  }
+}
