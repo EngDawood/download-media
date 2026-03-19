@@ -115,6 +115,29 @@ function normalizeFacebook(url: string): string {
 	return url;
 }
 
+function normalizeGitHub(url: string): string {
+	try {
+		const u = new URL(url);
+		const parts = u.pathname.split('/').filter(Boolean);
+		if (parts.length < 2) return url;
+		const [owner, repo] = parts;
+		// /owner/repo/blob/branch/path/to/file → raw file URL (direct download)
+		if (parts.length >= 5 && parts[2] === 'blob') {
+			const branch = parts[3];
+			const filePath = parts.slice(4).join('/');
+			return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+		}
+		// /owner/repo/tree/branch[/subpath] — download that branch as zip
+		if (parts.length >= 4 && parts[2] === 'tree') {
+			const branch = parts[3];
+			return `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
+		}
+		// /owner/repo — default branch via HEAD redirect
+		return `https://github.com/${owner}/${repo}/archive/HEAD.zip`;
+	} catch { /* fall through */ }
+	return url;
+}
+
 function normalizeTwitter(url: string): string {
 	try {
 		const u = new URL(url);
@@ -137,6 +160,7 @@ function normalizeUrl(url: string, platform: string): string {
 		case 'TikTok':    return normalizeTikTok(url);
 		case 'Facebook':  return normalizeFacebook(url);
 		case 'Twitter':   return normalizeTwitter(url);
+		case 'GitHub':    return normalizeGitHub(url);
 		default:          return url;
 	}
 }
@@ -191,6 +215,11 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	{
 		platform: 'Pinterest',
 		pattern: /https?:\/\/(?:[a-z]{2}\.)?pinterest\.com\/pin\/\S+|https?:\/\/pin\.it\/\S+/i,
+	},
+	// GitHub: repo root, /tree/branch (zip), or /blob/branch/file (raw file download)
+	{
+		platform: 'GitHub',
+		pattern: /https?:\/\/(?:www\.)?github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\/(?:tree|blob)\/\S+)?\/?(?=\s|$)/i,
 	},
 ];
 

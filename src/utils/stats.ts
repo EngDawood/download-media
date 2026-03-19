@@ -18,6 +18,7 @@ interface GlobalStats {
 	totalUniqueUsers: number;
 	totalStartUsers: number;
 	platforms: Record<string, number>;
+	platformErrors?: Record<string, number>;
 	topUsers: Array<{ userId: number; firstName: string; count: number }>;
 }
 
@@ -145,9 +146,13 @@ export async function incrementSuccessStats(
 /**
  * Called on a failed or empty download.
  */
-export async function incrementErrorStats(kv: KVNamespace): Promise<void> {
+export async function incrementErrorStats(kv: KVNamespace, platform?: string): Promise<void> {
 	const global = await readGlobal(kv);
 	global.totalErrors++;
+	if (platform) {
+		global.platformErrors = global.platformErrors ?? {};
+		global.platformErrors[platform] = (global.platformErrors[platform] ?? 0) + 1;
+	}
 	await writeGlobal(kv, global);
 }
 

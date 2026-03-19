@@ -17,5 +17,7 @@ export const KV_KEY_FAILED_DOWNLOADS = 'stats:failed';
 export const FAILED_DOWNLOAD_LIMIT = 200;
 export const CACHE_PREFIX_BLOCKED_URL = 'blocked:url:';
 export const CACHE_PREFIX_REPORT = 'report:';
+export const CACHE_PREFIX_REPORT_SENT = 'report:sent:';
+export const CACHE_PREFIX_REPORT_PENDING = 'report:pending:';
 export const KV_KEY_DOMAIN_ALLOWLIST = 'blocked:allowlist';
 export const KV_KEY_STATS_STARTED_PREFIX = 'stats:started:';

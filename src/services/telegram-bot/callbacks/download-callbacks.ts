@@ -35,7 +35,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 		if (action === 'yt:mp3' && mp3Url) {
 			await clearAdminState(kv, stateOwner);
 			await ctx.answerCallbackQuery();
-			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, { kv, analytics: env.ANALYTICS, userId, mediaType: 'audio', firstName, username, locale });
+			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, { kv, analytics: env.ANALYTICS, userId, mediaType: 'audio', firstName, username, locale, originalUrl: downloadUrl });
 			return;
 		}
 
@@ -76,7 +76,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, kv: KVNamespace): 
 					'auto',
 					msgId,
 					true, // directUrl flag — skip platform detection, download this URL directly
-					{ kv, adminId, analytics: env.ANALYTICS, userId: adminId, mediaType, firstName, username, locale },
+					{ kv, adminId, analytics: env.ANALYTICS, userId: adminId, mediaType, firstName, username, locale, originalUrl: downloadUrl },
 				);
 				return;
 			}

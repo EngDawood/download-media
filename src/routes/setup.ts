@@ -30,6 +30,8 @@ const ADMIN_COMMANDS = [
 	{ command: 'unblock', description: 'Unblock a user by ID' },
 	{ command: 'allowlist', description: 'Manage whitelisted domains' },
 	{ command: 'broadcast', description: 'Send a message to all users' },
+	{ command: 'reply', description: 'Reply to a user by ID' },
+	{ command: 'logs', description: 'View recent failed downloads' },
 ];
 
 const ADMIN_COMMANDS_AR = [
@@ -43,6 +45,8 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'unblock', description: 'فك حظر مستخدم عبر المعرف' },
 	{ command: 'allowlist', description: 'إدارة النطاقات المسموح بها' },
 	{ command: 'broadcast', description: 'إرسال رسالة لجميع المستخدمين' },
+	{ command: 'reply', description: 'الرد على مستخدم عبر المعرف' },
+	{ command: 'logs', description: 'عرض التحميلات الفاشلة الأخيرة' },
 ];
 
 const SUPPORTED_PLATFORMS = [
