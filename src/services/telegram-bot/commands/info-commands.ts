@@ -25,6 +25,14 @@ import {
 } from '../../../utils/stats';
 import type { StatsReport } from '../../../utils/stats';
 
+function formatTimeAgo(ts: number): string {
+	const diff = Math.floor((Date.now() - ts) / 1000);
+	if (diff < 60) return `${diff}s ago`;
+	if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+	if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+	return `${Math.floor(diff / 86400)}d ago`;
+}
+
 /**
  * Register basic information and control commands.
  */
@@ -100,6 +108,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		if (sortedPlatforms.length > 0) {
 			lines.push('', t(locale, 'stats.platforms_header'));
 			for (const [platform, count] of sortedPlatforms.slice(0, 7)) {
+				lines.push(`• ${platform}: ${count}`);
+			}
+		}
+		const sortedPlatformErrors = Object.entries(g.platformErrors ?? {}).sort((a, b) => b[1] - a[1]);
+		if (sortedPlatformErrors.length > 0) {
+			lines.push('', t(locale, 'stats.platform_errors_header'));
+			for (const [platform, count] of sortedPlatformErrors.slice(0, 7)) {
 				lines.push(`• ${platform}: ${count}`);
 			}
 		}
@@ -584,5 +599,61 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await clearAdminState(kv, adminId);
 		await ctx.answerCallbackQuery();
 		await ctx.editMessageText(t(locale, 'broadcast.cancelled'));
+	});
+
+	// /reply — admin sends a message to a specific user by ID
+	bot.command('reply', async (ctx) => {
+		const locale = getLocale(ctx);
+		if (ctx.from?.id !== adminId) {
+			await ctx.reply(t(locale, 'stats.admin_only'));
+			return;
+		}
+
+		const args = ctx.message?.text?.split(' ').slice(1) ?? [];
+		const targetId = parseInt(args[0], 10);
+		const message = args.slice(1).join(' ').trim();
+
+		if (!args[0] || isNaN(targetId)) {
+			await ctx.reply(t(locale, 'reply.invalid_id'));
+			return;
+		}
+		if (!message) {
+			await ctx.reply(t(locale, 'reply.usage'));
+			return;
+		}
+
+		try {
+			await bot.api.sendMessage(targetId, `📬 <b>Message from admin:</b>\n\n${message}`, { parse_mode: 'HTML' });
+			await ctx.reply(t(locale, 'reply.sent'));
+		} catch {
+			await ctx.reply(t(locale, 'reply.failed'));
+		}
+	});
+
+	// /logs — admin views recent failed downloads (optionally filtered by platform)
+	bot.command('logs', async (ctx) => {
+		const locale = getLocale(ctx);
+		if (ctx.from?.id !== adminId) {
+			await ctx.reply(t(locale, 'stats.admin_only'));
+			return;
+		}
+
+		const filter = ctx.message?.text?.split(' ')[1]?.toLowerCase();
+		let entries = await getFailedDownloads(kv, 50);
+		if (filter) entries = entries.filter(e => e.platform.toLowerCase().includes(filter));
+		const top = entries.slice(0, 10);
+
+		if (top.length === 0) {
+			await ctx.reply(t(locale, 'logs.empty'));
+			return;
+		}
+
+		const lines = top.map((e, i) => {
+			const ago = formatTimeAgo(e.timestamp);
+			const shortUrl = e.url.length > 40 ? e.url.slice(0, 37) + '…' : e.url;
+			return `${i + 1}. [${e.platform}] ${ago}\n<code>${shortUrl}</code>\n❌ ${e.errorReason}`;
+		});
+
+		await ctx.reply(`${t(locale, 'logs.header')}\n\n${lines.join('\n\n')}`, { parse_mode: 'HTML' });
 	});
 }

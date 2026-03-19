@@ -82,31 +82,10 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 				return;
 			}
 
-			// TikTok — image posts download directly; video posts show Video / Audio picker
+			// TikTok — auto-download
 			if (platform === 'TikTok') {
 				const statusMsg = await ctx.reply(t(locale, 'input.fetching_post'));
-				const ttInfo = await fetchTikTokInfo(url);
-				if (ttInfo?.isImagePost) {
-					// Slideshow — auto-download, no picker needed
-					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
-				} else if (ttInfo === null) {
-					// Info fetch timed out or failed — best-effort auto-download
-					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
-				} else {
-					const keyboard = new InlineKeyboard()
-						.text(t(locale, 'input.btn_video'), 'dl:sd')
-						.text(t(locale, 'input.btn_audio'), 'dl:audio');
-					await bot.api.editMessageText(
-						ctx.chat!.id,
-						statusMsg.message_id,
-						t(locale, 'input.choose_format', { platform }),
-						{ parse_mode: 'HTML', reply_markup: keyboard },
-					);
-					await setAdminState(kv, adminId, {
-						action: 'downloading_media',
-						context: { downloadUrl: url, downloadPlatform: platform },
-					});
-				}
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
 				return;
 			}
 

@@ -8,6 +8,7 @@ import { trackEvent } from '../../../utils/analytics';
 import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats';
 import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
 import { CACHE_PREFIX_REPORT } from '../../../constants';
+import { log } from '../../../utils/logger';
 
 /**
  * Download media from a URL and send it to a chat.
@@ -26,7 +27,7 @@ export async function downloadAndSendMedia(
 	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
-	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; firstName?: string; username?: string; locale?: Locale },
+	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; firstName?: string; username?: string; locale?: Locale; originalUrl?: string },
 ): Promise<void> {
 	const userType = options?.guestMode ? 'guest' : 'admin';
 	const userId = options?.userId ?? 0;
@@ -58,7 +59,7 @@ export async function downloadAndSendMedia(
 			clearAdminState(options.kv, options.adminId).catch(() => {});
 		}
 		await Promise.all([
-			incrementErrorStats(options.kv),
+			incrementErrorStats(options.kv, platform),
 			userId
 				? addDownloadHistory(options.kv, {
 						url,
@@ -89,7 +90,7 @@ export async function downloadAndSendMedia(
 			// Admin — retry + cancel
 			await setAdminState(options.kv, options.adminId, {
 				action: 'downloading_media',
-				context: { downloadUrl: url, downloadPlatform: platform, downloadMode: mode },
+				context: { downloadUrl: options?.originalUrl ?? url, downloadPlatform: platform, downloadMode: mode },
 			});
 			const keyboard = new InlineKeyboard()
 				.text(t(locale, 'download.btn_retry'), 'dl:retry')
@@ -107,11 +108,12 @@ export async function downloadAndSendMedia(
 					error: rawError || errorText.replace(/<[^>]+>/g, ''),
 					firstName: options.firstName || '',
 					username: options.username,
+					userId,
 				});
 				options.kv.put(`${CACHE_PREFIX_REPORT}${userId}`, reportData, { expirationTtl: 3600 }).catch(() => {});
 			}
 			const contactInfo = t(locale, 'download.contact_admin');
-			const fullText = `${errorText}\n\n<i>${contactInfo}</i>`;
+			const fullText = `${errorText}\n\n${contactInfo}`;
 			const keyboard = new InlineKeyboard()
 				.text(t(locale, 'download.btn_retry'), 'dl:retry')
 				.text(t(locale, 'download.btn_report_admin'), 'report:issue');
@@ -154,7 +156,7 @@ export async function downloadAndSendMedia(
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			await recordError(result.error || 'API error');
 			const safeError = (result.error || 'unknown error').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-			await showError(t(locale, 'download.failed', { error: safeError }), 'HTML', result.error);
+			await showError(t(locale, 'download.failed', { error: safeError, url }), 'HTML', result.error);
 			return;
 		}
 
@@ -214,8 +216,8 @@ export async function downloadAndSendMedia(
 				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 				await recordSuccess();
 
-				// YouTube: show MP3 button after successful video send
-				if (result.mp3Url && options?.kv) {
+				// YouTube & TikTok: show MP3 button after successful video send
+				if (result.mp3Url && options?.kv && (platform === 'YouTube' || platform === 'TikTok')) {
 					const mp3Keyboard = new InlineKeyboard().text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3');
 					await setAdminState(options.kv, options.adminId || userId, {
 						action: 'downloading_media',
@@ -231,7 +233,7 @@ export async function downloadAndSendMedia(
 
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_empty' });
 		await recordError('No media found');
-		await showError(t(locale, 'download.no_media'), undefined, 'No media found');
+		await showError(t(locale, 'download.no_media', { url }), undefined, 'No media found');
 	} catch (err: any) {
 		// YouTube: send thumbnail + mp4/mp3 URLs when file is too large
 		if (result?.mp3Url && result?.thumbnail && /too large/i.test(err.message || '')) {
@@ -272,7 +274,7 @@ export async function downloadAndSendMedia(
 			return;
 		}
 
-		console.error('[downloader] Download and send error:', err);
+		log('error', 'download-and-send', 'Download and send error', { error: err?.message, platform, url });
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 		await recordError(err.message || 'Unknown error');
 		const msg = err.message || 'Unknown error';
@@ -292,7 +294,7 @@ export async function downloadAndSendMedia(
 				{ parse_mode: 'HTML', reply_markup: keyboard },
 			);
 		} else {
-			await showError(t(locale, 'download.error', { message: msg }), undefined, msg);
+			await showError(t(locale, 'download.error', { url }), undefined, msg);
 		}
 	}
 }
