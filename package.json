@@ -9,7 +9,7 @@
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"test": "vitest",
-"cf-typegen": "wrangler types",
+		"cf-typegen": "wrangler types",
 		"postinstall": "node scripts/gen-deploy-id.cjs"
 	},
 	"devDependencies": {
@@ -18,12 +18,12 @@
 		"@commitlint/config-conventional": "^20.5.0",
 		"@eslint/js": "^10.0.1",
 		"@types/node": "^25.2.3",
-"eslint": "^10.0.3",
+		"eslint": "^10.0.3",
 		"prettier": "^3.5.3",
 		"typescript": "^5.5.2",
 		"typescript-eslint": "^8.57.1",
 		"vitest": "~3.2.0",
-		"wrangler": "^4.74.0"
+		"wrangler": "^4.65.0"
 	},
 	"dependencies": {
 		"grammy": "^1.40.0",
