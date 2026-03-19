@@ -13,7 +13,8 @@ export const en = {
 		'• Threads — Auto-download\n' +
 		'• SoundCloud — Audio\n' +
 		'• Spotify — Audio\n' +
-		'• Pinterest — Auto-download\n\n' +
+		'• Pinterest — Auto-download\n' +
+		'• GitHub — Download repo as ZIP (or file directly)\n\n' +
 		'<b>Admin commands:</b>\n' +
 		'/setchannel @username — Set subscription channel\n' +
 		'/setfreeuses {count} — Set free downloads limit\n' +
@@ -31,7 +32,7 @@ export const en = {
 	'start.guest.body':
 		'<b>Media Download Bot</b>\n\n' +
 		"Send a URL from any supported platform and I'll download the media for you.\n\n" +
-		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest\n',
+		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} free downloads</b> — then join {channel} to keep going.\n',
 	'start.guest.help_hint': '\n/help — More info',
 
@@ -63,7 +64,7 @@ export const en = {
 	'help.name_prefix': "{firstName}, here's how it works:\n\n",
 
 	// --- /cancel ---
-	'cancel.done': 'Action cancelled.',
+	'cancel.done': 'Cancelled.',
 
 	// --- text-input-handler ---
 	'input.no_action': 'No active action. Send a supported URL to download media.',
@@ -78,23 +79,23 @@ export const en = {
 	'download.status': 'Downloading {modeText} from {platform}...',
 	'download.mode_audio': 'audio',
 	'download.mode_media': 'media',
-	'download.done': 'Done.',
+	'download.done': '✅ Done.',
 	'download.done_info': 'Done. ({info})',
 	'download.sent_album': 'Sent {count} items as album.',
-	'download.failed': "❌ Download failed. The link might be invalid or unsupported. Please check the link and try again.\n<i>Error: {error}</i>",
-	'download.no_media': "😕 No media found. The post might be private, deleted, or from an unsupported platform. Please check the link and try again.",
-	'download.error': "⚠️ Download failed. An unexpected error occurred. Please try again.",
-	'download.too_large': '😔 File too large. Telegram limits file uploads to 50MB. Please download it manually using the link below.',
-	'download.too_large_name': '😔 Sorry {firstName}, the file is too large. Telegram limits file uploads to 50MB. Please download it manually using the link below.',
-	'download.too_large_limit': '😔 File too large. Telegram limits file uploads to 50MB. Please download it manually using the link below.',
-	'download.too_large_limit_name': '😔 Sorry {firstName}, the file is too large. Telegram limits file uploads to 50MB. Please download it manually using the link below.',
+	'download.failed': "❌ Download failed. The link may be private, deleted, or unsupported.\n<code>{url}</code>\n<i>Error: {error}</i>",
+	'download.no_media': "😕 No media found. The post may be private or deleted.\n{url}",
+	'download.error': "⚠️ Something went wrong. Please try again in a moment.\n{url}",
+	'download.too_large': '😔 File too large for Telegram (50MB limit). Use the link below to download it directly.',
+	'download.too_large_name': '😔 Sorry {firstName}, this file exceeds Telegram\'s 50MB limit. Use the link below to download it directly.',
+	'download.too_large_limit': '😔 File too large for Telegram (50MB limit). Use the link below to download it directly.',
+	'download.too_large_limit_name': '😔 Sorry {firstName}, this file exceeds Telegram\'s 50MB limit. Use the link below to download it directly.',
 	'download.copy_url_hint': 'Copy the URL below, then send the link to @urluploadxbot',
 	'download.btn_urluploadxbot': '🤖 Send to @urluploadxbot',
 	'download.btn_browser': '🌐 Open in Browser',
 	'download.btn_mp3': '🎵 Extract Audio',
 	'download.btn_retry': '🔄 Retry Download',
 	'download.btn_report_admin': '📬 Report Issue',
-	'download.contact_admin': 'If you believe this is a bot error, you can report it to the admin.',
+	'download.contact_admin': 'Need help? Join our support channel @dawo5d or contact the admin @Daw5d.',
 	'download.report_sent': '✅ Your report has been sent to the admin.',
 	'download.admin_error_report': '🚨 <b>Failed Download Report</b>\n\n👤 User: {user}\n📱 Platform: {platform}\n🔗 URL: <code>{url}</code>\n❌ Error: <code>{error}</code>',
 
@@ -115,17 +116,17 @@ export const en = {
 	'gate.welcome_alert': '✅ Welcome! You can now use the bot.',
 	'gate.subscribed':
 		"✅ *Access granted\\!*\n\nYou're subscribed to [{channel}](https://t.me/{channelName})\\.\nSend a URL to download media\\.",
-	'gate.not_joined': "⚠️ Subscription not found. Please join the channel first, then tap Verify.",
-	'gate.verify_failed': "⚠️ Verification failed. We couldn't confirm your subscription. Please try again.",
+	'gate.not_joined': "⚠️ Looks like you haven't joined yet. Join the channel first, then tap Verify.",
+	'gate.verify_failed': "⚠️ Couldn't verify your subscription. Make sure you've joined, then try again.",
 
 	// --- bot-factory errors ---
-	'error.callback': '⚠️ Action failed. An unexpected error occurred. Please try again.',
-	'error.general': '⚠️ Action failed. An unexpected error occurred. Please try again.',
+	'error.callback': '⚠️ Something went wrong. Please try again.',
+	'error.general': '⚠️ Something went wrong. Please try again.',
 	'error.unauthorized': 'Unauthorized',
 
 	// --- admin commands ---
 	'setchannel.usage': 'Usage: /setchannel @channelname',
-	'setchannel.bot_info_fail': '⚠️ Could not get bot info. Try again.',
+	'setchannel.bot_info_fail': '⚠️ Couldn\'t fetch bot details. Please try again.',
 	'setchannel.not_admin':
 		"⚠️ I'm in *{channel}* but I'm not an administrator there\\.\n\n" +
 		'Please promote me to admin in the channel, then try again\\.',
@@ -139,7 +140,7 @@ export const en = {
 		'Users will need to join it after {freeUses} free downloads\\.',
 	'setfreeuses.usage': 'Usage: /setfreeuses {number}',
 	'setfreeuses.success': '✅ Free uses limit updated to <b>{count}</b>.',
-	'setfreeuses.invalid': '⚠️ Invalid number.',
+	'setfreeuses.invalid': '⚠️ Please enter a valid number.',
 
 	// --- /lang command ---
 	'lang.current': '🌐 Current language: <b>{language}</b>',
@@ -188,13 +189,13 @@ export const en = {
 	'unblock.not_found': '⚠️ User <code>{userId}</code> was not in the blocklist.',
 
 	// --- blocked user message ---
-	'input.blocked': '🚫 Access denied. You have been blocked from using this bot.',
+	'input.blocked': '🚫 You\'ve been blocked from using this bot.',
 	'allowlist.header': '✅ <b>Whitelisted Domains</b>',
 	'allowlist.empty': 'No domains are whitelisted yet.',
 	'allowlist.removed': '🗑 <b>{hostname}</b> removed from allowlist.',
 	'allowlist.not_found': '⚠️ Domain not found in allowlist.',
 	'input.instagram_story_unsupported': "📖 Unsupported format. Instagram Stories are not supported yet.",
-	'input.blocked_domain': '🚫 Content blocked. This domain is not allowed due to safety policies.',
+	'input.blocked_domain': '🚫 This link isn\'t allowed. If you think this is a mistake, tap the button below.',
 	'input.blocked_domain_btn': '✋ Report Safe Content',
 	'report.sent': '✅ Your report has been sent to the admin.',
 	'report.admin_notify': '🚨 <b>Domain report</b>\n\nUser <b>{user}</b> (ID: <code>{userId}</code>) says this URL was wrongly blocked:\n<code>{url}</code>',
@@ -208,6 +209,26 @@ export const en = {
 	'broadcast.done': '✅ Broadcast sent to <b>{sent}</b> users. <b>{failed}</b> failed.',
 	'broadcast.no_users': '⚠️ No users to broadcast to yet.',
 	'broadcast.cancelled': '❌ Broadcast cancelled.',
+
+	// --- /reply command ---
+	'reply.usage': '⚠️ Usage: /reply <userId> <message>',
+	'reply.sent': '✅ Message delivered to user.',
+	'reply.failed': '❌ Failed to deliver. The user may have blocked the bot.',
+	'reply.invalid_id': '❌ Invalid user ID.',
+
+	// --- /logs command ---
+	'logs.header': '📋 <b>Recent Failed Downloads</b>',
+	'logs.empty': '✅ No recent failures.',
+
+	// --- report dedup & retry ---
+	'report.already_sent': '✅ Already reported. The admin has been notified.',
+	'report.btn_retry_for_user': '🔁 Download for User',
+	'report.retry_done': '✅ Media sent to user.',
+	'report.retry_failed': '❌ Retry failed: {error}',
+	'report.retry_expired': '⏱ Report expired. Ask user to send the link again.',
+
+	// --- stats platform errors ---
+	'stats.platform_errors_header': '❌ <b>Errors by Platform:</b>',
 } as const;
 
 export type TranslationKey = keyof typeof en;
