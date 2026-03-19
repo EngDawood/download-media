@@ -1,13 +1,31 @@
+import { log } from '../utils/logger';
+
 const BTCH_SERVERS = [
-	'https://backend1.tioo.eu.org',
 	'https://backend2.tioo.eu.org',
 	'https://backend3.tioo.eu.org',
 	'https://backend4.tioo.eu.org',
+	'https://backend1.tioo.eu.org',
 ];
 const BTCH_HEADERS = {
 	'User-Agent': 'btch/6.0.25',
 	'X-Client-Version': '6.0.25',
 	'Content-Type': 'application/json',
+};
+
+/**
+ * tiktokio.com obfuscates parts of the base64 token by replacing common characters with numeric strings.
+ */
+const DECODE_MAP: Record<string, string> = {
+	'000': 'h',
+	'001': 'i',
+	'002': 'j',
+	'003': 'k',
+	'004': 'l',
+	'005': 'm',
+	'006': 'n',
+	'007': 'o',
+	'008': 'p',
+	'009': 'q',
 };
 
 export interface MediaItem {
@@ -30,7 +48,7 @@ export interface DownloaderResult {
  * Fetch from btch API with server failover.
  * Tries each backend in order; moves to next on 5xx or network error.
  */
-async function btchFetch(endpoint: string, url: string): Promise<any> {
+async function btchFetch(endpoint: string, url: string, retryOn4xx = false): Promise<any> {
 	let lastError: Error | null = null;
 	for (const server of BTCH_SERVERS) {
 		try {
@@ -39,20 +57,41 @@ async function btchFetch(endpoint: string, url: string): Promise<any> {
 				signal: AbortSignal.timeout(30_000),
 			});
 			if (res.status >= 500) {
-				console.warn(`[btch] ${server} ${endpoint} → ${res.status}`);
+				log('warn', `btch:${endpoint}`, '5xx, trying next server', { server, status: res.status });
 				lastError = new Error(`btch ${endpoint} returned ${res.status}`);
-				continue; // try next server
+				continue;
 			}
-			if (!res.ok) throw new Error(`btch ${endpoint} returned ${res.status}`);
+			if (!res.ok) {
+				if (retryOn4xx) {
+					log('warn', `btch:${endpoint}`, '4xx, trying next server', { server, status: res.status });
+					lastError = new Error(`btch ${endpoint} returned ${res.status}`);
+					continue;
+				}
+				throw new Error(`btch ${endpoint} returned ${res.status}`);
+			}
 			const data: any = await res.json();
 			if (typeof data === 'string') throw new Error(`btch ${endpoint}: ${data}`);
+
+			// Detect "Limit reached" or "Maintenance" messages that should trigger failover
+			const msg = (data.msg || data.message || '').toLowerCase();
+			const isLimit = data.code === -1 || msg.includes('limit') || msg.includes('maintenance');
+			if (isLimit) {
+				log('warn', `btch:${endpoint}`, 'limit/maintenance reached, trying next server', { server, msg: data.msg });
+				lastError = new Error(`btch ${endpoint}: ${data.msg || 'limit reached'}`);
+				continue;
+			}
+
 			if (data.error) throw new Error(`btch ${endpoint}: ${data.error}`);
 			return data;
 		} catch (err: any) {
-			console.warn(`[btch] ${server} ${endpoint} → ${err.name === 'TimeoutError' ? 'timeout' : err.message}`);
+			const isTimeout = err.name === 'TimeoutError';
+			const is5xx = err.message?.includes('returned 5');
+			const is4xx = err.message?.includes('returned 4');
+			const errLabel = isTimeout ? 'timeout' : err.message;
+			log('warn', `btch:${endpoint}`, errLabel, { server });
 			lastError = err;
-			// Only retry on network/timeout/5xx errors, not on 4xx or parse errors
-			if (err.name === 'TimeoutError' || err.message?.includes('returned 5')) continue;
+			if (isTimeout || is5xx) continue;
+			if (is4xx && retryOn4xx) continue;
 			throw err;
 		}
 	}
@@ -95,15 +134,39 @@ function decodeTiktokDirectUrl(proxyUrl: string): string | null {
 		const u = new URL(proxyUrl);
 		const token = u.searchParams.get('token');
 		if (!token) return null;
-		const b64 = 'aHR0c' + token.slice(10).replace(/O0O0O$/, '');
+
+		// 1. Remove O0O0O suffix
+		let cleaned = token.replace(/O0O0O$/, '');
+
+		// 2. Decode obfuscated numeric strings (000-009) back to common characters
+		for (const [key, value] of Object.entries(DECODE_MAP)) {
+			cleaned = cleaned.replaceAll(key, value);
+		}
+
+		// 3. Reconstruct base64 (add 'aHR0c' prefix which is 'http' in base64)
+		let b64 = 'aHR0c' + cleaned.slice(10);
+
+		// 4. Add base64 padding if needed
+		while (b64.length % 4 !== 0) b64 += '=';
+
 		const decoded = atob(b64);
 		const match = decoded.match(/^(https?:\/\/.+?\.\w{2,4})/);
 		return match ? match[1] : null;
-	} catch { return null; }
+	} catch {
+		return null;
+	}
 }
 
-/** Build a caption string from title. */
+/** Build a caption string from title. Strips Facebook engagement metadata (e.g. "404K views · 8.7K reactions | ") if present. */
 function buildCaption(title?: string): string {
+	if (!title) return '';
+	const pipeIndex = title.indexOf(' | ');
+	if (pipeIndex !== -1) {
+		const prefix = title.slice(0, pipeIndex);
+		if (/views/.test(prefix) || /reactions/.test(prefix) || /likes/.test(prefix)) {
+			title = title.slice(pipeIndex + 3).trim();
+		}
+	}
 	if (!title) return '';
 	return `<b>${title}</b>`;
 }
@@ -211,7 +274,7 @@ async function tryAIO(url: string, mode: string = 'auto'): Promise<DownloaderRes
 			return { status: 'success', media, caption, thumbnail };
 		}
 	} catch (e) {
-		console.warn('[downloader] AIO failed:', (e as Error).message);
+		log('warn', 'downloader:AIO', 'tryAIO failed', { error: (e as Error).message });
 	}
 	return null;
 }
@@ -272,7 +335,7 @@ export async function downloadMedia(url: string, mode: 'auto' | 'audio' | 'hd' |
 		// Catch-all fallback using AIO
 		return await downloadAIO(url, mode);
 	} catch (err: any) {
-		console.error('[downloader] Error:', err);
+		log('error', 'downloader', 'Error', { error: err?.message });
 		const raw: string = err.message || 'Unknown error';
 		// Don't expose internal btch API error details to the user
 		const userError = /btch |all servers failed|AggregateError/i.test(raw)
@@ -287,7 +350,7 @@ export async function downloadMedia(url: string, mode: 'auto' | 'audio' | 'hd' |
 async function downloadTikTok(url: string, mode: string): Promise<DownloaderResult> {
 	// Try richer 'tiktok' endpoint first for quality options
 	try {
-		const res = await btchFetch('tiktok', url);
+		const res = await btchFetch('tiktok', url, true);
 		const data = res.data;
 		if (data) {
 			const caption = buildCaption(data.title);
@@ -307,28 +370,29 @@ async function downloadTikTok(url: string, mode: string): Promise<DownloaderResu
 				return { status: 'success', media: [{ type: 'audio', url: data.music }], caption, thumbnail };
 			}
 			if (mode === 'sd' && isUrl(data.play)) {
-				return { status: 'success', media: [{ type: 'video', url: data.play }], caption, thumbnail };
+				return { status: 'success', media: [{ type: 'video', url: data.play }], caption, thumbnail, mp3Url: isUrl(data.music) ? data.music : undefined };
 			}
 			// Default: use play (H.264, Telegram-compatible)
 			if (isUrl(data.play)) {
-				return { status: 'success', media: [{ type: 'video', url: data.play }], caption, thumbnail };
+				return { status: 'success', media: [{ type: 'video', url: data.play }], caption, thumbnail, mp3Url: isUrl(data.music) ? data.music : undefined };
 			}
 		}
 	} catch (e) {
-		console.warn('[downloader] tiktok endpoint failed, trying ttdl:', (e as Error).message);
+		log('warn', 'downloader:TikTok', 'tiktok endpoint failed, trying ttdl', { error: (e as Error).message });
 	}
 
 	// Fallback to 'ttdl' (alternative endpoint)
-	const res = await btchFetch('ttdl', url);
+	const res = await btchFetch('ttdl', url, true);
 	const caption = buildCaption(res.title);
 	const ttdlThumb = isUrl(res.cover) ? res.cover : isUrl(res.thumbnail) ? res.thumbnail : undefined;
-	if (mode === 'audio' && Array.isArray(res.audio) && isUrl(res.audio[0])) {
-		const directAudio = decodeTiktokDirectUrl(res.audio[0]) || res.audio[0];
-		return { status: 'success', media: [{ type: 'audio', url: directAudio }], caption, thumbnail: ttdlThumb };
+	const ttdlAudio = Array.isArray(res.audio) && isUrl(res.audio[0]) ? decodeTiktokDirectUrl(res.audio[0]) || res.audio[0] : undefined;
+
+	if (mode === 'audio' && ttdlAudio) {
+		return { status: 'success', media: [{ type: 'audio', url: ttdlAudio }], caption, thumbnail: ttdlThumb };
 	}
 	if (Array.isArray(res.video) && isUrl(res.video[0])) {
 		const directVideo = decodeTiktokDirectUrl(res.video[0]) || res.video[0];
-		return { status: 'success', media: [{ type: 'video', url: directVideo }], caption, thumbnail: ttdlThumb };
+		return { status: 'success', media: [{ type: 'video', url: directVideo }], caption, thumbnail: ttdlThumb, mp3Url: ttdlAudio };
 	}
 	return { status: 'error', error: 'No TikTok media found' };
 }
@@ -336,7 +400,7 @@ async function downloadTikTok(url: string, mode: string): Promise<DownloaderResu
 async function downloadInstagram(url: string): Promise<DownloaderResult> {
 	// Try AIO first — returns caption, author, gallery (carousel), and media links
 	try {
-		const res = await btchFetch('aio', url);
+		const res = await btchFetch('aio', url, true);
 		const data = res.data;
 		if (data) {
 			const caption = buildCaption(data.title);
@@ -382,11 +446,11 @@ async function downloadInstagram(url: string): Promise<DownloaderResult> {
 			}
 		}
 	} catch (e) {
-		console.warn('[downloader] AIO for Instagram failed, trying igdl:', (e as Error).message);
+		log('warn', 'downloader:Instagram', 'aio failed, trying igdl', { error: (e as Error).message });
 	}
 
 	// Fallback to igdl — no caption available
-	const res = await btchFetch('igdl', url);
+	const res = await btchFetch('igdl', url, true);
 	const items = Array.isArray(res) ? res : Array.isArray(res.result) ? res.result : null;
 	if (items && items.length > 0 && isUrl(items[0]?.url)) {
 		return {
@@ -404,10 +468,16 @@ async function downloadInstagram(url: string): Promise<DownloaderResult> {
 
 async function downloadTwitter(url: string): Promise<DownloaderResult> {
 	// Fetch full caption via oEmbed in parallel with media — no added latency
-	const [aioResult, fullText] = await Promise.all([
-		tryAIO(url),
-		fetchTwitterFullCaption(url),
-	]);
+	let aioResult: Awaited<ReturnType<typeof tryAIO>> = null;
+	let fullText = '';
+	try {
+		[aioResult, fullText] = await Promise.all([
+			tryAIO(url),
+			fetchTwitterFullCaption(url),
+		]);
+	} catch (e) {
+		log('warn', 'downloader:Twitter', 'aio failed, trying twitter endpoint', { error: (e as Error).message });
+	}
 	const caption = fullText ? `<b>${fullText}</b>` : undefined;
 
 	if (aioResult?.media) {
@@ -417,41 +487,95 @@ async function downloadTwitter(url: string): Promise<DownloaderResult> {
 		return caption ? { ...base, caption } : base;
 	}
 
-	// Fallback to twitter endpoint
-	const res = await btchFetch('twitter', url);
-	// Note: res.creator is the API developer name, not the tweet author
-	const fallbackCaption = caption ?? buildCaption(res.title);
-	const twitterThumb = isUrl(res.thumbnail) ? res.thumbnail : undefined;
-	if (Array.isArray(res.url) && res.url.length > 0) {
+	// Fallback 1: BTCH twitter endpoint
+	try {
+		const res = await btchFetch('twitter', url, true);
+		const fallbackCaption = caption ?? buildCaption(res.title);
+		const twitterThumb = isUrl(res.thumbnail) ? res.thumbnail : undefined;
 		const media: MediaItem[] = [];
-		for (const item of res.url) {
-			if (typeof item === 'object' && item !== null) {
-				const mediaUrl = isUrl(item.hd) ? item.hd : isUrl(item.sd) ? item.sd : null;
-				if (mediaUrl) {
-					media.push({ type: detectMediaType(mediaUrl), url: mediaUrl });
+
+		if (Array.isArray(res.url) && res.url.length > 0) {
+			for (const item of res.url) {
+				if (typeof item === 'object' && item !== null && Object.keys(item).length > 0) {
+					const mediaUrl = isUrl(item.hd) ? item.hd : isUrl(item.sd) ? item.sd : null;
+					if (mediaUrl) media.push({ type: detectMediaType(mediaUrl), url: mediaUrl });
+				} else if (typeof item === 'string' && isUrl(item)) {
+					media.push({ type: detectMediaType(item), url: item });
 				}
-			} else if (typeof item === 'string' && isUrl(item)) {
-				media.push({ type: detectMediaType(item), url: item });
 			}
 		}
+
+		if (media.length === 0 && isUrl(res.url)) {
+			media.push({ type: detectMediaType(res.url), url: res.url });
+		}
+
+		// Photo tweets — check image/images fields
+		if (media.length === 0 && Array.isArray(res.images) && res.images.length > 0) {
+			const photos = res.images
+				.filter((img: any) => isUrl(typeof img === 'string' ? img : img?.url))
+				.map((img: any) => ({ type: 'photo' as const, url: typeof img === 'string' ? img : img.url }));
+			if (photos.length > 0) media.push(...photos);
+		}
+
+		if (media.length === 0 && isUrl(res.image)) {
+			media.push({ type: 'photo', url: res.image });
+		}
+
 		if (media.length > 0) {
 			// res.url has separate HD and SD items — keep only the best (first = HD)
 			return { status: 'success', media: [media[0]], caption: fallbackCaption, thumbnail: twitterThumb };
 		}
+	} catch (e) {
+		log('warn', 'downloader:Twitter', 'btch twitter endpoint failed', { error: (e as Error).message });
 	}
-	if (isUrl(res.url)) {
-		const type = detectMediaType(res.url);
-		return { status: 'success', media: [{ type, url: res.url }], caption: fallbackCaption, thumbnail: twitterThumb };
+
+	// Fallback 2: FixTwitter API (api.fxtwitter.com) — very reliable for photos/metadata
+	try {
+		const match = url.match(/(?:twitter\.com|x\.com)\/([^\/]+)\/status\/(\d+)/i);
+		if (match) {
+			const [, , id] = match;
+			// The screen_name in the URL is ignored by the API, so we can just use "i" if needed
+			const fxRes = await fetch(`https://api.fxtwitter.com/i/status/${id}`, {
+				headers: { 'User-Agent': 'DownloadMediaBot/1.0 (https://github.com/dawo5d/download-media)' },
+				signal: AbortSignal.timeout(10_000),
+			});
+
+			if (fxRes.status === 401) {
+				return { status: 'error', error: 'This tweet is from a private account and cannot be downloaded.' };
+			}
+			if (fxRes.status === 404) {
+				return { status: 'error', error: 'This tweet no longer exists or has been deleted.' };
+			}
+
+			if (fxRes.ok) {
+				const data: any = await fxRes.json();
+				const fxCaption = caption ?? (data.tweet.text ? `<b>${data.tweet.text}</b>` : '');
+				const fxAvatar = data.tweet.author?.avatar_url;
+
+				if (data.tweet?.media?.all?.length > 0) {
+					const fxMedia: MediaItem[] = data.tweet.media.all.map((m: any) => ({
+						type: m.type === 'video' || m.type === 'gif' ? ('video' as const) : ('photo' as const),
+						url: m.url,
+					}));
+					return { status: 'success', media: fxMedia, caption: fxCaption, thumbnail: fxAvatar };
+				}
+
+				// If no media but has text, return as a success with no media (handler will need to support this)
+				// or return the avatar as a photo with the text as caption.
+				if (fxCaption) {
+					return {
+						status: 'success',
+						media: fxAvatar ? [{ type: 'photo', url: fxAvatar }] : [],
+						caption: fxCaption,
+						thumbnail: fxAvatar,
+					};
+				}
+			}
+		}
+	} catch (e) {
+		log('warn', 'downloader:Twitter', 'fxtwitter fallback failed', { error: (e as Error).message });
 	}
-	// Photo tweets — check image/images fields
-	if (Array.isArray(res.images) && res.images.length > 0) {
-		const photos: MediaItem[] = res.images.filter((img: any) => isUrl(typeof img === 'string' ? img : img?.url))
-			.map((img: any) => ({ type: 'photo' as const, url: typeof img === 'string' ? img : img.url }));
-		if (photos.length > 0) return { status: 'success', media: photos, caption: fallbackCaption, thumbnail: twitterThumb };
-	}
-	if (isUrl(res.image)) {
-		return { status: 'success', media: [{ type: 'photo', url: res.image }], caption: fallbackCaption, thumbnail: twitterThumb };
-	}
+
 	return { status: 'error', error: 'No Twitter media found' };
 }
 
@@ -459,7 +583,7 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 	// URL is already normalized by url-detector.ts (watch?v= form, no tracking params)
 	// Try youtube endpoint first — fast and reliable
 	try {
-		const res = await btchFetch('youtube', url);
+		const res = await btchFetch('youtube', url, true);
 		const caption = buildCaption(res.title);
 		const thumbnail = res.thumbnail;
 		if (mode === 'audio' && isUrl(res.mp3)) {
@@ -478,12 +602,12 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 			return { status: 'success', media: [{ type: 'video', url: res.mp4 }], caption, thumbnail };
 		}
 	} catch (e) {
-		console.warn('[downloader] youtube endpoint failed, trying AIO:', (e as Error).message);
+		log('warn', 'downloader:YouTube', 'youtube endpoint failed, trying aio', { error: (e as Error).message });
 	}
 
 	// Fallback to AIO endpoint
 	try {
-		const aio = await btchFetch('aio', url);
+		const aio = await btchFetch('aio', url, true);
 		const data = aio.data;
 		if (data?.links) {
 			const caption = buildCaption(data.title);
@@ -509,7 +633,7 @@ async function downloadYouTube(url: string, mode: string): Promise<DownloaderRes
 			}
 		}
 	} catch (e) {
-		console.warn('[downloader] AIO for YouTube also failed:', (e as Error).message);
+		log('warn', 'downloader:YouTube', 'aio also failed', { error: (e as Error).message });
 	}
 
 	return { status: 'error', error: 'No YouTube media found' };
@@ -539,26 +663,30 @@ export async function fetchTikTokInfo(url: string): Promise<{ caption: string; i
 			};
 		}
 	} catch (e) {
-		console.warn('[downloader] fetchTikTokInfo failed:', (e as Error).message);
+		log('warn', 'downloader', 'fetchTikTokInfo failed', { error: (e as Error).message });
 	}
 	return null;
 }
 
 async function downloadFacebook(url: string, mode: string = 'auto'): Promise<DownloaderResult> {
 	// Try AIO first — returns caption and author
-	const aioResult = await tryAIO(url);
-	if (aioResult && aioResult.media && aioResult.media.length > 0) {
-		const videos = aioResult.media.filter(m => m.type === 'video');
-		if (videos.length > 1) {
-			// Multiple quality entries — pick based on mode (first = HD, last = SD)
-			const selected = mode === 'sd' ? videos[videos.length - 1] : videos[0];
-			return { ...aioResult, media: [selected] };
+	try {
+		const aioResult = await tryAIO(url);
+		if (aioResult && aioResult.media && aioResult.media.length > 0) {
+			const videos = aioResult.media.filter(m => m.type === 'video');
+			if (videos.length > 1) {
+				// Multiple quality entries — pick based on mode (first = HD, last = SD)
+				const selected = mode === 'sd' ? videos[videos.length - 1] : videos[0];
+				return { ...aioResult, media: [selected] };
+			}
+			return aioResult;
 		}
-		return aioResult;
+	} catch (e) {
+		log('warn', 'downloader:Facebook', 'aio failed, trying fbdown', { error: (e as Error).message });
 	}
 
 	// Fallback to fbdown endpoint
-	const res = await btchFetch('fbdown', url);
+	const res = await btchFetch('fbdown', url, true);
 	const videoUrl = isUrl(res.HD) ? res.HD : isUrl(res.Normal_video) ? res.Normal_video : null;
 	if (videoUrl) {
 		return { status: 'success', media: [{ type: 'video', url: videoUrl }], caption: buildCaption(res.title) };
@@ -591,22 +719,26 @@ export async function fetchFacebookInfo(url: string): Promise<{ hdLabel: string;
 			sdLabel: buildLabel(last, 'SD'),
 		};
 	} catch (e) {
-		console.warn('[downloader] fetchFacebookInfo failed:', (e as Error).message);
+		log('warn', 'downloader', 'fetchFacebookInfo failed', { error: (e as Error).message });
 	}
 	return null;
 }
 
 async function downloadThreads(url: string, mode: string): Promise<DownloaderResult> {
 	// Try AIO first — returns caption and author
-	const aioResult = await tryAIO(url, mode);
-	if (aioResult?.media) {
-		const videos = aioResult.media.filter(m => m.type === 'video');
-		if (videos.length > 1) return { ...aioResult, media: [videos[0]] };
-		return aioResult;
+	try {
+		const aioResult = await tryAIO(url, mode);
+		if (aioResult?.media) {
+			const videos = aioResult.media.filter(m => m.type === 'video');
+			if (videos.length > 1) return { ...aioResult, media: [videos[0]] };
+			return aioResult;
+		}
+	} catch (e) {
+		log('warn', 'downloader:Threads', 'aio failed, trying threads endpoint', { error: (e as Error).message });
 	}
 
 	// Fallback to threads endpoint
-	const res = await btchFetch('threads', url);
+	const res = await btchFetch('threads', url, true);
 	// API returns flat: { status, type: 'video'|'image'|'mixed', video?, image?, download?, title? }
 	const hasVideo = res.type === 'video' && isUrl(res.video);
 	const hasImage = (res.type === 'image' || res.type === 'mixed') && isUrl(res.image);
@@ -636,44 +768,64 @@ async function downloadThreads(url: string, mode: string): Promise<DownloaderRes
 }
 
 async function downloadSoundCloud(url: string): Promise<DownloaderResult> {
-	const res = await btchFetch('soundcloud', url);
-	// API returns flat: { status, title, thumbnail, audio, downloadMp3, downloadArtwork }
-	const audioUrl = isUrl(res.downloadMp3) ? res.downloadMp3 : isUrl(res.audio) ? res.audio : null;
-	if (audioUrl) {
-		return { status: 'success', media: [{ type: 'audio', url: audioUrl }], caption: buildCaption(res.title), thumbnail: res.thumbnail };
+	try {
+		const res = await btchFetch('soundcloud', url, true);
+		// API returns flat: { status, title, thumbnail, audio, downloadMp3, downloadArtwork }
+		const audioUrl = isUrl(res.downloadMp3) ? res.downloadMp3 : isUrl(res.audio) ? res.audio : null;
+		if (audioUrl) {
+			return { status: 'success', media: [{ type: 'audio', url: audioUrl }], caption: buildCaption(res.title), thumbnail: res.thumbnail };
+		}
+	} catch (e) {
+		log('warn', 'downloader:SoundCloud', 'soundcloud endpoint failed, trying aio', { error: (e as Error).message });
 	}
+
+	// Fallback to AIO endpoint
+	const aioResult = await tryAIO(url, 'audio');
+	if (aioResult?.media) return aioResult;
 	return { status: 'error', error: 'No SoundCloud audio found' };
 }
 
 async function downloadSpotify(url: string): Promise<DownloaderResult> {
-	const res = await btchFetch('spotify', url);
-	// API returns: { status, res_data: { title, thumbnail, duration, formats: [{url, quality, filesize, ...}] } }
-	const data = res.res_data;
-	if (data?.formats?.length > 0) {
-		const best = data.formats[0];
-		if (isUrl(best.url)) {
-			return {
-				status: 'success',
-				media: [{ type: 'audio', url: best.url, quality: best.quality }],
-				caption: buildCaption(data.title),
-				thumbnail: data.thumbnail,
-			};
+	try {
+		const res = await btchFetch('spotify', url, true);
+		// API returns: { status, res_data: { title, thumbnail, duration, formats: [{url, quality, filesize, ...}] } }
+		const data = res.res_data;
+		if (data?.formats?.length > 0) {
+			const best = data.formats[0];
+			if (isUrl(best.url)) {
+				return {
+					status: 'success',
+					media: [{ type: 'audio', url: best.url, quality: best.quality }],
+					caption: buildCaption(data.title),
+					thumbnail: data.thumbnail,
+				};
+			}
 		}
+	} catch (e) {
+		log('warn', 'downloader:Spotify', 'spotify endpoint failed, trying aio', { error: (e as Error).message });
 	}
+
+	// Fallback to AIO endpoint
+	const aioResult = await tryAIO(url, 'audio');
+	if (aioResult?.media) return aioResult;
 	return { status: 'error', error: 'No Spotify audio found' };
 }
 
 async function downloadPinterest(url: string): Promise<DownloaderResult> {
 	// Try AIO first — returns caption and author
-	const aioResult = await tryAIO(url);
-	if (aioResult?.media) {
-		const videos = aioResult.media.filter(m => m.type === 'video');
-		if (videos.length > 1) return { ...aioResult, media: [videos[0]] };
-		return aioResult;
+	try {
+		const aioResult = await tryAIO(url);
+		if (aioResult?.media) {
+			const videos = aioResult.media.filter(m => m.type === 'video');
+			if (videos.length > 1) return { ...aioResult, media: [videos[0]] };
+			return aioResult;
+		}
+	} catch (e) {
+		log('warn', 'downloader:Pinterest', 'aio failed, trying pinterest endpoint', { error: (e as Error).message });
 	}
 
 	// Fallback to pinterest endpoint
-	const res = await btchFetch('pinterest', url);
+	const res = await btchFetch('pinterest', url, true);
 	if (res.result) {
 		const item = Array.isArray(res.result) ? res.result[0] : res.result;
 		const isVideo = item?.is_video && isUrl(item?.video_url);
@@ -707,7 +859,9 @@ async function downloadAIO(url: string, mode: string): Promise<DownloaderResult>
 		if (isUrl(res.mp4)) {
 			return { status: 'success', media: [{ type: 'video', url: res.mp4 }], caption: fallbackCaption };
 		}
-	} catch { /* already tried in tryAIO */ }
+	} catch (e) {
+		log('warn', 'downloader:AIO', 'flat-field fallback failed', { error: (e as Error).message });
+	}
 
 	return { status: 'error', error: 'Unsupported platform or no media found' };
 }
