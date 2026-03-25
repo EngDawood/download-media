@@ -4,7 +4,7 @@ import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types
 import { btchFetch } from '../btch-client';
 import { tryAIO } from '../aio-parser';
 import { buildCaption, isUrl, detectMediaType } from '../media-helpers';
-import { publishArticleToTelegraph } from '../telegraph-publisher';
+import { publishArticleToTelegraph, publishThreadToTelegraph } from '../telegraph-publisher';
 
 // ─── FxTwitter (primary) ─────────────────────────────────────────────────────
 
@@ -53,9 +53,62 @@ async function handleArticle(
 	};
 }
 
+// ─── Thread detection & collection ─────────────────────────────────────────
+
+/**
+ * A tweet is part of a thread (not a normal reply) when the author
+ * is replying to themselves: replying_to === author.screen_name.
+ */
+function isThreadTweet(tweet: any): boolean {
+	return !!tweet.replying_to &&
+		tweet.replying_to.toLowerCase() === tweet.author?.screen_name?.toLowerCase();
+}
+
+/**
+ * Fetch a single tweet from FxTwitter. Returns the tweet object or null.
+ */
+async function fetchTweet(tweetId: string): Promise<any | null> {
+	try {
+		const res = await fetch(`https://api.fxtwitter.com/i/status/${tweetId}`, {
+			headers: { 'User-Agent': 'DownloadMediaBot/1.0 (https://github.com/dawo5d/download-media)' },
+			signal: AbortSignal.timeout(8_000),
+		});
+		if (!res.ok) return null;
+		const data: any = await res.json();
+		return data?.tweet ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Walk backward from the given tweet to find the thread root,
+ * then collect all tweets from root → given tweet (oldest first).
+ * Stops at max 20 tweets to avoid runaway fetches.
+ */
+async function collectThread(startTweet: any): Promise<any[]> {
+	const MAX = 20;
+	const chain: any[] = [startTweet];
+
+	// Walk backward to root
+	let current = startTweet;
+	while (chain.length < MAX && isThreadTweet(current)) {
+		const parentId = current.replying_to_status;
+		if (!parentId) break;
+		const parent = await fetchTweet(parentId);
+		if (!parent) break;
+		// Stop if the parent is from a different author (safety check)
+		if (parent.author?.screen_name?.toLowerCase() !== startTweet.author?.screen_name?.toLowerCase()) break;
+		chain.unshift(parent); // prepend — oldest first
+		current = parent;
+	}
+
+	return chain;
+}
+
 /**
  * Primary strategy — FxTwitter API.
- * Handles: media tweets, article tweets, text-only tweets.
+ * Handles: media tweets, article tweets, thread tweets, text-only tweets.
  * Docs: docs/FxEmbed-API.md
  */
 async function tryViaFxTwitter(url: string, accessToken: string): Promise<DownloaderResult | null> {
@@ -81,6 +134,42 @@ async function tryViaFxTwitter(url: string, accessToken: string): Promise<Downlo
 		// ── Article tweet ──
 		if (tweet.article) {
 			return await handleArticle(tweet, url, accessToken);
+		}
+
+		// ── Thread tweet ──
+		// Case A: mid-thread tweet (author replying to themselves) — walk backward to root.
+		// Case B: thread root shared directly — we can only send this tweet + a note,
+		//          since FxTwitter has no forward traversal API.
+		const isMidThread = isThreadTweet(tweet);
+		if (isMidThread) {
+			const threadTweets = await collectThread(tweet);
+			if (threadTweets.length > 1) {
+				const telegraphUrl = await publishThreadToTelegraph(threadTweets, accessToken);
+				const first = threadTweets[0];
+				const avatar = tweet.author?.avatar_url as string | undefined;
+
+				// Cover: first photo in the entire thread, fallback to avatar
+				let coverUrl: string | undefined;
+				for (const t of threadTweets) {
+					const photo = t.media?.photos?.[0]?.url;
+					if (photo) { coverUrl = photo; break; }
+				}
+
+				const captionLines: string[] = [];
+				const firstText = first.text?.trim();
+				if (firstText) captionLines.push(`<b>${firstText}</b>`);
+				captionLines.push(`🧵 Thread — ${threadTweets.length} tweets`);
+				if (telegraphUrl) captionLines.push(`\n📖 <a href="${telegraphUrl}">Read full thread</a>`);
+				else captionLines.push(`🔗 <a href="${first.url}">View on X</a>`);
+
+				return {
+					status: 'success',
+					media: (coverUrl ?? avatar) ? [{ type: 'photo', url: (coverUrl ?? avatar)! }] : [],
+					caption: captionLines.join('\n'),
+					thumbnail: coverUrl ?? avatar,
+				};
+			}
+			// Single tweet in chain — fall through to normal handling
 		}
 
 		// ── Media tweet ──

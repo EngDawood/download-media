@@ -10,7 +10,7 @@ export const ar: Translations = {
 		'• YouTube — تحميل تلقائي للفيديو (زر 🎵 MP3 بعد التحميل)\n' +
 		'• TikTok — اختيار فيديو/صوت (الصور تُحمّل تلقائياً)\n' +
 		'• Facebook — اختيار HD/SD عند توفر جودات متعددة\n' +
-		'• Instagram — تحميل تلقائي\n' +
+		'• Instagram — تحميل تلقائي · /story للقصص\n' +
 		'• X / Twitter — تحميل تلقائي\n' +
 		'• Threads — تحميل تلقائي\n' +
 		'• SoundCloud — صوت\n' +
@@ -22,6 +22,8 @@ export const ar: Translations = {
 		'/setfreeuses {count} — تعيين حد التحميل المجاني\n' +
 		'/adminstats — عرض إحصائيات مفصلة\n' +
 		'/stats — عرض إحصائيات الاستخدام\n' +
+		'/story [@dawo5d] — تحميل قصص Instagram\n' +
+		'/footer [نص|clear] — تعيين ذيل تعليق Instagram\n' +
 		'/lang — تغيير لغة البوت\n' +
 		'/cancel — إلغاء الإجراء الحالي\n' +
 		'/block {userId} — حظر مستخدم\n' +
@@ -34,7 +36,8 @@ export const ar: Translations = {
 	'start.guest.body':
 		'<b>بوت تحميل الوسائط</b>\n\n' +
 		'أرسل رابط من أي منصة مدعومة وسأحمّل الوسائط لك.\n\n' +
-		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub\n',
+		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub\n' +
+		'\n📸 استخدم /story لتحميل قصص Instagram باسم المستخدم.\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} تحميلات مجانية</b> — ثم انضم إلى {channel} للمتابعة.\n',
 	'start.guest.help_hint': '\n/help — مزيد من المعلومات',
 
@@ -45,15 +48,18 @@ export const ar: Translations = {
 		'• <b>YouTube</b> — تحميل تلقائي للفيديو، يعرض زر 🎵 MP3\n' +
 		'• <b>TikTok</b> — فيديو/صوت (الصور تتخطى الاختيار)\n' +
 		'• <b>Facebook</b> — HD/SD عند توفر جودات متعددة\n' +
+		'• <b>قصص Instagram</b> — استخدم <code>/story</code> @dawo5d أو أرسل رابط القصة\n' +
 		'• الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً\n\n' +
 		'<b>أوامر المشرف:</b>\n' +
-		'<code>/setchannel @username</code> — إلزام المستخدمين بالانضمام لقناة بعد {freeUses} تحميلات مجانية.\n' +
-		'<code>/setfreeuses {count}</code> — تغيير عدد مرات التحميل المجانية المسموح بها.\n' +
+		'<code>/setchannel</code> @username — إلزام المستخدمين بالانضمام لقناة بعد {freeUses} تحميلات مجانية.\n' +
+		'<code>/setfreeuses</code> {count} — تغيير عدد مرات التحميل المجانية المسموح بها.\n' +
 		'<code>/stats</code> أو <code>/adminstats</code> — عرض إحصائيات استخدام البوت.\n' +
+		'<code>/story</code> [@dawo5d] — تحميل قصص Instagram (متاح لجميع المستخدمين).\n' +
+		'<code>/footer</code> [نص|clear] — تعيين أو مسح ذيل تعليق Instagram.\n' +
 		'<code>/lang</code> — تغيير لغة البوت.\n' +
 		'<code>/cancel</code> — إلغاء عملية التحميل الحالية.\n' +
-		'<code>/block {userId}</code> — حظر مستخدم من استخدام البوت.\n' +
-		'<code>/unblock {userId}</code> — فك حظر مستخدم.\n' +
+		'<code>/block</code> {userId} — حظر مستخدم من استخدام البوت.\n' +
+		'<code>/unblock</code> {userId} — فك حظر مستخدم.\n' +
 		'<code>/allowlist</code> — عرض وحذف النطاقات المسموح بها.\n' +
 		'<code>/broadcast</code> — إرسال رسالة لجميع المستخدمين.',
 
@@ -61,7 +67,8 @@ export const ar: Translations = {
 	'help.guest.body':
 		'<b>طريقة الاستخدام</b>\n\n' +
 		'أرسل رابط والبوت يحمّله لك.\n' +
-		'الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً.',
+		'الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً.\n\n' +
+		'📸 <b>قصص Instagram</b> — استخدم <code>/story</code> @dawo5d لتحميل القصص.',
 	'help.guest.free_tier': '\n<b>الباقة المجانية:</b> {freeUses} تحميلات — ثم انضم إلى {channel} لمتابعة استخدام البوت.',
 	'help.name_prefix': '{firstName}، إليك طريقة الاستخدام:\n\n',
 
@@ -69,6 +76,9 @@ export const ar: Translations = {
 	'cancel.done': 'ألغيت.',
 
 	// --- text-input-handler ---
+	'input.already_downloading': '⏳ جاري معالجة تحميلك، يرجى الانتظار...',
+	'input.btn_cancel_download': '✖️ إلغاء',
+	'input.stale_lock_done': '✅ اكتمل التحميل! أرسل الرابط مجدداً إذا كنت لا تزال بحاجة إليه.',
 	'input.no_action': 'لا يوجد إجراء نشط. أرسل رابط مدعوم لتحميل الوسائط.',
 	'input.fetching_post': 'جاري جلب معلومات المنشور...', 
 	'input.fetching_video': 'جاري جلب معلومات الفيديو...',
@@ -79,6 +89,7 @@ export const ar: Translations = {
 
 	// --- download-and-send ---
 	'download.status': 'جاري تحميل {modeText} من {platform}...',
+	'download.status_stories': 'جارٍ جلب قصص {userLink}...',
 	'download.mode_audio': 'الصوت',
 	'download.mode_media': 'الوسائط',
 	'download.done': '✅ تم.',
@@ -196,8 +207,7 @@ export const ar: Translations = {
 	'allowlist.empty': 'لا توجد نطاقات مسموح بها بعد.',
 	'allowlist.removed': '🗑 تم حذف <b>{hostname}</b> من القائمة البيضاء.',
 	'allowlist.not_found': '⚠️ النطاق غير موجود في القائمة البيضاء.',
-	'input.instagram_story_unsupported': '📖 صيغة غير مدعومة. قصص Instagram غير مدعومة حالياً.',
-	'input.blocked_domain': '🚫 هذا الرابط غير مسموح به. إذا كنت تعتقد أن هذا خطأ، اضغط الزر أدناه.',
+'input.blocked_domain': '🚫 هذا الرابط غير مسموح به. إذا كنت تعتقد أن هذا خطأ، اضغط الزر أدناه.',
 	'input.blocked_domain_btn': '✋ الإبلاغ عن محتوى آمن',
 	'report.sent': '✅ تم إرسال بلاغك إلى المشرف.',
 	'report.admin_notify': '🚨 <b>بلاغ نطاق</b>\n\nالمستخدم <b>{user}</b> (ID: <code>{userId}</code>) يقول أن هذا الرابط حُظر بشكل خاطئ:\n<code>{url}</code>',
@@ -231,4 +241,14 @@ export const ar: Translations = {
 
 	// --- stats platform errors ---
 	'stats.platform_errors_header': '❌ <b>الأخطاء حسب المنصة:</b>',
+
+	// --- /story command ---
+	'story.prompt': '📸 أرسل اسم مستخدم Instagram أو رابط قصة.\n\nأمثلة:\n<code>dawo5d</code>\n<code>@dawo5d</code>\n<code>instagram.com/stories/dawo5d/</code>',
+	'story.invalid': '⚠️ لم أتمكن من العثور على اسم مستخدم Instagram. أرسل اسمًا مثل <code>dawo5d</code> أو رابط قصة.',
+
+	// --- /footer command ---
+	'footer.current': '🔖 <b>ذيل Instagram:</b>\n<code>{text}</code>',
+	'footer.none': '🔖 لم يتم تعيين ذيل لـ Instagram.\n\nاستخدم <code>/footer النص</code> لتعيينه.',
+	'footer.set': '✅ تم تعيين ذيل Instagram:\n<code>{text}</code>',
+	'footer.cleared': '🗑 تم حذف ذيل Instagram.',
 };

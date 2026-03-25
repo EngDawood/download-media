@@ -93,7 +93,7 @@ export function createBot(env: Env): Bot {
 	registerTextInputHandler(bot, env, kv);
 
 	// Register report callbacks: report:issue
-	registerReportCallbacks(bot, kv, adminId);
+	registerReportCallbacks(bot, kv, adminId, env.TELEGRAPH_ACCESS_TOKEN);
 
 	// Register download callback query handlers
 	bot.on('callback_query:data', async (ctx, next) => {

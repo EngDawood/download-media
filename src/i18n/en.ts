@@ -8,7 +8,7 @@ export const en = {
 		'• YouTube — Auto-download video (🎵 MP3 button after)\n' +
 		'• TikTok — Video/Audio picker (slideshows auto-download)\n' +
 		'• Facebook — HD/SD picker when available\n' +
-		'• Instagram — Auto-download\n' +
+		'• Instagram — Auto-download · /story for Stories\n' +
 		'• X / Twitter — Auto-download\n' +
 		'• Threads — Auto-download\n' +
 		'• SoundCloud — Audio\n' +
@@ -20,6 +20,8 @@ export const en = {
 		'/setfreeuses {count} — Set free downloads limit\n' +
 		'/adminstats — View detailed statistics\n' +
 		'/stats — View usage statistics\n' +
+		'/story [@dawo5d] — Download Instagram Stories\n' +
+		'/footer [text|clear] — Set Instagram caption footer\n' +
 		'/lang — Change bot language\n' +
 		'/cancel — Cancel current action\n' +
 		'/block {userId} — Block a user\n' +
@@ -32,7 +34,8 @@ export const en = {
 	'start.guest.body':
 		'<b>Media Download Bot</b>\n\n' +
 		"Send a URL from any supported platform and I'll download the media for you.\n\n" +
-		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub\n',
+		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub\n' +
+		'\n📸 Use /story to download Instagram Stories by username.\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} free downloads</b> — then join {channel} to keep going.\n',
 	'start.guest.help_hint': '\n/help — More info',
 
@@ -43,15 +46,18 @@ export const en = {
 		'• <b>YouTube</b> — Auto-downloads video, offers 🎵 MP3 button\n' +
 		'• <b>TikTok</b> — Video/Audio (slideshows skip the picker)\n' +
 		'• <b>Facebook</b> — HD/SD when multiple qualities available\n' +
+		'• <b>Instagram Stories</b> — Use <code>/story</code> @dawo5d or send a story URL\n' +
 		'• Large files (&gt;50MB) show the direct URL to download manually\n\n' +
 		'<b>Admin commands:</b>\n' +
-		'<code>/setchannel @username</code> — Require users to join a channel after {freeUses} free downloads.\n' +
-		'<code>/setfreeuses {count}</code> — Change the number of free downloads allowed.\n' +
+		'<code>/setchannel</code> @username — Require users to join a channel after {freeUses} free downloads.\n' +
+		'<code>/setfreeuses</code> {count} — Change the number of free downloads allowed.\n' +
 		'<code>/stats</code> or <code>/adminstats</code> — View bot usage statistics.\n' +
+		'<code>/story</code> [@dawo5d] — Download Instagram Stories (available to all users).\n' +
+		'<code>/footer</code> [text|clear] — Set or clear the Instagram caption footer.\n' +
 		'<code>/lang</code> — Change bot language.\n' +
 		'<code>/cancel</code> — Cancel the current download flow.\n' +
-		'<code>/block {userId}</code> — Block a user from using the bot.\n' +
-		'<code>/unblock {userId}</code> — Restore access for a user.\n' +
+		'<code>/block</code> {userId} — Block a user from using the bot.\n' +
+		'<code>/unblock</code> {userId} — Restore access for a user.\n' +
 		'<code>/allowlist</code> — View and remove whitelisted domains.\n' +
 		'<code>/broadcast</code> — Send a message to all users.',
 
@@ -59,7 +65,8 @@ export const en = {
 	'help.guest.body':
 		'<b>How to use</b>\n\n' +
 		'Send a URL and the bot downloads it for you.\n' +
-		'Large files (&gt;50MB) show the direct URL to download manually.',
+		'Large files (&gt;50MB) show the direct URL to download manually.\n\n' +
+		'📸 <b>Instagram Stories</b> — Use /story @dawo5d to download stories.',
 	'help.guest.free_tier': '\n<b>Free tier:</b> {freeUses} downloads — then join {channel} to keep using the bot.',
 	'help.name_prefix': "{firstName}, here's how it works:\n\n",
 
@@ -67,8 +74,11 @@ export const en = {
 	'cancel.done': 'Cancelled.',
 
 	// --- text-input-handler ---
+	'input.already_downloading': '⏳ Already processing your download, please wait...',
+	'input.btn_cancel_download': '✖️ Cancel',
+	'input.stale_lock_done': '✅ Done! Send the link again if you still need it.',
 	'input.no_action': 'No active action. Send a supported URL to download media.',
-	'input.fetching_post': 'Fetching post info...', 
+	'input.fetching_post': 'Fetching post info...',
 	'input.fetching_video': 'Fetching video info...',
 	'input.choose_format': '<b>{platform}</b> — Choose format:',
 	'input.choose_quality': '<b>{platform}</b> — Choose quality:',
@@ -77,6 +87,7 @@ export const en = {
 
 	// --- download-and-send ---
 	'download.status': 'Downloading {modeText} from {platform}...',
+	'download.status_stories': 'Fetching {userLink} stories...',
 	'download.mode_audio': 'audio',
 	'download.mode_media': 'media',
 	'download.done': '✅ Done.',
@@ -194,8 +205,7 @@ export const en = {
 	'allowlist.empty': 'No domains are whitelisted yet.',
 	'allowlist.removed': '🗑 <b>{hostname}</b> removed from allowlist.',
 	'allowlist.not_found': '⚠️ Domain not found in allowlist.',
-	'input.instagram_story_unsupported': "📖 Unsupported format. Instagram Stories are not supported yet.",
-	'input.blocked_domain': '🚫 This link isn\'t allowed. If you think this is a mistake, tap the button below.',
+'input.blocked_domain': '🚫 This link isn\'t allowed. If you think this is a mistake, tap the button below.',
 	'input.blocked_domain_btn': '✋ Report Safe Content',
 	'report.sent': '✅ Your report has been sent to the admin.',
 	'report.admin_notify': '🚨 <b>Domain report</b>\n\nUser <b>{user}</b> (ID: <code>{userId}</code>) says this URL was wrongly blocked:\n<code>{url}</code>',
@@ -229,6 +239,16 @@ export const en = {
 
 	// --- stats platform errors ---
 	'stats.platform_errors_header': '❌ <b>Errors by Platform:</b>',
+
+	// --- /story command ---
+	'story.prompt': '📸 Send me an Instagram username or story link.\n\nExamples:\n<code>dawo5d</code>\n<code>@dawo5d</code>\n<code>instagram.com/stories/dawo5d/</code>',
+	'story.invalid': '⚠️ Couldn\'t find an Instagram username in that. Send a username like <code>dawo5d</code> or a story link.',
+
+	// --- /footer command ---
+	'footer.current': '🔖 <b>Instagram footer:</b>\n<code>{text}</code>',
+	'footer.none': '🔖 No Instagram footer set.\n\nUse <code>/footer your text</code> to set one.',
+	'footer.set': '✅ Instagram footer set:\n<code>{text}</code>',
+	'footer.cleared': '🗑 Instagram footer cleared.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

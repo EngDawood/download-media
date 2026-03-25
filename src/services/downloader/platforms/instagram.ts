@@ -1,13 +1,95 @@
+import { log } from '../../../utils/logger';
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
 import { parseAioGallery, parseLinksSection } from '../aio-parser';
 import { buildCaption, isUrl, detectMediaType } from '../media-helpers';
+import { RSSHUB_SERVERS } from '../../../constants';
+
+// ─── RSSHub Stories (primary for /stories/ URLs) ────────────────────────────
+
+function extractStoryUsername(url: string): string | null {
+	const match = url.match(/instagram\.com\/stories\/([^/?]+)/i);
+	return match ? match[1] : null;
+}
+
+interface RssItem {
+	url: string;
+	type: 'video' | 'photo';
+	thumbnail?: string;
+}
+
+// The description is HTML-encoded in the RSS, and the inner media URLs are
+// double-encoded (e.g. &amp;amp; in XML → &amp; → & after two decode passes).
+function decodeEntities(str: string): string {
+	return str
+		.replace(/&quot;/g, '"')
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&amp;/g, '&');
+}
+
+function parseRssItems(xml: string): RssItem[] {
+	const items: RssItem[] = [];
+	for (const itemMatch of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+		const itemXml = itemMatch[1];
+		const descRaw = itemXml.match(/<description>([\s\S]*?)<\/description>/)?.[1] ?? '';
+		// Two decode passes: XML entities first, then inner HTML attribute encoding
+		const desc = decodeEntities(decodeEntities(descRaw));
+
+		const videoSrc = desc.match(/<source\s+src="([^"]+)"/)?.[1];
+		if (videoSrc && isUrl(videoSrc)) {
+			const poster = desc.match(/<video[^>]+poster="([^"]+)"/)?.[1];
+			items.push({ url: videoSrc, type: 'video', thumbnail: poster });
+			continue;
+		}
+		const imgSrc = desc.match(/<img\s+[^>]*src="([^"]+)"/)?.[1];
+		if (imgSrc && isUrl(imgSrc)) {
+			items.push({ url: imgSrc, type: 'photo' });
+		}
+	}
+	return items;
+}
+
+async function fetchStoriesFromServer(server: string, username: string): Promise<DownloaderResult> {
+	const res = await fetch(`${server}/picnob.info/user/${username}/stories`, {
+		signal: AbortSignal.timeout(10_000),
+		headers: { 'User-Agent': 'DownloadMediaBot/1.0' },
+	});
+	if (!res.ok) throw new Error(`HTTP ${res.status}`);
+	const xml = await res.text();
+	const items = parseRssItems(xml);
+	if (items.length === 0) throw new Error('empty feed');
+	const media: MediaItem[] = items.map(({ url, type }) => ({ url, type }));
+	const thumbnail = items.find(i => i.thumbnail)?.thumbnail;
+	return { status: 'success', media, caption: `<a href="https://www.instagram.com/${username}/">@${username}</a> • Stories`, thumbnail };
+}
+
+async function tryViaRSSHub(username: string): Promise<DownloaderResult | null> {
+	try {
+		// Race all servers in parallel — return first success, max wait = 10s
+		return await Promise.any(RSSHUB_SERVERS.map(server => fetchStoriesFromServer(server, username)));
+	} catch {
+		log('warn', 'instagram', 'All RSSHub servers failed for stories', { username });
+		return null;
+	}
+}
+
+// ─── Provider ────────────────────────────────────────────────────────────────
 
 export class InstagramProvider implements IDownloaderProvider {
 	readonly platforms = ['instagram.com'];
 
 	async download(url: string, _mode: DownloaderMode): Promise<DownloaderResult> {
+		// Stories: use RSSHub as primary method (returns all current stories for the user)
+		const username = extractStoryUsername(url);
+		if (username) {
+			const result = await tryViaRSSHub(username);
+			if (result) return result;
+			return { status: 'error', error: 'Could not fetch stories. The account may be private, have no active stories, or be unknown to the service.' };
+		}
+
+		// Non-story posts: btch AIO → btch igdl
 		try {
 			const res = await btchFetch('aio', url, true);
 			const data = res.data;

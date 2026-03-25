@@ -7,6 +7,7 @@ type HonoEnv = { Bindings: Env };
 const GUEST_COMMANDS = [
 	{ command: 'start', description: 'Show supported platforms' },
 	{ command: 'help', description: 'How to use the bot' },
+	{ command: 'story', description: 'Download Instagram stories by username' },
 	{ command: 'lang', description: 'Change bot language' },
 	{ command: 'cancel', description: 'Cancel current action' },
 ];
@@ -14,6 +15,7 @@ const GUEST_COMMANDS = [
 const GUEST_COMMANDS_AR = [
 	{ command: 'start', description: 'عرض المنصات المدعومة' },
 	{ command: 'help', description: 'طريقة استخدام البوت' },
+	{ command: 'story', description: 'تحميل قصص Instagram باسم المستخدم' },
 	{ command: 'lang', description: 'تغيير لغة البوت' },
 	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
 ];
@@ -24,6 +26,7 @@ const ADMIN_COMMANDS = [
 	{ command: 'help', description: 'How to use the bot' },
 	{ command: 'lang', description: 'Change bot language' },
 	{ command: 'cancel', description: 'Cancel current action' },
+	{ command: 'story', description: 'Download Instagram stories by username' },
 	{ command: 'setchannel', description: 'Set required subscription channel' },
 	{ command: 'stats', description: 'View usage statistics' },
 	{ command: 'block', description: 'Block a user by ID' },
@@ -32,6 +35,7 @@ const ADMIN_COMMANDS = [
 	{ command: 'broadcast', description: 'Send a message to all users' },
 	{ command: 'reply', description: 'Reply to a user by ID' },
 	{ command: 'logs', description: 'View recent failed downloads' },
+	{ command: 'footer', description: 'Set Instagram caption footer' },
 ];
 
 const ADMIN_COMMANDS_AR = [
@@ -39,6 +43,7 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'help', description: 'طريقة استخدام البوت' },
 	{ command: 'lang', description: 'تغيير لغة البوت' },
 	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
+	{ command: 'story', description: 'تحميل قصص Instagram باسم المستخدم' },
 	{ command: 'setchannel', description: 'تعيين قناة الاشتراك' },
 	{ command: 'stats', description: 'عرض إحصائيات الاستخدام' },
 	{ command: 'block', description: 'حظر مستخدم عبر المعرف' },
@@ -47,6 +52,7 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'broadcast', description: 'إرسال رسالة لجميع المستخدمين' },
 	{ command: 'reply', description: 'الرد على مستخدم عبر المعرف' },
 	{ command: 'logs', description: 'عرض التحميلات الفاشلة الأخيرة' },
+	{ command: 'footer', description: 'تعيين ذيل تعليق Instagram' },
 ];
 
 const SUPPORTED_PLATFORMS = [

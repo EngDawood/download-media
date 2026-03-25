@@ -37,17 +37,19 @@ export {
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
-const registry = new ProviderRegistry([
-	new TikTokProvider(),
-	new InstagramProvider(),
-	new TwitterProvider(),
-	new YouTubeProvider(),
-	new FacebookProvider(),
-	new ThreadsProvider(),
-	new SoundCloudProvider(),
-	new SpotifyProvider(),
-	new PinterestProvider(),
-]);
+function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
+	return new ProviderRegistry([
+		new TikTokProvider(),
+		new InstagramProvider(),
+		new TwitterProvider(telegraphAccessToken),
+		new YouTubeProvider(),
+		new FacebookProvider(),
+		new ThreadsProvider(),
+		new SoundCloudProvider(),
+		new SpotifyProvider(),
+		new PinterestProvider(),
+	]);
+}
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -55,16 +57,18 @@ const registry = new ProviderRegistry([
  * Download media from a URL.
  * @param mode 'auto' returns video/photo, 'audio' returns audio, 'hd'/'sd' for quality
  * @param platform Optional platform hint from url-detector (skips hostname re-detection)
+ * @param env Cloudflare Workers env — required for Telegraph article publishing
  */
 export async function downloadMedia(
 	url: string,
 	mode: DownloaderMode = 'auto',
 	platform?: string,
+	env?: { TELEGRAPH_ACCESS_TOKEN?: string },
 ): Promise<DownloaderResult> {
+	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '');
 	try {
 		const result = await registry.download(url, mode, platform);
 		if (result) return result;
-		// Catch-all: AIO endpoint
 		return await downloadAIO(url, mode);
 	} catch (err: any) {
 		log('error', 'downloader', 'Error', { error: err?.message });
@@ -82,6 +86,7 @@ export async function downloadMedia(
 export async function fetchTikTokInfo(
 	url: string,
 ): Promise<{ caption: string; isImagePost: boolean; audioAvailable: boolean } | null> {
+	const registry = buildRegistry('');
 	const provider = registry.findForUrl(url) as TikTokProvider | null;
 	return provider?.fetchInfo?.(url) as Promise<{ caption: string; isImagePost: boolean; audioAvailable: boolean } | null> ?? null;
 }
@@ -90,6 +95,7 @@ export async function fetchTikTokInfo(
  * Fetch Facebook video info for the quality picker (HD/SD labels with sizes).
  */
 export async function fetchFacebookInfo(url: string): Promise<{ hdLabel: string; sdLabel: string } | null> {
+	const registry = buildRegistry('');
 	const provider = registry.findForUrl(url) as FacebookProvider | null;
 	return provider?.fetchInfo?.(url) as Promise<{ hdLabel: string; sdLabel: string } | null> ?? null;
 }
