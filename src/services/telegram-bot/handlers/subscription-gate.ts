@@ -2,6 +2,7 @@ import { Bot, Context } from 'grammy';
 import { getCached, setCached } from '../../../utils/cache';
 import { CACHE_PREFIX_USAGE_COUNT, KV_KEY_REQUIRED_CHANNEL, KV_KEY_FREE_USES, FREE_USES_BEFORE_GATE } from '../../../constants';
 import { trackEvent } from '../../../utils/analytics';
+import { incrementGateBlocked } from '../../../utils/stats';
 import { t, getLocale } from '../../../i18n';
 
 const USAGE_TTL = 60 * 60 * 24 * 90; // 90 days
@@ -49,6 +50,7 @@ export async function checkSubscriptionGate(
 
 	// User is not subscribed — track and show gate message
 	trackEvent(analytics, { userId, platform: platform ?? 'unknown', userType: 'guest', action: 'gate_blocked' });
+	incrementGateBlocked(kv).catch(() => {});
 	const locale = getLocale(ctx);
 	const channelName = channelUsername.replace('@', '');
 	await ctx.reply(
