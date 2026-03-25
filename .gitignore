@@ -178,3 +178,4 @@ reports/*
 src/_deploy-id.ts
 
 repors/*
+.claude/settings.local.json
