@@ -179,3 +179,4 @@ src/_deploy-id.ts
 
 repors/*
 .claude/settings.local.json
+.claude/settings.local.json

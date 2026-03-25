@@ -29,24 +29,43 @@ function decodeEntities(str: string): string {
 		.replace(/&amp;/g, '&');
 }
 
-function parseRssItems(xml: string): RssItem[] {
+function parseDescHtmlRegex(desc: string): RssItem | null {
+	const videoSrc = desc.match(/<source\s+src="([^"]+)"/)?.[1];
+	if (videoSrc && isUrl(videoSrc)) {
+		const poster = desc.match(/<video[^>]+poster="([^"]+)"/)?.[1];
+		return { url: videoSrc, type: 'video', thumbnail: poster };
+	}
+	const imgSrc = desc.match(/<img\s+[^>]*src="([^"]+)"/)?.[1];
+	if (imgSrc && isUrl(imgSrc)) return { url: imgSrc, type: 'photo' };
+	return null;
+}
+
+async function parseDescHtmlRewriter(html: string): Promise<RssItem | null> {
+	let videoSrc: string | undefined;
+	let poster: string | undefined;
+	let imgSrc: string | undefined;
+
+	await new HTMLRewriter()
+		.on('source', { element(el) { videoSrc ??= el.getAttribute('src') ?? undefined; } })
+		.on('video',  { element(el) { poster ??= el.getAttribute('poster') ?? undefined; } })
+		.on('img',    { element(el) { imgSrc ??= el.getAttribute('src') ?? undefined; } })
+		.transform(new Response(html, { headers: { 'content-type': 'text/html' } }))
+		.arrayBuffer();
+
+	if (videoSrc && isUrl(videoSrc)) return { url: videoSrc, type: 'video', thumbnail: poster };
+	if (imgSrc && isUrl(imgSrc))     return { url: imgSrc,   type: 'photo' };
+	return null;
+}
+
+async function parseRssItems(xml: string): Promise<RssItem[]> {
 	const items: RssItem[] = [];
 	for (const itemMatch of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
 		const itemXml = itemMatch[1];
 		const descRaw = itemXml.match(/<description>([\s\S]*?)<\/description>/)?.[1] ?? '';
 		// Two decode passes: XML entities first, then inner HTML attribute encoding
 		const desc = decodeEntities(decodeEntities(descRaw));
-
-		const videoSrc = desc.match(/<source\s+src="([^"]+)"/)?.[1];
-		if (videoSrc && isUrl(videoSrc)) {
-			const poster = desc.match(/<video[^>]+poster="([^"]+)"/)?.[1];
-			items.push({ url: videoSrc, type: 'video', thumbnail: poster });
-			continue;
-		}
-		const imgSrc = desc.match(/<img\s+[^>]*src="([^"]+)"/)?.[1];
-		if (imgSrc && isUrl(imgSrc)) {
-			items.push({ url: imgSrc, type: 'photo' });
-		}
+		const item = parseDescHtmlRegex(desc) ?? await parseDescHtmlRewriter(desc);
+		if (item) items.push(item);
 	}
 	return items;
 }
@@ -58,7 +77,7 @@ async function fetchStoriesFromServer(server: string, username: string): Promise
 	});
 	if (!res.ok) throw new Error(`HTTP ${res.status}`);
 	const xml = await res.text();
-	const items = parseRssItems(xml);
+	const items = await parseRssItems(xml);
 	if (items.length === 0) throw new Error('empty feed');
 	const media: MediaItem[] = items.map(({ url, type }) => ({ url, type }));
 	const thumbnail = items.find(i => i.thumbnail)?.thumbnail;
