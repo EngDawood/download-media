@@ -184,7 +184,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 		let channelSubscribers: number | null = null;
 		if (channelUsername) {
-			try { channelSubscribers = await bot.api.getChatMemberCount(channelUsername); } catch {}
+			try { channelSubscribers = await bot.api.getChatMemberCount(channelUsername); } catch (_e) { /* ignored */ }
 		}
 
 		await ctx.reply(buildStatsText(report, locale, channelSubscribers, channelUsername), { parse_mode: 'HTML', reply_markup: buildStatsKeyboard(locale) });
@@ -350,6 +350,163 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			lines.push(`   <code>${entry.url}</code>`);
 			lines.push(`   ${date}`);
 			lines.push('');
+		}
+
+		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: hourly distribution
+	bot.callbackQuery('stats:hourly', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const report = await getStatsReport(kv);
+		const hourly = report.global.hourlyDistribution ?? new Array(24).fill(0);
+		const total = hourly.reduce((s: number, v: number) => s + v, 0);
+
+		if (total === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.hourly_no_data') });
+			return;
+		}
+
+		const maxVal = Math.max(...hourly);
+		const lines: string[] = [t(locale, 'stats.hourly_header'), ''];
+
+		// Two-column layout: hours 0-11 left, 12-23 right
+		for (let h = 0; h < 12; h++) {
+			const lv = hourly[h] ?? 0;
+			const rv = hourly[h + 12] ?? 0;
+			const lBar = miniBar(lv, maxVal, 5);
+			const rBar = miniBar(rv, maxVal, 5);
+			const lStr = `${String(h).padStart(2, '0')} ${lBar} ${lv}`;
+			const rStr = `${String(h + 12).padStart(2, '0')} ${rBar} ${rv}`;
+			lines.push(`<code>${lStr.padEnd(16)}${rStr}</code>`);
+		}
+
+		const peakHour = hourly.indexOf(maxVal);
+		lines.push('', t(locale, 'stats.hourly_peak', { hour: String(peakHour).padStart(2, '0'), count: String(maxVal) }));
+
+		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: gate funnel
+	bot.callbackQuery('stats:gate', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const [report, channelUsername] = await Promise.all([getStatsReport(kv), kv.get(KV_KEY_REQUIRED_CHANNEL)]);
+		const g = report.global;
+
+		if (!channelUsername && (g.totalGateBlocked ?? 0) === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.gate_no_data') });
+			return;
+		}
+
+		const verifyRate = (g.totalGateBlocked ?? 0) > 0 ? Math.round(((g.totalGateVerified ?? 0) / g.totalGateBlocked) * 100) : 0;
+		const lines: string[] = [
+			t(locale, 'stats.gate_funnel_header'),
+			'',
+			t(locale, 'stats.gate_funnel_shown', { count: String(g.totalGateBlocked ?? 0) }),
+			t(locale, 'stats.gate_funnel_verified', { verified: String(g.totalGateVerified ?? 0) }),
+			t(locale, 'stats.gate_funnel_blocked', { count: String(g.totalGateStillBlocked ?? 0) }),
+			t(locale, 'stats.gate_funnel_rate', { rate: String(verifyRate) }),
+		];
+
+		if ((report.today.gateBlocked ?? 0) > 0 || (report.today.gateVerified ?? 0) > 0) {
+			lines.push('', t(locale, 'stats.gate_today', { blocked: String(report.today.gateBlocked ?? 0), verified: String(report.today.gateVerified ?? 0) }));
+		}
+
+		if (channelUsername) {
+			try {
+				const subs = await bot.api.getChatMemberCount(channelUsername);
+				lines.push(t(locale, 'stats.channel_subscribers', { channel: channelUsername, count: String(subs) }));
+			} catch (_e) { /* ignored */ }
+		}
+
+		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: users overview
+	bot.callbackQuery('stats:users', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const report = await getStatsReport(kv);
+		const topUsers = report.global.topUsers ?? [];
+
+		if (topUsers.length === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.users_no_data') });
+			return;
+		}
+
+		// Scan all user stats for activity buckets
+		let cursor: string | undefined;
+		const now = Date.now();
+		const ms7d = 7 * 24 * 3600 * 1000;
+		const ms30d = 30 * 24 * 3600 * 1000;
+		let active7 = 0, active30 = 0, inactive = 0;
+		const userDetails: Array<{ userId: number; firstName: string; username?: string; count: number; failures: number; topPlatform: string }> = [];
+
+		do {
+			const result: KVNamespaceListResult<unknown, string> = cursor
+				? await kv.list({ prefix: KV_KEY_STATS_USER_PREFIX, cursor })
+				: await kv.list({ prefix: KV_KEY_STATS_USER_PREFIX });
+			const rawValues = await Promise.all(result.keys.map((k) => kv.get(k.name)));
+			for (let i = 0; i < result.keys.length; i++) {
+				const raw = rawValues[i];
+				if (!raw) continue;
+				try {
+					const u = JSON.parse(raw) as UserStats;
+					const lastSeen = u.lastSeen ?? 0;
+					const age = now - lastSeen;
+					if (age <= ms7d) active7++;
+					else if (age <= ms30d) active30++;
+					else inactive++;
+					// top platform
+					const topPlatform = Object.entries(u.platforms ?? {}).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+					const userId = parseInt(result.keys[i].name.slice(KV_KEY_STATS_USER_PREFIX.length), 10);
+					userDetails.push({ userId, firstName: u.firstName, username: u.username, count: u.count, failures: u.failures ?? 0, topPlatform });
+				} catch (_e) { /* ignored */ }
+			}
+			cursor = result.list_complete ? undefined : (result as KVNamespaceListResult<unknown, string> & { cursor: string }).cursor;
+		} while (cursor);
+
+		userDetails.sort((a, b) => b.count - a.count);
+		const powerUsers = userDetails.slice(0, 10);
+
+		const lines: string[] = [
+			t(locale, 'stats.users_header'),
+			'',
+			t(locale, 'stats.users_activity'),
+			t(locale, 'stats.users_active_7d', { count: String(active7) }),
+			t(locale, 'stats.users_active_30d', { count: String(active30) }),
+			t(locale, 'stats.users_inactive', { count: String(inactive) }),
+			'',
+			t(locale, 'stats.users_power'),
+		];
+
+		for (let i = 0; i < powerUsers.length; i++) {
+			const u = powerUsers[i];
+			const userDisplay = u.username ? `@${u.username}` : u.firstName;
+			lines.push(t(locale, 'stats.users_power_row', {
+				rank: String(i + 1),
+				userDisplay,
+				count: String(u.count),
+				failures: String(u.failures),
+				topPlatform: u.topPlatform,
+			}));
 		}
 
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
@@ -616,7 +773,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 				const id = parseInt(idStr, 10);
 				if (!isNaN(id) && id !== adminId) userIds.push(id);
 			}
-			cursor = result.list_complete ? undefined : (result as any).cursor;
+			cursor = result.list_complete ? undefined : (result as KVNamespaceListResult<unknown, string> & { cursor: string }).cursor;
 		} while (cursor);
 
 		if (userIds.length === 0) {

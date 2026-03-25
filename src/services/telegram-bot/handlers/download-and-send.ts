@@ -129,7 +129,7 @@ export async function downloadAndSendMedia(
 	if (statusMessageId) {
 		try {
 			await bot.api.editMessageText(chatId, statusMessageId, statusText);
-		} catch (e) {
+		} catch (_e) {
 			// Edit failed — send a new message and track its ID instead
 			const fallback = await bot.api.sendMessage(chatId, statusText);
 			statusMessageId = fallback.message_id;
@@ -237,9 +237,9 @@ export async function downloadAndSendMedia(
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_empty' });
 		await recordError('No media found');
 		await showError(t(locale, 'download.no_media'), undefined, 'No media found');
-	} catch (err: any) {
+	} catch (err: unknown) {
 		// YouTube: send thumbnail + mp4/mp3 URLs when file is too large
-		if (result?.mp3Url && result?.thumbnail && /too large/i.test(err.message || '')) {
+		if (result?.mp3Url && result?.thumbnail && /too large/i.test((err as Error).message || '')) {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			await recordError('File too large (YouTube)');
 			const caption = result.caption || '';
@@ -279,8 +279,9 @@ export async function downloadAndSendMedia(
 
 		console.error('[downloader] Download and send error:', err);
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
-		await recordError(err.message || 'Unknown error');
-		const msg = err.message || 'Unknown error';
+		const errMsg = (err as Error).message || 'Unknown error';
+		await recordError(errMsg);
+		const msg = errMsg;
 		// If file is too large for Telegram, send the link as text instead
 		if (msg.includes('too large') || msg.includes('Too large')) {
 			const sorry = options?.firstName

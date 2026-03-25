@@ -106,9 +106,9 @@ export const ar: Translations = {
 
 	// --- subscription gate ---
 	'gate.blocked':
-		'🔒 تم الوصول للحد المجاني\. لقد استخدمت {freeUses} تحميلات مجانية\!\n\n' +
+		'🔒 تم الوصول للحد المجاني. لقد استخدمت {freeUses} تحميلات مجانية!\n\n' +
 		'انضم لقناتنا لمتابعة التحميل:\n' +
-		'👉 [t\.me/{channelName}](https://t.me/{channelName})',
+		'👉 [t.me/{channelName}](https://t.me/{channelName})',
 	'gate.btn_join': '📢 انضم للقناة',
 	'gate.btn_verify': '✅ التحقق من الاشتراك',
 

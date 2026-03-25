@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, type Context } from 'grammy';
 import { registerInfoCommands } from './commands/info-commands';
 import { registerAdminCommands } from './commands/admin-commands';
 import { registerTextInputHandler } from './handlers/text-input-handler';
@@ -51,9 +51,9 @@ export function createBot(env: Env): Bot {
 	bot.use(async (ctx, next) => {
 		const userId = ctx.from?.id;
 		if (userId) {
-			(ctx as any).locale = await resolveLocale(kv, userId, ctx.from?.language_code);
+			(ctx as Context & { locale: string }).locale = await resolveLocale(kv, userId, ctx.from?.language_code);
 		} else {
-			(ctx as any).locale = DEFAULT_LOCALE;
+			(ctx as Context & { locale: string }).locale = DEFAULT_LOCALE;
 		}
 		await next();
 	});

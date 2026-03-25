@@ -46,7 +46,7 @@ export async function resolveLocale(
 
 /** Read locale from context (set by middleware). */
 export function getLocale(ctx: Context): Locale {
-	return (ctx as any).locale ?? DEFAULT_LOCALE;
+	return (ctx as Context & { locale?: Locale }).locale ?? DEFAULT_LOCALE;
 }
 
 /** Get the display name for a locale. */

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const BTCH_SERVERS = [
 	'https://backend1.tioo.eu.org',
 	'https://backend2.tioo.eu.org',
