@@ -41,4 +41,5 @@
 	// Secrets (set via wrangler secret put):
 	// - TELEGRAM_BOT_TOKEN
 	// - TELEGRAM_WEBHOOK_SECRET
+	// - TELEGRAPH_ACCESS_TOKEN
 }
