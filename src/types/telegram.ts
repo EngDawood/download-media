@@ -10,7 +10,7 @@ export interface FormatSettings {
 
 // Admin conversation state for multi-step flows
 export interface AdminState {
-	action: 'downloading_media' | 'awaiting_broadcast';
+	action: 'downloading_media' | 'awaiting_broadcast' | 'awaiting_story_username';
 	context?: {
 		downloadUrl?: string;
 		downloadPlatform?: string;

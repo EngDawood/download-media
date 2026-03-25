@@ -1,5 +1,6 @@
 import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState, getAdminState, setAdminState } from '../storage/admin-state';
+import { downloadAndSendMedia } from '../handlers/download-and-send';
 import {
 	KV_KEY_REQUIRED_CHANNEL,
 	FREE_USES_BEFORE_GATE,
@@ -7,6 +8,8 @@ import {
 	CACHE_PREFIX_BLOCKED_URL,
 	KV_KEY_STATS_USER_PREFIX,
 	KV_KEY_STATS_STARTED_PREFIX,
+	KV_KEY_INSTAGRAM_FOOTER,
+	CACHE_PREFIX_DOWNLOAD_LOCK,
 } from '../../../constants';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
 import {
@@ -84,7 +87,9 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 	bot.command('cancel', async (ctx) => {
 		const locale = getLocale(ctx);
+		const userId = ctx.from?.id;
 		await clearAdminState(kv, adminId);
+		if (userId) await kv.delete(CACHE_PREFIX_DOWNLOAD_LOCK + userId).catch(() => {});
 		await ctx.reply(t(locale, 'cancel.done'));
 	});
 
@@ -628,6 +633,95 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		} catch {
 			await ctx.reply(t(locale, 'reply.failed'));
 		}
+	});
+
+	// /story — download stories by username (available to all users)
+	// Usage: /story [platform] <username|link>
+	// Platform aliases: ig/instagram (default), more to be added
+	bot.command('story', async (ctx) => {
+		const locale = getLocale(ctx);
+		const userId = ctx.from?.id;
+		if (!userId) return;
+		const isAdmin = userId === adminId;
+		const raw = ctx.match?.trim() ?? '';
+
+		// Parse optional platform prefix: "ig", "instagram" (default + only supported for now)
+		const PLATFORM_ALIASES: Record<string, string> = { ig: 'instagram', instagram: 'instagram' };
+		const parts = raw.split(/\s+/);
+		let platform = 'instagram';
+		let inputArg = raw;
+		if (parts.length >= 2 && PLATFORM_ALIASES[parts[0].toLowerCase()]) {
+			platform = PLATFORM_ALIASES[parts[0].toLowerCase()];
+			inputArg = parts.slice(1).join(' ');
+		}
+
+		const parseInstagramUsername = (input: string): string | null => {
+			const storyMatch = input.match(/instagram\.com\/stories\/([^/?]+)/i);
+			if (storyMatch) return storyMatch[1];
+			const profileMatch = input.match(/instagram\.com\/([^/?]+)/i);
+			if (profileMatch && !['p', 'reel', 'tv', 'explore', 'accounts', 'stories'].includes(profileMatch[1])) {
+				return profileMatch[1];
+			}
+			const cleaned = input.startsWith('@') ? input.slice(1) : input;
+			if (/^[a-zA-Z0-9._]{1,30}$/.test(cleaned)) return cleaned;
+			return null;
+		};
+
+		if (!inputArg) {
+			await setAdminState(kv, userId, { action: 'awaiting_story_username' });
+			await ctx.reply(t(locale, 'story.prompt'), { parse_mode: 'HTML' });
+			return;
+		}
+
+		// Only Instagram supported for now
+		const username = parseInstagramUsername(inputArg);
+		if (!username) {
+			await ctx.reply(t(locale, 'story.invalid'), { parse_mode: 'HTML' });
+			return;
+		}
+
+		const storyUrl = `https://www.instagram.com/stories/${username}/`;
+		const userLink = `<a href="https://www.instagram.com/${username}/">@${username}</a>`;
+		const statusMsg = await ctx.reply(
+			t(locale, 'download.status_stories', { userLink }),
+			{ parse_mode: 'HTML' },
+		);
+		await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
+			kv,
+			adminId: isAdmin ? adminId : undefined,
+			guestMode: !isAdmin,
+			analytics: env.ANALYTICS,
+			userId,
+			firstName: ctx.from?.first_name,
+			username: ctx.from?.username,
+			locale,
+		});
+	});
+
+	// /footer — admin sets/views/clears the Instagram caption footer
+	bot.command('footer', async (ctx) => {
+		const locale = getLocale(ctx);
+		if (ctx.from?.id !== adminId) {
+			await ctx.reply(t(locale, 'stats.admin_only'));
+			return;
+		}
+		const arg = ctx.match?.trim();
+		if (!arg) {
+			const current = await kv.get(KV_KEY_INSTAGRAM_FOOTER);
+			if (current) {
+				await ctx.reply(t(locale, 'footer.current', { text: current }), { parse_mode: 'HTML' });
+			} else {
+				await ctx.reply(t(locale, 'footer.none'), { parse_mode: 'HTML' });
+			}
+			return;
+		}
+		if (arg === 'clear') {
+			await kv.delete(KV_KEY_INSTAGRAM_FOOTER);
+			await ctx.reply(t(locale, 'footer.cleared'), { parse_mode: 'HTML' });
+			return;
+		}
+		await kv.put(KV_KEY_INSTAGRAM_FOOTER, arg);
+		await ctx.reply(t(locale, 'footer.set', { text: arg }), { parse_mode: 'HTML' });
 	});
 
 	// /logs — admin views recent failed downloads (optionally filtered by platform)

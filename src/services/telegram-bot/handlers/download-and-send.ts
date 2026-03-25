@@ -7,7 +7,7 @@ import type { TelegramMediaMessage } from '../../../types/telegram';
 import { trackEvent } from '../../../utils/analytics';
 import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats';
 import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
-import { CACHE_PREFIX_REPORT } from '../../../constants';
+import { CACHE_PREFIX_REPORT, KV_KEY_INSTAGRAM_FOOTER, DEFAULT_INSTAGRAM_FOOTER } from '../../../constants';
 import { log } from '../../../utils/logger';
 
 /**
@@ -27,13 +27,16 @@ export async function downloadAndSendMedia(
 	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
-	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; firstName?: string; username?: string; locale?: Locale; originalUrl?: string },
+	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; firstName?: string; username?: string; locale?: Locale; originalUrl?: string; telegraphToken?: string },
 ): Promise<void> {
 	const userType = options?.guestMode ? 'guest' : 'admin';
 	const userId = options?.userId ?? 0;
 	const locale = options?.locale ?? DEFAULT_LOCALE;
 	const modeText = t(locale, mode === 'audio' ? 'download.mode_audio' : 'download.mode_media');
-	const statusText = t(locale, 'download.status', { modeText, platform });
+	const storyUsername = platform === 'Instagram' ? url.match(/instagram\.com\/stories\/([^/?]+)/i)?.[1] : undefined;
+	const statusText = storyUsername
+		? t(locale, 'download.status_stories', { userLink: `<a href="https://www.instagram.com/${storyUsername}/">@${storyUsername}</a>` })
+		: t(locale, 'download.status', { modeText, platform });
 
 	// Helper to record success + history
 	const recordSuccess = async () => {
@@ -126,14 +129,18 @@ export async function downloadAndSendMedia(
 
 	if (statusMessageId) {
 		try {
-			await bot.api.editMessageText(chatId, statusMessageId, statusText);
-		} catch (e) {
-			// Edit failed — send a new message and track its ID instead
-			const fallback = await bot.api.sendMessage(chatId, statusText);
-			statusMessageId = fallback.message_id;
+			await bot.api.editMessageText(chatId, statusMessageId, statusText, { parse_mode: 'HTML' });
+		} catch (e: any) {
+			const alreadyShowing = e?.description?.includes('message is not modified') || e?.message?.includes('message is not modified');
+			if (!alreadyShowing) {
+				// Edit failed for a real reason — send a new message and track its ID instead
+				const fallback = await bot.api.sendMessage(chatId, statusText, { parse_mode: 'HTML' });
+				statusMessageId = fallback.message_id;
+			}
+			// If alreadyShowing, the message is already correct — keep existing statusMessageId
 		}
 	} else {
-		const msg = await bot.api.sendMessage(chatId, statusText);
+		const msg = await bot.api.sendMessage(chatId, statusText, { parse_mode: 'HTML' });
 		statusMessageId = msg.message_id;
 	}
 
@@ -150,7 +157,7 @@ export async function downloadAndSendMedia(
 			return;
 		}
 
-		result = await downloadMedia(url, mode);
+		result = await downloadMedia(url, mode, platform, { TELEGRAPH_ACCESS_TOKEN: options?.telegraphToken });
 
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
@@ -161,7 +168,12 @@ export async function downloadAndSendMedia(
 		}
 
 		if (result.media && result.media.length > 0) {
-			const caption = result.caption || '';
+			let caption = result.caption || '';
+			// Append Instagram footer (custom if set, otherwise default)
+			if (platform === 'Instagram') {
+				const footer = options?.kv ? (await options.kv.get(KV_KEY_INSTAGRAM_FOOTER)) ?? DEFAULT_INSTAGRAM_FOOTER : DEFAULT_INSTAGRAM_FOOTER;
+				caption = caption ? `${caption}\n\n${footer}` : footer;
+			}
 			// Build size/quality info for the "Done" message
 			const sizeInfo = result.media
 				.map(m => {
@@ -178,20 +190,24 @@ export async function downloadAndSendMedia(
 				const groupableItems = result.media.filter(m => m.type === 'photo' || m.type === 'video');
 
 				if (groupableItems.length > 1) {
-					const msg: TelegramMediaMessage = {
-						type: 'mediagroup',
-						caption: caption,
-						media: groupableItems.slice(0, 10).map((item, index) => ({
-							type: item.type as 'photo' | 'video',
-							media: item.url,
-							caption: index === 0 ? caption : '',
-							parse_mode: 'HTML',
-						})),
-					};
-					await sendMediaToChannel(bot, chatId, msg);
+					// Telegram media group limit is 10 — chunk and send sequentially
+					for (let i = 0; i < groupableItems.length; i += 4) {
+						const chunk = groupableItems.slice(i, i + 4);
+						const msg: TelegramMediaMessage = {
+							type: 'mediagroup',
+							caption: caption,
+							media: chunk.map((item, index) => ({
+								type: item.type as 'photo' | 'video',
+								media: item.url,
+								caption: i === 0 && index === 0 ? caption : '',
+								parse_mode: 'HTML',
+							})),
+						};
+						await sendMediaToChannel(bot, chatId, msg);
+					}
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 					await recordSuccess();
-					await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.sent_album', { count: Math.min(groupableItems.length, 10) }));
+					await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.sent_album', { count: groupableItems.length }));
 				} else {
 					for (const item of result.media.slice(0, 10)) {
 						const msg: TelegramMediaMessage = {

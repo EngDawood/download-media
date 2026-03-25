@@ -1,25 +1,143 @@
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
-import { getAdminState, setAdminState } from '../storage/admin-state';
+import { getAdminState, setAdminState, clearAdminState } from '../storage/admin-state';
 import { detectMediaUrl, isBlockedDomain, getDirectFileMediaType } from '../../../utils/url-detector';
-import { CACHE_PREFIX_BLOCKED_URL } from '../../../constants';
+import { CACHE_PREFIX_BLOCKED_URL, CACHE_PREFIX_DOWNLOAD_LOCK, CACHE_PREFIX_LOCK_PENDING } from '../../../constants';
 import { downloadAndSendMedia } from './download-and-send';
 import { fetchFacebookInfo, fetchTikTokInfo } from '../../media-downloader';
 import { checkSubscriptionGate } from './subscription-gate';
 import { incrementLinkStats, isUserBlocked, isDomainAllowlisted } from '../../../utils/stats';
-import { t, getLocale } from '../../../i18n';
+import { t, getLocale, type Locale } from '../../../i18n';
+
+const IG_RESERVED = ['p', 'reel', 'tv', 'explore', 'accounts', 'stories', 'direct', 'ar', 'live'];
+
+interface PendingMessage {
+	chatId: number;
+	messageId: number;
+	locale: string;
+}
+
+/**
+ * Returns the Instagram username if the URL is a profile page (instagram.com/username),
+ * or null for posts, reels, stories, and other non-profile paths.
+ */
+function extractInstagramProfileUsername(url: string): string | null {
+	try {
+		const u = new URL(url);
+		if (!u.hostname.replace(/^www\./, '').endsWith('instagram.com')) return null;
+		const parts = u.pathname.split('/').filter(Boolean);
+		if (parts.length !== 1) return null;
+		const username = parts[0];
+		if (IG_RESERVED.includes(username.toLowerCase())) return null;
+		if (!/^[a-zA-Z0-9._]{1,30}$/.test(username)) return null;
+		return username;
+	} catch {
+		return null;
+	}
+}
+
+/** Store a pending "already processing" message so it can be updated when the download finishes. */
+async function storePendingMessage(kv: KVNamespace, userId: number, chatId: number, messageId: number, locale: string): Promise<void> {
+	const key = `${CACHE_PREFIX_LOCK_PENDING}${userId}`;
+	const existing: PendingMessage[] = JSON.parse((await kv.get(key)) ?? '[]');
+	existing.push({ chatId, messageId, locale });
+	await kv.put(key, JSON.stringify(existing), { expirationTtl: 60 }).catch(() => {});
+}
+
+/** Edit all stored pending messages and remove them from KV. */
+async function clearPendingMessages(
+	bot: Bot,
+	kv: KVNamespace,
+	userId: number,
+	getText: (locale: Locale) => string,
+): Promise<void> {
+	const key = `${CACHE_PREFIX_LOCK_PENDING}${userId}`;
+	const raw = await kv.get(key);
+	if (!raw) return;
+	await kv.delete(key).catch(() => {});
+	try {
+		const pending: PendingMessage[] = JSON.parse(raw);
+		await Promise.all(
+			pending.map(p => bot.api.editMessageText(p.chatId, p.messageId, getText(p.locale as Locale)).catch(() => {})),
+		);
+	} catch { /* ignore parse errors */ }
+}
 
 /**
  * Register the main text handler to process URL detection and download flows.
  */
 export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): void {
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
+	const telegraphToken = env.TELEGRAPH_ACCESS_TOKEN;
+
+	// Cancel the stuck download lock so the user can send a new URL
+	bot.callbackQuery('cancel:lock', async (ctx) => {
+		await ctx.answerCallbackQuery();
+		const userId = ctx.from?.id;
+		const locale = getLocale(ctx);
+		if (userId) {
+			await kv.delete(`${CACHE_PREFIX_DOWNLOAD_LOCK}${userId}`).catch(() => {});
+			await clearPendingMessages(bot, kv, userId, (l) => t(l, 'cancel.done'));
+		}
+		// Fallback in case current message wasn't in the pending list (e.g. TTL already expired)
+		await ctx.editMessageText(t(locale, 'cancel.done')).catch(() => {});
+	});
 
 	bot.on('message:text', async (ctx) => {
 		const text = ctx.message.text;
 		if (text.startsWith('/')) return;
 
-		// Detect supported media URLs before checking admin state
+		const userId = ctx.from?.id;
+		const locale = getLocale(ctx);
+
+		// Handle awaiting_story_username state (any user)
+		if (userId) {
+			const userState = await getAdminState(kv, userId);
+			if (userState?.action === 'awaiting_story_username') {
+				await clearAdminState(kv, userId);
+				const storyMatch = text.match(/instagram\.com\/stories\/([^/?]+)/i)
+					?? text.match(/instagram\.com\/([^/?]+)/i);
+				const cleaned = text.startsWith('@') ? text.slice(1).trim() : text.trim();
+				const username = storyMatch
+					? (!['p', 'reel', 'tv', 'explore', 'accounts', 'stories'].includes(storyMatch[1]) ? storyMatch[1] : null) ?? storyMatch[1]
+					: /^[a-zA-Z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
+				if (!username) {
+					await ctx.reply(t(locale, 'story.invalid'), { parse_mode: 'HTML' });
+					return;
+				}
+				const isAdmin = userId === adminId;
+				const storyUrl = `https://www.instagram.com/stories/${username}/`;
+				const userLink = `<a href="https://www.instagram.com/${username}/">@${username}</a>`;
+				const storyLockKey = `${CACHE_PREFIX_DOWNLOAD_LOCK}${userId}`;
+				if (await kv.get(storyLockKey)) {
+					const cancelKeyboard = new InlineKeyboard().text(t(locale, 'input.btn_cancel_download'), 'cancel:lock');
+					const reply = await ctx.reply(t(locale, 'input.already_downloading'), { reply_markup: cancelKeyboard });
+					await storePendingMessage(kv, userId, ctx.chat!.id, reply.message_id, locale);
+					return;
+				}
+				await kv.put(storyLockKey, '1', { expirationTtl: 60 });
+				try {
+					const statusMsg = await ctx.reply(
+						t(locale, 'download.status_stories', { userLink }),
+						{ parse_mode: 'HTML' },
+					);
+					await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
+						kv,
+						adminId: isAdmin ? adminId : undefined,
+						guestMode: !isAdmin,
+						userId,
+						firstName: ctx.from?.first_name,
+						username: ctx.from?.username,
+						locale,
+					});
+				} finally {
+					await kv.delete(storyLockKey).catch(() => {});
+					await clearPendingMessages(bot, kv, userId, (l) => t(l, 'input.stale_lock_done'));
+				}
+				return;
+			}
+		}
+
 		const detected = detectMediaUrl(text);
 		if (detected) {
 			const { platform, url } = detected;
@@ -29,13 +147,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			const username = ctx.from?.username;
 			const locale = getLocale(ctx);
 
-			// Instagram Stories are not supported — notify user and stop
-			if (platform === 'Instagram' && url.includes('/stories/')) {
-				await ctx.reply(t(locale, 'input.instagram_story_unsupported'));
-				return;
-			}
-
-			// Block adult content domains for non-admin users (skip if allowlisted)
+			// Block adult content domains for non-admin users
 			if (!isAdmin && isBlockedDomain(url) && !(await isDomainAllowlisted(kv, url))) {
 				if (userId) {
 					await kv.put(`${CACHE_PREFIX_BLOCKED_URL}${userId}`, url, { expirationTtl: 3600 });
@@ -45,12 +157,10 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 				return;
 			}
 
-			// Track link submission (fire-and-forget — don't block the download flow)
 			if (userId) {
 				incrementLinkStats(kv, { userId, firstName: firstName || '', platform }).catch(() => {});
 			}
 
-			// Check if user is blocked (skip for admin)
 			if (!isAdmin && userId) {
 				const blocked = await isUserBlocked(kv, userId);
 				if (blocked) {
@@ -59,72 +169,124 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 				}
 			}
 
-			if (!isAdmin) {
-				const gateBlocked = await checkSubscriptionGate(ctx, kv, bot, env.ANALYTICS, platform);
-				if (gateBlocked) return;
+			// Per-user download lock — prevents duplicate downloads when user re-sends a URL
+			const lockKey = userId ? `${CACHE_PREFIX_DOWNLOAD_LOCK}${userId}` : null;
+			if (lockKey) {
+				if (await kv.get(lockKey)) {
+					const cancelKeyboard = new InlineKeyboard().text(t(locale, 'input.btn_cancel_download'), 'cancel:lock');
+					const reply = await ctx.reply(t(locale, 'input.already_downloading'), { reply_markup: cancelKeyboard });
+					await storePendingMessage(kv, userId!, ctx.chat!.id, reply.message_id, locale);
+					return;
+				}
+				await kv.put(lockKey, '1', { expirationTtl: 60 });
+			}
 
+			try {
+				// Instagram profile URL (instagram.com/username) → download their stories
+				const igProfileUsername = extractInstagramProfileUsername(url);
+				if (igProfileUsername) {
+					const storyUrl = `https://www.instagram.com/stories/${igProfileUsername}/`;
+					const userLink = `<a href="https://www.instagram.com/${igProfileUsername}/">@${igProfileUsername}</a>`;
+					const statusMsg = await ctx.reply(
+						t(locale, 'download.status_stories', { userLink }),
+						{ parse_mode: 'HTML' },
+					);
+					await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
+						kv,
+						adminId: isAdmin ? adminId : undefined,
+						guestMode: !isAdmin,
+						analytics: env.ANALYTICS,
+						userId,
+						firstName,
+						username,
+						locale,
+						telegraphToken,
+					});
+					return;
+				}
+
+				if (!isAdmin) {
+					const gateBlocked = await checkSubscriptionGate(ctx, kv, bot, env.ANALYTICS, platform);
+					if (gateBlocked) return;
+
+					const directMediaType = getDirectFileMediaType(url);
+					if (directMediaType) {
+						await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, {
+							guestMode: true, kv, analytics: env.ANALYTICS, userId, firstName, username, locale, mediaType: directMediaType, telegraphToken,
+						});
+						return;
+					}
+
+					const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, {
+						guestMode: true, kv, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+					});
+					return;
+				}
+
+				// YouTube
+				if (platform === 'YouTube') {
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, undefined, {
+						kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+					});
+					return;
+				}
+
+				// TikTok
+				if (platform === 'TikTok') {
+					const statusMsg = await ctx.reply(t(locale, 'input.fetching_post'));
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, {
+						kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+					});
+					return;
+				}
+
+				// Facebook — show HD/SD picker if multiple qualities available
+				if (platform === 'Facebook') {
+					const statusMsg = await ctx.reply(t(locale, 'input.fetching_video'));
+					const fbInfo = await fetchFacebookInfo(url);
+					if (fbInfo) {
+						const keyboard = new InlineKeyboard()
+							.text(fbInfo.hdLabel, 'dl:hd')
+							.text(fbInfo.sdLabel, 'dl:sd');
+						await bot.api.editMessageText(
+							ctx.chat!.id,
+							statusMsg.message_id,
+							t(locale, 'input.choose_quality', { platform }),
+							{ parse_mode: 'HTML', reply_markup: keyboard },
+						);
+						await setAdminState(kv, adminId, {
+							action: 'downloading_media',
+							context: { downloadUrl: url, downloadPlatform: platform },
+						});
+						// Release lock — actual download happens later via dl:hd / dl:sd callback
+						if (lockKey) await kv.delete(lockKey).catch(() => {});
+					} else {
+						await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, {
+							kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+						});
+					}
+					return;
+				}
+
+				// All other platforms
 				const directMediaType = getDirectFileMediaType(url);
 				if (directMediaType) {
-					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, { 
-						guestMode: true, kv, analytics: env.ANALYTICS, userId, firstName, username, locale, mediaType: directMediaType 
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, {
+						kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, mediaType: directMediaType, telegraphToken,
 					});
 					return;
 				}
 
 				const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { guestMode: true, kv, analytics: env.ANALYTICS, userId, firstName, username, locale });
-				return;
-			}
-
-			// YouTube — auto-download (same as guest)
-			if (platform === 'YouTube') {
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
-				return;
-			}
-
-			// TikTok — auto-download
-			if (platform === 'TikTok') {
-				const statusMsg = await ctx.reply(t(locale, 'input.fetching_post'));
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
-				return;
-			}
-
-			// Facebook — show HD/SD picker if multiple qualities available
-			if (platform === 'Facebook') {
-				const statusMsg = await ctx.reply(t(locale, 'input.fetching_video'));
-				const fbInfo = await fetchFacebookInfo(url);
-				if (fbInfo) {
-					const keyboard = new InlineKeyboard()
-						.text(fbInfo.hdLabel, 'dl:hd')
-						.text(fbInfo.sdLabel, 'dl:sd');
-					await bot.api.editMessageText(
-						ctx.chat!.id,
-						statusMsg.message_id,
-						t(locale, 'input.choose_quality', { platform }),
-						{ parse_mode: 'HTML', reply_markup: keyboard },
-					);
-					await setAdminState(kv, adminId, {
-						action: 'downloading_media',
-						context: { downloadUrl: url, downloadPlatform: platform },
-					});
-				} else {
-					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
-				}
-				return;
-			}
-
-			// Automatic download for other platforms
-			const directMediaType = getDirectFileMediaType(url);
-			if (directMediaType) {
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, { 
-					kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, mediaType: directMediaType 
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, {
+					kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
 				});
 				return;
+			} finally {
+				if (lockKey) await kv.delete(lockKey).catch(() => {});
+				if (userId) await clearPendingMessages(bot, kv, userId, (l) => t(l, 'input.stale_lock_done'));
 			}
-
-			const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
-			await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, { kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale });
-			return;
 		}
 
 		const state = await getAdminState(kv, adminId);

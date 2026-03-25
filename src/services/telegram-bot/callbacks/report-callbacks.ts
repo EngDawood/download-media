@@ -11,7 +11,7 @@ import { downloadAndSendMedia } from '../handlers/download-and-send';
  *
  * Also registers report:retry:<userId> — lets admin re-download and send to user.
  */
-export function registerReportCallbacks(bot: Bot, kv: KVNamespace, adminId: number): void {
+export function registerReportCallbacks(bot: Bot, kv: KVNamespace, adminId: number, telegraphToken?: string): void {
 	bot.callbackQuery('report:issue', async (ctx) => {
 		const userId = ctx.from?.id;
 		const locale = getLocale(ctx);
@@ -86,7 +86,7 @@ export function registerReportCallbacks(bot: Bot, kv: KVNamespace, adminId: numb
 		await ctx.answerCallbackQuery();
 
 		try {
-			await downloadAndSendMedia(bot, targetUserId, url, platform, 'auto', undefined, undefined, { kv });
+			await downloadAndSendMedia(bot, targetUserId, url, platform, 'auto', undefined, undefined, { kv, telegraphToken });
 			await ctx.reply(t('en', 'report.retry_done'));
 		} catch (e: any) {
 			await ctx.reply(t('en', 'report.retry_failed', { error: e.message || 'unknown' }));
