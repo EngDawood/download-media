@@ -67,8 +67,8 @@ export async function sendMediaToChannel(
 			await sendMediaGroupMessage(bot, chatId, message, disableNotification);
 			break;
 		default:
-			console.error(`[sendMedia] Unknown message type: ${(message as any).type}`);
-			throw new Error(`Unknown message type: ${(message as any).type}`);
+			console.error(`[sendMedia] Unknown message type: ${(message as { type: string }).type}`);
+			throw new Error(`Unknown message type: ${(message as { type: string }).type}`);
 	}
 }
 
@@ -235,8 +235,8 @@ async function sendMediaGroupMessage(
 			// Always try URL first; if Telegram rejects it, fall back to download+upload
 			let source: string | InputFile = item.media;
 			try {
-				// Validate by attempting a dummy resolve — actual rejection caught during sendMediaGroup
-				source = item.media;
+				// Attempt to use URL directly; fall back to download+upload if Telegram rejects it
+				await Promise.resolve(source);
 			} catch {
 				source = await downloadAsInputFile(item.media, `media.${ext}`);
 			}

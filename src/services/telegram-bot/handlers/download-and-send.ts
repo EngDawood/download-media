@@ -38,11 +38,13 @@ export async function downloadAndSendMedia(
 		? t(locale, 'download.status_stories', { userLink: `<a href="https://www.instagram.com/${storyUsername}/">@${storyUsername}</a>` })
 		: t(locale, 'download.status', { modeText, platform });
 
+	const downloadStartTime = Date.now();
+
 	// Helper to record success + history
-	const recordSuccess = async () => {
+	const recordSuccess = async (durationMs?: number, fileSizeBytes?: number) => {
 		if (!options?.kv || !userId) return;
 		await Promise.all([
-			incrementSuccessStats(options.kv, { userId, firstName: options?.firstName || '', platform }),
+			incrementSuccessStats(options.kv, { userId, firstName: options?.firstName || '', platform, username: options?.username }),
 			addDownloadHistory(options.kv, {
 				url,
 				platform,
@@ -50,6 +52,8 @@ export async function downloadAndSendMedia(
 				username: options?.username,
 				firstName: options?.firstName || '',
 				success: true,
+				durationMs,
+				fileSizeBytes,
 			}),
 		]);
 	};
@@ -62,7 +66,7 @@ export async function downloadAndSendMedia(
 			clearAdminState(options.kv, options.adminId).catch(() => {});
 		}
 		await Promise.all([
-			incrementErrorStats(options.kv, platform),
+			incrementErrorStats(options.kv, { userId: userId || undefined, firstName: options?.firstName, username: options?.username }),
 			userId
 				? addDownloadHistory(options.kv, {
 						url,
@@ -138,7 +142,6 @@ export async function downloadAndSendMedia(
 				statusMessageId = fallback.message_id;
 			}
 			// If alreadyShowing, the message is already correct — keep existing statusMessageId
-		}
 	} else {
 		const msg = await bot.api.sendMessage(chatId, statusText, { parse_mode: 'HTML' });
 		statusMessageId = msg.message_id;
@@ -152,7 +155,7 @@ export async function downloadAndSendMedia(
 		if (directUrl) {
 			const msg: TelegramMediaMessage = { type: options?.mediaType || 'video', url, caption: '' };
 			await sendMediaToChannel(bot, chatId, msg);
-			await recordSuccess();
+			await recordSuccess(Date.now() - downloadStartTime);
 			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.done'));
 			return;
 		}
@@ -174,6 +177,7 @@ export async function downloadAndSendMedia(
 				const footer = options?.kv ? (await options.kv.get(KV_KEY_INSTAGRAM_FOOTER)) ?? DEFAULT_INSTAGRAM_FOOTER : DEFAULT_INSTAGRAM_FOOTER;
 				caption = caption ? `${caption}\n\n${footer}` : footer;
 			}
+			const totalFileSizeBytes = result.media.reduce((sum, m) => sum + (m.filesize ?? 0), 0);
 			// Build size/quality info for the "Done" message
 			const sizeInfo = result.media
 				.map(m => {
@@ -206,7 +210,7 @@ export async function downloadAndSendMedia(
 						await sendMediaToChannel(bot, chatId, msg);
 					}
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
-					await recordSuccess();
+					await recordSuccess(Date.now() - downloadStartTime, totalFileSizeBytes);
 					await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.sent_album', { count: groupableItems.length }));
 				} else {
 					for (const item of result.media.slice(0, 10)) {
@@ -218,7 +222,7 @@ export async function downloadAndSendMedia(
 						await sendMediaToChannel(bot, chatId, msg);
 					}
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
-					await recordSuccess();
+					await recordSuccess(Date.now() - downloadStartTime, totalFileSizeBytes);
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText);
 				}
 			} else {
@@ -230,7 +234,7 @@ export async function downloadAndSendMedia(
 				};
 				await sendMediaToChannel(bot, chatId, msg);
 				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
-				await recordSuccess();
+				await recordSuccess(Date.now() - downloadStartTime, totalFileSizeBytes);
 
 				// YouTube & TikTok: show MP3 button after successful video send
 				if (result.mp3Url && options?.kv && (platform === 'YouTube' || platform === 'TikTok')) {
@@ -250,9 +254,9 @@ export async function downloadAndSendMedia(
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_empty' });
 		await recordError('No media found');
 		await showError(t(locale, 'download.no_media', { url }), undefined, 'No media found');
-	} catch (err: any) {
+	} catch (err: unknown) {
 		// YouTube: send thumbnail + mp4/mp3 URLs when file is too large
-		if (result?.mp3Url && result?.thumbnail && /too large/i.test(err.message || '')) {
+		if (result?.mp3Url && result?.thumbnail && /too large/i.test((err as Error).message || '')) {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			await recordError('File too large (YouTube)');
 			const caption = result.caption || '';
@@ -292,8 +296,9 @@ export async function downloadAndSendMedia(
 
 		log('error', 'download-and-send', 'Download and send error', { error: err?.message, platform, url });
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
-		await recordError(err.message || 'Unknown error');
-		const msg = err.message || 'Unknown error';
+		const errMsg = (err as Error).message || 'Unknown error';
+		await recordError(errMsg);
+		const msg = errMsg;
 		// If file is too large for Telegram, send the link as text instead
 		if (msg.includes('too large') || msg.includes('Too large')) {
 			const sorry = options?.firstName

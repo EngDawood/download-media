@@ -26,7 +26,27 @@ import {
 	getDailyStats,
 	getTodayDownloadHistory,
 } from '../../../utils/stats';
-import type { StatsReport } from '../../../utils/stats';
+import type { StatsReport, UserStats } from '../../../utils/stats';
+
+/** Format file size bytes to human-readable string */
+function fmtBytes(bytes: number): string {
+	if (bytes <= 0) return '';
+	if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+/** Format duration ms to seconds string */
+function fmtDuration(ms: number): string {
+	if (ms <= 0) return '';
+	return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** Build a mini bar chart for a value relative to a max */
+function miniBar(value: number, max: number, width = 8): string {
+	if (max <= 0) return '';
+	const filled = Math.round((value / max) * width);
+	return '█'.repeat(filled) || '▏';
+}
 
 function formatTimeAgo(ts: number): string {
 	const diff = Math.floor((Date.now() - ts) / 1000);
@@ -94,9 +114,10 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 	});
 
 	// --- Stats helpers ---
-	function buildStatsText(report: StatsReport, locale: Locale): string {
+	function buildStatsText(report: StatsReport, locale: Locale, channelSubscribers?: number | null, channelUsername?: string | null): string {
 		const g = report.global;
 		const rate = g.totalLinks > 0 ? Math.round((g.totalSuccess / g.totalLinks) * 100) : 0;
+
 		const lines: string[] = [
 			t(locale, 'stats.header'),
 			'',
@@ -107,27 +128,41 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			t(locale, 'stats.success', { count: String(g.totalSuccess), rate: String(rate) }),
 			t(locale, 'stats.errors', { count: String(g.totalErrors) }),
 			'',
-			t(locale, 'stats.today', { links: String(report.today.links), success: String(report.today.success) }),
+			t(locale, 'stats.today', { links: String(report.today.links), success: String(report.today.success), errors: String(report.today.errors ?? 0) }),
 		];
-		const sortedPlatforms = Object.entries(g.platforms).sort((a, b) => b[1] - a[1]);
+
+		// Channel + gate stats
+		if (channelUsername) {
+			const gateLine = channelSubscribers != null
+				? t(locale, 'stats.channel_subscribers', { channel: channelUsername, count: String(channelSubscribers) })
+				: `📢 ${channelUsername}`;
+			lines.push('', gateLine);
+			if ((g.totalGateBlocked ?? 0) > 0) {
+				lines.push(t(locale, 'stats.gate_header'));
+				const verifyRate = g.totalGateBlocked > 0 ? Math.round((g.totalGateVerified / g.totalGateBlocked) * 100) : 0;
+				lines.push(t(locale, 'stats.gate_shown', { count: String(g.totalGateBlocked) }));
+				lines.push(t(locale, 'stats.gate_verified', { count: String(g.totalGateVerified), rate: String(verifyRate) }));
+				lines.push(t(locale, 'stats.gate_still_blocked', { count: String(g.totalGateStillBlocked ?? 0) }));
+			}
+		}
+
+		// Platform bar chart (top 7)
+		const sortedPlatforms = Object.entries(g.platforms).sort((a, b) => b[1] - a[1]).slice(0, 7);
 		if (sortedPlatforms.length > 0) {
+			const maxCount = sortedPlatforms[0][1];
 			lines.push('', t(locale, 'stats.platforms_header'));
-			for (const [platform, count] of sortedPlatforms.slice(0, 7)) {
-				lines.push(`• ${platform}: ${count}`);
+			for (const [platform, count] of sortedPlatforms) {
+				lines.push(`  ${platform} ${miniBar(count, maxCount)} ${count}`);
 			}
 		}
-		const sortedPlatformErrors = Object.entries(g.platformErrors ?? {}).sort((a, b) => b[1] - a[1]);
-		if (sortedPlatformErrors.length > 0) {
-			lines.push('', t(locale, 'stats.platform_errors_header'));
-			for (const [platform, count] of sortedPlatformErrors.slice(0, 7)) {
-				lines.push(`• ${platform}: ${count}`);
-			}
-		}
+
+		// Top users (show @username when available)
 		if (g.topUsers.length > 0) {
 			lines.push('', t(locale, 'stats.top_users_header'));
 			for (let i = 0; i < Math.min(g.topUsers.length, 5); i++) {
 				const u = g.topUsers[i];
-				lines.push(t(locale, 'stats.user_row', { rank: String(i + 1), firstName: u.firstName, count: String(u.count) }));
+				const userDisplay = u.username ? `@${u.username}` : u.firstName;
+				lines.push(t(locale, 'stats.user_row', { rank: String(i + 1), userDisplay, count: String(u.count) }));
 			}
 		}
 		return lines.join('\n');
@@ -136,12 +171,15 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 	function buildStatsKeyboard(locale: Locale): InlineKeyboard {
 		return new InlineKeyboard()
 			.text(t(locale, 'stats.btn_daily'), 'stats:daily')
+			.text(t(locale, 'stats.btn_hourly'), 'stats:hourly')
 			.row()
-			.text(t(locale, 'stats.btn_today_history'), 'stats:today_history')
 			.text(t(locale, 'stats.btn_history'), 'stats:history')
+			.text(t(locale, 'stats.btn_failed'), 'stats:failed')
 			.row()
-			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked')
-			.text(t(locale, 'stats.btn_failed'), 'stats:failed');
+			.text(t(locale, 'stats.btn_gate'), 'stats:gate')
+			.text(t(locale, 'stats.btn_users'), 'stats:users')
+			.row()
+			.text(t(locale, 'stats.btn_blocked'), 'stats:blocked');
 	}
 
 	bot.command(['stats', 'adminstats'], async (ctx) => {
@@ -151,13 +189,18 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 
-		const report = await getStatsReport(kv);
+		const [report, channelUsername] = await Promise.all([getStatsReport(kv), kv.get(KV_KEY_REQUIRED_CHANNEL)]);
 		if (report.global.totalLinks === 0 && (report.global.totalStartUsers ?? 0) === 0) {
 			await ctx.reply(t(locale, 'stats.no_data'));
 			return;
 		}
 
-		await ctx.reply(buildStatsText(report, locale), { parse_mode: 'HTML', reply_markup: buildStatsKeyboard(locale) });
+		let channelSubscribers: number | null = null;
+		if (channelUsername) {
+			try { channelSubscribers = await bot.api.getChatMemberCount(channelUsername); } catch (_e) { /* ignored */ }
+		}
+
+		await ctx.reply(buildStatsText(report, locale, channelSubscribers, channelUsername), { parse_mode: 'HTML', reply_markup: buildStatsKeyboard(locale) });
 	});
 
 	// Stats callback: show daily breakdown (last 7 days)
@@ -171,6 +214,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 		const lines: string[] = [t(locale, 'stats.daily_header'), ''];
 		let hasData = false;
+		let totalLinks = 0, totalSuccess = 0;
 		for (let i = 0; i < daily.length; i++) {
 			const entry = daily[i];
 			let label: string;
@@ -184,7 +228,9 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 				lines.push(t(locale, 'stats.daily_row_empty', { label }));
 			} else {
 				hasData = true;
-				lines.push(t(locale, 'stats.daily_row', { label, links: String(entry.links), success: String(entry.success) }));
+				totalLinks += entry.links;
+				totalSuccess += entry.success;
+				lines.push(t(locale, 'stats.daily_row', { label, links: String(entry.links), success: String(entry.success), errors: String(entry.errors ?? 0) }));
 			}
 		}
 		if (!hasData) {
@@ -192,10 +238,33 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 
+		const summaryRate = totalLinks > 0 ? Math.round((totalSuccess / totalLinks) * 100) : 0;
+		lines.push('', t(locale, 'stats.daily_summary', { links: String(totalLinks), success: String(totalSuccess), rate: String(summaryRate) }));
+
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
 		await ctx.answerCallbackQuery();
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
+
+	// Helper: render a history entry in compact format
+	function renderHistoryEntry(entry: { url: string; platform: string; userId: number; username?: string; firstName: string; timestamp: number; success: boolean; durationMs?: number; fileSizeBytes?: number }, showDate = false): string[] {
+		const time = new Date(entry.timestamp).toLocaleString('en-GB', {
+			timeZone: 'UTC',
+			...(showDate ? { dateStyle: 'short' } : {}),
+			timeStyle: 'short',
+		});
+		const userDisplay = entry.username ? `@${entry.username}` : entry.firstName;
+		const status = entry.success ? '✅' : '❌';
+		const extra: string[] = [];
+		if (entry.durationMs) extra.push(fmtDuration(entry.durationMs));
+		if (entry.fileSizeBytes) extra.push(fmtBytes(entry.fileSizeBytes));
+		const extraStr = extra.length > 0 ? ` · ${extra.join(' ')}` : '';
+		const shortUrl = entry.url.replace(/^https?:\/\//, '').slice(0, 50);
+		return [
+			`${status} <b>${userDisplay}</b> ${entry.platform}${extraStr}`,
+			`   <code>${shortUrl}</code> · ${time}`,
+		];
+	}
 
 	// Stats callback: show today's download history
 	bot.callbackQuery('stats:today_history', async (ctx) => {
@@ -204,7 +273,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 		const locale = getLocale(ctx);
-		const history = await getTodayDownloadHistory(kv, 15);
+		const history = await getTodayDownloadHistory(kv, 20);
 		if (history.length === 0) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_history') });
 			return;
@@ -212,13 +281,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 		const lines: string[] = [t(locale, 'stats.today_history_header'), ''];
 		for (const entry of history) {
-			const time = new Date(entry.timestamp).toLocaleString('en-GB', { timeZone: 'UTC', timeStyle: 'short' });
-			const userDisplay = entry.username ? `@${entry.username}` : entry.firstName;
-			const status = entry.success ? '✅' : '❌';
-			lines.push(`${status} <b>${userDisplay}</b> (${entry.platform})`);
-			lines.push(`   <code>${entry.url}</code>`);
-			lines.push(`   ${time} • ID: <code>${entry.userId}</code>`);
-			lines.push('');
+			lines.push(...renderHistoryEntry(entry, false));
 		}
 
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
@@ -233,7 +296,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 		const locale = getLocale(ctx);
-		const history = await getDownloadHistory(kv, 15);
+		const history = await getDownloadHistory(kv, 20);
 		if (history.length === 0) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_history') });
 			return;
@@ -241,13 +304,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 
 		const lines: string[] = [t(locale, 'stats.history_header'), ''];
 		for (const entry of history) {
-			const date = new Date(entry.timestamp).toLocaleString('en-GB', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short' });
-			const userDisplay = entry.username ? `@${entry.username}` : entry.firstName;
-			const status = entry.success ? '✅' : '❌';
-			lines.push(`${status} <b>${userDisplay}</b> (${entry.platform})`);
-			lines.push(`   <code>${entry.url}</code>`);
-			lines.push(`   ${date} • ID: <code>${entry.userId}</code>`);
-			lines.push('');
+			lines.push(...renderHistoryEntry(entry, true));
 		}
 
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
@@ -306,6 +363,163 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			lines.push(`   <code>${entry.url}</code>`);
 			lines.push(`   ${date}`);
 			lines.push('');
+		}
+
+		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: hourly distribution
+	bot.callbackQuery('stats:hourly', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const report = await getStatsReport(kv);
+		const hourly = report.global.hourlyDistribution ?? new Array(24).fill(0);
+		const total = hourly.reduce((s: number, v: number) => s + v, 0);
+
+		if (total === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.hourly_no_data') });
+			return;
+		}
+
+		const maxVal = Math.max(...hourly);
+		const lines: string[] = [t(locale, 'stats.hourly_header'), ''];
+
+		// Two-column layout: hours 0-11 left, 12-23 right
+		for (let h = 0; h < 12; h++) {
+			const lv = hourly[h] ?? 0;
+			const rv = hourly[h + 12] ?? 0;
+			const lBar = miniBar(lv, maxVal, 5);
+			const rBar = miniBar(rv, maxVal, 5);
+			const lStr = `${String(h).padStart(2, '0')} ${lBar} ${lv}`;
+			const rStr = `${String(h + 12).padStart(2, '0')} ${rBar} ${rv}`;
+			lines.push(`<code>${lStr.padEnd(16)}${rStr}</code>`);
+		}
+
+		const peakHour = hourly.indexOf(maxVal);
+		lines.push('', t(locale, 'stats.hourly_peak', { hour: String(peakHour).padStart(2, '0'), count: String(maxVal) }));
+
+		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: gate funnel
+	bot.callbackQuery('stats:gate', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const [report, channelUsername] = await Promise.all([getStatsReport(kv), kv.get(KV_KEY_REQUIRED_CHANNEL)]);
+		const g = report.global;
+
+		if (!channelUsername && (g.totalGateBlocked ?? 0) === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.gate_no_data') });
+			return;
+		}
+
+		const verifyRate = (g.totalGateBlocked ?? 0) > 0 ? Math.round(((g.totalGateVerified ?? 0) / g.totalGateBlocked) * 100) : 0;
+		const lines: string[] = [
+			t(locale, 'stats.gate_funnel_header'),
+			'',
+			t(locale, 'stats.gate_funnel_shown', { count: String(g.totalGateBlocked ?? 0) }),
+			t(locale, 'stats.gate_funnel_verified', { verified: String(g.totalGateVerified ?? 0) }),
+			t(locale, 'stats.gate_funnel_blocked', { count: String(g.totalGateStillBlocked ?? 0) }),
+			t(locale, 'stats.gate_funnel_rate', { rate: String(verifyRate) }),
+		];
+
+		if ((report.today.gateBlocked ?? 0) > 0 || (report.today.gateVerified ?? 0) > 0) {
+			lines.push('', t(locale, 'stats.gate_today', { blocked: String(report.today.gateBlocked ?? 0), verified: String(report.today.gateVerified ?? 0) }));
+		}
+
+		if (channelUsername) {
+			try {
+				const subs = await bot.api.getChatMemberCount(channelUsername);
+				lines.push(t(locale, 'stats.channel_subscribers', { channel: channelUsername, count: String(subs) }));
+			} catch (_e) { /* ignored */ }
+		}
+
+		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+	});
+
+	// Stats callback: users overview
+	bot.callbackQuery('stats:users', async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
+			return;
+		}
+		const locale = getLocale(ctx);
+		const report = await getStatsReport(kv);
+		const topUsers = report.global.topUsers ?? [];
+
+		if (topUsers.length === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.users_no_data') });
+			return;
+		}
+
+		// Scan all user stats for activity buckets
+		let cursor: string | undefined;
+		const now = Date.now();
+		const ms7d = 7 * 24 * 3600 * 1000;
+		const ms30d = 30 * 24 * 3600 * 1000;
+		let active7 = 0, active30 = 0, inactive = 0;
+		const userDetails: Array<{ userId: number; firstName: string; username?: string; count: number; failures: number; topPlatform: string }> = [];
+
+		do {
+			const result: KVNamespaceListResult<unknown, string> = cursor
+				? await kv.list({ prefix: KV_KEY_STATS_USER_PREFIX, cursor })
+				: await kv.list({ prefix: KV_KEY_STATS_USER_PREFIX });
+			const rawValues = await Promise.all(result.keys.map((k) => kv.get(k.name)));
+			for (let i = 0; i < result.keys.length; i++) {
+				const raw = rawValues[i];
+				if (!raw) continue;
+				try {
+					const u = JSON.parse(raw) as UserStats;
+					const lastSeen = u.lastSeen ?? 0;
+					const age = now - lastSeen;
+					if (age <= ms7d) active7++;
+					else if (age <= ms30d) active30++;
+					else inactive++;
+					// top platform
+					const topPlatform = Object.entries(u.platforms ?? {}).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+					const userId = parseInt(result.keys[i].name.slice(KV_KEY_STATS_USER_PREFIX.length), 10);
+					userDetails.push({ userId, firstName: u.firstName, username: u.username, count: u.count, failures: u.failures ?? 0, topPlatform });
+				} catch (_e) { /* ignored */ }
+			}
+			cursor = result.list_complete ? undefined : (result as KVNamespaceListResult<unknown, string> & { cursor: string }).cursor;
+		} while (cursor);
+
+		userDetails.sort((a, b) => b.count - a.count);
+		const powerUsers = userDetails.slice(0, 10);
+
+		const lines: string[] = [
+			t(locale, 'stats.users_header'),
+			'',
+			t(locale, 'stats.users_activity'),
+			t(locale, 'stats.users_active_7d', { count: String(active7) }),
+			t(locale, 'stats.users_active_30d', { count: String(active30) }),
+			t(locale, 'stats.users_inactive', { count: String(inactive) }),
+			'',
+			t(locale, 'stats.users_power'),
+		];
+
+		for (let i = 0; i < powerUsers.length; i++) {
+			const u = powerUsers[i];
+			const userDisplay = u.username ? `@${u.username}` : u.firstName;
+			lines.push(t(locale, 'stats.users_power_row', {
+				rank: String(i + 1),
+				userDisplay,
+				count: String(u.count),
+				failures: String(u.failures),
+				topPlatform: u.topPlatform,
+			}));
 		}
 
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
@@ -572,7 +786,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 				const id = parseInt(idStr, 10);
 				if (!isNaN(id) && id !== adminId) userIds.push(id);
 			}
-			cursor = result.list_complete ? undefined : (result as any).cursor;
+			cursor = result.list_complete ? undefined : (result as KVNamespaceListResult<unknown, string> & { cursor: string }).cursor;
 		} while (cursor);
 
 		if (userIds.length === 0) {

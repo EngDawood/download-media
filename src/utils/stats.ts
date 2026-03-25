@@ -19,17 +19,29 @@ interface GlobalStats {
 	totalStartUsers: number;
 	platforms: Record<string, number>;
 	platformErrors?: Record<string, number>;
-	topUsers: Array<{ userId: number; firstName: string; count: number }>;
+	topUsers: Array<{ userId: number; firstName: string; username?: string; count: number }>;
+	totalGateBlocked: number;
+	totalGateVerified: number;
+	totalGateStillBlocked: number;
+	hourlyDistribution: number[];
 }
 
 interface DayStats {
 	links: number;
 	success: number;
+	errors: number;
+	gateBlocked: number;
+	gateVerified: number;
 }
 
-interface UserStats {
+export interface UserStats {
 	count: number;
 	firstName: string;
+	username?: string;
+	platforms: Record<string, number>;
+	failures: number;
+	lastSeen: number;
+	firstSeen: number;
 }
 
 export interface DownloadHistoryEntry {
@@ -40,6 +52,8 @@ export interface DownloadHistoryEntry {
 	firstName: string;
 	timestamp: number;
 	success: boolean;
+	durationMs?: number;
+	fileSizeBytes?: number;
 }
 
 export interface FailedDownloadEntry {
@@ -55,14 +69,37 @@ export interface FailedDownloadEntry {
 
 export interface StatsReport {
 	global: GlobalStats;
-	today: DayStats;
+	today: DayStats & { links: number; success: number; errors: number; gateBlocked: number; gateVerified: number };
 }
 
 const TOP_USERS_LIMIT = 10;
 const DAY_TTL_SECONDS = 30 * 24 * 3600;
 
 function defaultGlobal(): GlobalStats {
-	return { totalLinks: 0, totalSuccess: 0, totalErrors: 0, totalUniqueUsers: 0, totalStartUsers: 0, platforms: {}, topUsers: [] };
+	return {
+		totalLinks: 0, totalSuccess: 0, totalErrors: 0, totalUniqueUsers: 0, totalStartUsers: 0,
+		platforms: {}, topUsers: [],
+		totalGateBlocked: 0, totalGateVerified: 0, totalGateStillBlocked: 0,
+		hourlyDistribution: new Array(24).fill(0),
+	};
+}
+
+function defaultDay(): DayStats {
+	return { links: 0, success: 0, errors: 0, gateBlocked: 0, gateVerified: 0 };
+}
+
+function defaultUserStats(firstName: string, username?: string): UserStats {
+	return { count: 0, firstName, username, platforms: {}, failures: 0, lastSeen: Date.now(), firstSeen: Date.now() };
+}
+
+function readUserStats(raw: string | null, firstName: string, username?: string): UserStats {
+	if (!raw) return defaultUserStats(firstName, username);
+	try {
+		const parsed = JSON.parse(raw);
+		return { ...defaultUserStats(firstName, username), ...parsed, firstName, ...(username ? { username } : {}) };
+	} catch {
+		return defaultUserStats(firstName, username);
+	}
 }
 
 function getTodayKey(): string {
@@ -77,7 +114,8 @@ async function readGlobal(kv: KVNamespace): Promise<GlobalStats> {
 	const raw = await kv.get(KV_KEY_STATS_GLOBAL);
 	if (!raw) return defaultGlobal();
 	try {
-		return JSON.parse(raw) as GlobalStats;
+		const parsed = JSON.parse(raw);
+		return { ...defaultGlobal(), ...parsed };
 	} catch {
 		return defaultGlobal();
 	}
@@ -87,10 +125,10 @@ async function writeGlobal(kv: KVNamespace, stats: GlobalStats): Promise<void> {
 	await kv.put(KV_KEY_STATS_GLOBAL, JSON.stringify(stats));
 }
 
-async function updateDay(kv: KVNamespace, field: 'links' | 'success'): Promise<void> {
+async function updateDay(kv: KVNamespace, field: keyof DayStats): Promise<void> {
 	const key = getTodayKey();
 	const raw = await kv.get(key);
-	const day: DayStats = raw ? (JSON.parse(raw) as DayStats) : { links: 0, success: 0 };
+	const day: DayStats = raw ? { ...defaultDay(), ...JSON.parse(raw) } : defaultDay();
 	day[field]++;
 	await kv.put(key, JSON.stringify(day), { expirationTtl: DAY_TTL_SECONDS });
 }
@@ -118,7 +156,7 @@ export async function incrementLinkStats(
  */
 export async function incrementSuccessStats(
 	kv: KVNamespace,
-	opts: { userId: number; firstName: string; platform: string },
+	opts: { userId: number; firstName: string; platform: string; username?: string },
 ): Promise<void> {
 	const userKey = `${KV_KEY_STATS_USER_PREFIX}${opts.userId}`;
 	const [global, userRaw] = await Promise.all([readGlobal(kv), kv.get(userKey), updateDay(kv, 'success')]);
@@ -126,19 +164,24 @@ export async function incrementSuccessStats(
 	global.totalSuccess++;
 	global.platforms[opts.platform] = (global.platforms[opts.platform] ?? 0) + 1;
 
+	const hour = new Date().getUTCHours();
+	global.hourlyDistribution[hour] = (global.hourlyDistribution[hour] ?? 0) + 1;
+
 	const existingIdx = global.topUsers.findIndex((u) => u.userId === opts.userId);
 	if (existingIdx >= 0) {
 		global.topUsers[existingIdx].count++;
 		global.topUsers[existingIdx].firstName = opts.firstName;
+		if (opts.username) global.topUsers[existingIdx].username = opts.username;
 	} else {
-		global.topUsers.push({ userId: opts.userId, firstName: opts.firstName, count: 1 });
+		global.topUsers.push({ userId: opts.userId, firstName: opts.firstName, username: opts.username, count: 1 });
 	}
 	global.topUsers.sort((a, b) => b.count - a.count);
 	global.topUsers = global.topUsers.slice(0, TOP_USERS_LIMIT);
 
-	const userStats: UserStats = userRaw ? (JSON.parse(userRaw) as UserStats) : { count: 0, firstName: opts.firstName };
+	const userStats = readUserStats(userRaw, opts.firstName, opts.username);
 	userStats.count++;
-	userStats.firstName = opts.firstName;
+	userStats.platforms[opts.platform] = (userStats.platforms[opts.platform] ?? 0) + 1;
+	userStats.lastSeen = Date.now();
 
 	await Promise.all([writeGlobal(kv, global), kv.put(userKey, JSON.stringify(userStats))]);
 }
@@ -146,13 +189,47 @@ export async function incrementSuccessStats(
 /**
  * Called on a failed or empty download.
  */
-export async function incrementErrorStats(kv: KVNamespace, platform?: string): Promise<void> {
-	const global = await readGlobal(kv);
+export async function incrementErrorStats(
+	kv: KVNamespace,
+	opts?: { userId?: number; firstName?: string; username?: string },
+): Promise<void> {
+	const userKey = opts?.userId ? `${KV_KEY_STATS_USER_PREFIX}${opts.userId}` : null;
+	const [global, userRaw] = await Promise.all([readGlobal(kv), userKey ? kv.get(userKey) : Promise.resolve(null), updateDay(kv, 'errors')]);
 	global.totalErrors++;
-	if (platform) {
-		global.platformErrors = global.platformErrors ?? {};
-		global.platformErrors[platform] = (global.platformErrors[platform] ?? 0) + 1;
+	const writes: Promise<void>[] = [writeGlobal(kv, global)];
+	if (userKey && opts?.userId) {
+		const userStats = readUserStats(userRaw, opts.firstName ?? '', opts.username);
+		userStats.failures = (userStats.failures ?? 0) + 1;
+		userStats.lastSeen = Date.now();
+		writes.push(kv.put(userKey, JSON.stringify(userStats)));
 	}
+	await Promise.all(writes);
+}
+
+/**
+ * Called when the subscription gate blocks a user.
+ */
+export async function incrementGateBlocked(kv: KVNamespace): Promise<void> {
+	const [global] = await Promise.all([readGlobal(kv), updateDay(kv, 'gateBlocked')]);
+	global.totalGateBlocked = (global.totalGateBlocked ?? 0) + 1;
+	await writeGlobal(kv, global);
+}
+
+/**
+ * Called when a user successfully verifies channel subscription.
+ */
+export async function incrementGateVerified(kv: KVNamespace): Promise<void> {
+	const [global] = await Promise.all([readGlobal(kv), updateDay(kv, 'gateVerified')]);
+	global.totalGateVerified = (global.totalGateVerified ?? 0) + 1;
+	await writeGlobal(kv, global);
+}
+
+/**
+ * Called when a user attempts to verify but is still not subscribed.
+ */
+export async function incrementGateStillBlocked(kv: KVNamespace): Promise<void> {
+	const global = await readGlobal(kv);
+	global.totalGateStillBlocked = (global.totalGateStillBlocked ?? 0) + 1;
 	await writeGlobal(kv, global);
 }
 
@@ -171,7 +248,7 @@ export async function incrementStartUsers(kv: KVNamespace, userId: number): Prom
 /**
  * Returns stats for the last N days (most recent first).
  */
-export async function getDailyStats(kv: KVNamespace, days = 7): Promise<Array<{ date: string; links: number; success: number }>> {
+export async function getDailyStats(kv: KVNamespace, days = 7): Promise<Array<{ date: string; links: number; success: number; errors: number; gateBlocked: number }>> {
 	const dates: string[] = [];
 	for (let i = 0; i < days; i++) {
 		const d = new Date();
@@ -184,12 +261,12 @@ export async function getDailyStats(kv: KVNamespace, days = 7): Promise<Array<{ 
 	const results = await Promise.all(dates.map((date) => kv.get(`${KV_KEY_STATS_DAY_PREFIX}${date}`)));
 	return dates.map((date, i) => {
 		const raw = results[i];
-		if (!raw) return { date, links: 0, success: 0 };
+		if (!raw) return { date, links: 0, success: 0, errors: 0, gateBlocked: 0 };
 		try {
-			const day = JSON.parse(raw) as DayStats;
-			return { date, links: day.links, success: day.success };
+			const day: DayStats = { ...defaultDay(), ...JSON.parse(raw) };
+			return { date, links: day.links, success: day.success, errors: day.errors, gateBlocked: day.gateBlocked };
 		} catch {
-			return { date, links: 0, success: 0 };
+			return { date, links: 0, success: 0, errors: 0, gateBlocked: 0 };
 		}
 	});
 }
@@ -199,7 +276,7 @@ export async function getDailyStats(kv: KVNamespace, days = 7): Promise<Array<{ 
  */
 export async function getStatsReport(kv: KVNamespace): Promise<StatsReport> {
 	const [global, dayRaw] = await Promise.all([readGlobal(kv), kv.get(getTodayKey())]);
-	const today: DayStats = dayRaw ? (JSON.parse(dayRaw) as DayStats) : { links: 0, success: 0 };
+	const today: DayStats = dayRaw ? { ...defaultDay(), ...JSON.parse(dayRaw) } : defaultDay();
 	return { global, today };
 }
 

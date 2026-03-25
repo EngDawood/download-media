@@ -1,5 +1,6 @@
 import { Bot } from 'grammy';
 import { KV_KEY_REQUIRED_CHANNEL } from '../../../constants';
+import { incrementGateVerified, incrementGateStillBlocked } from '../../../utils/stats';
 import { t, getLocale } from '../../../i18n';
 
 const MEMBER_STATUSES = ['member', 'administrator', 'creator'];
@@ -18,6 +19,7 @@ export function registerSubscriptionCallbacks(bot: Bot, kv: KVNamespace): void {
 		try {
 			const member = await bot.api.getChatMember(channelUsername, userId);
 			if (MEMBER_STATUSES.includes(member.status)) {
+				incrementGateVerified(kv).catch(() => {});
 				const channelName = channelUsername.replace('@', '');
 				await ctx.editMessageText(
 					t(locale, 'gate.subscribed', { channel: channelUsername, channelName }),
@@ -25,6 +27,7 @@ export function registerSubscriptionCallbacks(bot: Bot, kv: KVNamespace): void {
 				);
 				await ctx.answerCallbackQuery({ text: t(locale, 'gate.welcome_alert') });
 			} else {
+				incrementGateStillBlocked(kv).catch(() => {});
 				await ctx.answerCallbackQuery({
 					text: t(locale, 'gate.not_joined'),
 					show_alert: true,
