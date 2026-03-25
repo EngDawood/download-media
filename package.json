@@ -25,7 +25,6 @@
 	},
 	"dependencies": {
 		"grammy": "^1.40.0",
-		"hono": "^4.11.9",
-		"rsshub": "1.0.0-master.df6b73d"
+		"hono": "^4.11.9"
 	}
 }
