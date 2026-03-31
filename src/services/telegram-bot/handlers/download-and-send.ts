@@ -102,10 +102,12 @@ export async function downloadAndSendMedia(
 			const keyboard = new InlineKeyboard()
 				.text(t(locale, 'download.btn_retry'), 'dl:retry')
 				.text(t(locale, 'callback.cancelled'), 'dl:cancel');
-			await bot.api.editMessageText(chatId, statusMessageId!, errorText, {
-				...(parseMode ? { parse_mode: parseMode } : {}),
-				reply_markup: keyboard,
-			});
+			const editOpts = { ...(parseMode ? { parse_mode: parseMode } : {}), reply_markup: keyboard } as const;
+			try {
+				await bot.api.editMessageText(chatId, statusMessageId!, errorText, editOpts);
+			} catch {
+				await bot.api.sendMessage(chatId, errorText, editOpts).catch(() => {});
+			}
 		} else {
 			// Guest — store report context in KV, show Retry + Report buttons
 			if (options?.kv && userId) {
@@ -124,10 +126,17 @@ export async function downloadAndSendMedia(
 			const keyboard = new InlineKeyboard()
 				.text(t(locale, 'download.btn_retry'), 'dl:retry')
 				.text(t(locale, 'download.btn_report_admin'), 'report:issue');
-			await bot.api.editMessageText(chatId, statusMessageId!, fullText, {
-				parse_mode: 'HTML',
-				reply_markup: keyboard,
-			});
+			try {
+				await bot.api.editMessageText(chatId, statusMessageId!, fullText, {
+					parse_mode: 'HTML',
+					reply_markup: keyboard,
+				});
+			} catch {
+				await bot.api.sendMessage(chatId, fullText, {
+					parse_mode: 'HTML',
+					reply_markup: keyboard,
+				}).catch(() => {});
+			}
 		}
 	};
 
@@ -301,22 +310,26 @@ export async function downloadAndSendMedia(
 		await recordError(errMsg);
 		const msg = errMsg;
 		// If file is too large for Telegram, send the link as text instead
-		if (msg.includes('too large') || msg.includes('Too large')) {
-			const sorry = options?.firstName
-				? t(locale, 'download.too_large_limit_name', { firstName: options.firstName })
-				: t(locale, 'download.too_large_limit');
-			const mediaUrl = result?.media?.[0]?.url || url;
-			const keyboard = new InlineKeyboard()
-				.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot')
-				.url(t(locale, 'download.btn_browser'), url);
-			await bot.api.editMessageText(
-				chatId,
-				statusMessageId!,
-				`${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n<code>${mediaUrl}</code>`,
-				{ parse_mode: 'HTML', reply_markup: keyboard },
-			);
-		} else {
-			await showError(t(locale, 'download.error', { url }), undefined, msg);
+		try {
+			if (msg.includes('too large') || msg.includes('Too large')) {
+				const sorry = options?.firstName
+					? t(locale, 'download.too_large_limit_name', { firstName: options.firstName })
+					: t(locale, 'download.too_large_limit');
+				const mediaUrl = result?.media?.[0]?.url || url;
+				const keyboard = new InlineKeyboard()
+					.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot')
+					.url(t(locale, 'download.btn_browser'), url);
+				await bot.api.editMessageText(
+					chatId,
+					statusMessageId!,
+					`${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n<code>${mediaUrl}</code>`,
+					{ parse_mode: 'HTML', reply_markup: keyboard },
+				);
+			} else {
+				await showError(t(locale, 'download.error', { url }), undefined, msg);
+			}
+		} catch {
+			await bot.api.sendMessage(chatId, t(locale, 'download.error', { url })).catch(() => {});
 		}
 	}
 }
