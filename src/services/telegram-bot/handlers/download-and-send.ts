@@ -142,6 +142,7 @@ export async function downloadAndSendMedia(
 				statusMessageId = fallback.message_id;
 			}
 			// If alreadyShowing, the message is already correct — keep existing statusMessageId
+		}
 	} else {
 		const msg = await bot.api.sendMessage(chatId, statusText, { parse_mode: 'HTML' });
 		statusMessageId = msg.message_id;

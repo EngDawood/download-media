@@ -182,11 +182,13 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 			}
 
 			try {
-				// Instagram profile URL (instagram.com/username) → download their stories
-				const igProfileUsername = extractInstagramProfileUsername(url);
-				if (igProfileUsername) {
-					const storyUrl = `https://www.instagram.com/stories/${igProfileUsername}/`;
-					const userLink = `<a href="https://www.instagram.com/${igProfileUsername}/">@${igProfileUsername}</a>`;
+				// Instagram stories URL (instagram.com/stories/username) or profile URL → download their stories
+				const igStoriesUsername = url.match(/instagram\.com\/stories\/([^/?]+)/i)?.[1] ?? null;
+				const igProfileUsername = igStoriesUsername ? null : extractInstagramProfileUsername(url);
+				const igStoriesTarget = igStoriesUsername ?? igProfileUsername;
+				if (igStoriesTarget) {
+					const storyUrl = `https://www.instagram.com/stories/${igStoriesTarget}/`;
+					const userLink = `<a href="https://www.instagram.com/${igStoriesTarget}/">@${igStoriesTarget}</a>`;
 					const statusMsg = await ctx.reply(
 						t(locale, 'download.status_stories', { userLink }),
 						{ parse_mode: 'HTML' },
