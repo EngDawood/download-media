@@ -55,7 +55,7 @@ export async function downloadAndSendMedia(
 				durationMs,
 				fileSizeBytes,
 			}),
-		]);
+		]).catch(() => {});
 	};
 
 	// Helper to record error + history, and clear stale KV state
@@ -86,7 +86,7 @@ export async function downloadAndSendMedia(
 				username: options?.username,
 				mode,
 			}),
-		]);
+		]).catch(() => {});
 	};
 
 	// Helper to edit the status message with an error.
