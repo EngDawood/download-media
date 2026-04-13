@@ -20,52 +20,35 @@ export function isBtchLimitError(data: any): boolean {
 }
 
 /**
- * Fetch from btch API with server failover.
- * Tries each backend in order; moves to next on 5xx or network error.
+ * Fetch from btch API, racing all backends in parallel.
+ * Returns the first successful response; throws if all fail.
  */
 export async function btchFetch(endpoint: string, url: string, retryOn4xx = false): Promise<any> {
-	let lastError: Error | null = null;
-	for (const server of BTCH_SERVERS) {
-		try {
-			const res = await fetch(`${server}/api/downloader/${endpoint}?url=${encodeURIComponent(url)}`, {
-				headers: BTCH_HEADERS,
-				signal: AbortSignal.timeout(30_000),
-			});
-			if (res.status >= 500) {
-				log('warn', `btch:${endpoint}`, '5xx, trying next server', { server, status: res.status });
-				lastError = new Error(`btch ${endpoint} returned ${res.status}`);
-				continue;
-			}
-			if (!res.ok) {
-				if (retryOn4xx) {
-					log('warn', `btch:${endpoint}`, '4xx, trying next server', { server, status: res.status });
-					lastError = new Error(`btch ${endpoint} returned ${res.status}`);
-					continue;
-				}
-				throw new Error(`btch ${endpoint} returned ${res.status}`);
-			}
-			const data: any = await res.json();
-			if (typeof data === 'string') throw new Error(`btch ${endpoint}: ${data}`);
-
-			if (isBtchLimitError(data)) {
-				log('warn', `btch:${endpoint}`, 'limit/maintenance reached, trying next server', { server, msg: data.msg });
-				lastError = new Error(`btch ${endpoint}: ${data.msg || 'limit reached'}`);
-				continue;
-			}
-
-			if (data.error) throw new Error(`btch ${endpoint}: ${data.error}`);
-			return data;
-		} catch (err: any) {
-			const isTimeout = err.name === 'TimeoutError';
-			const is5xx = err.message?.includes('returned 5');
-			const is4xx = err.message?.includes('returned 4');
-			const errLabel = isTimeout ? 'timeout' : err.message;
-			log('warn', `btch:${endpoint}`, errLabel, { server });
-			lastError = err;
-			if (isTimeout || is5xx) continue;
-			if (is4xx && retryOn4xx) continue;
-			throw err;
+	const fetchFromServer = async (server: string): Promise<any> => {
+		const res = await fetch(`${server}/api/downloader/${endpoint}?url=${encodeURIComponent(url)}`, {
+			headers: BTCH_HEADERS,
+			signal: AbortSignal.timeout(8_000),
+		});
+		if (!res.ok) {
+			log('warn', `btch:${endpoint}`, `${res.status}`, { server });
+			throw new Error(`btch ${endpoint} returned ${res.status}`);
 		}
+		const data: any = await res.json();
+		if (typeof data === 'string') throw new Error(`btch ${endpoint}: ${data}`);
+		if (isBtchLimitError(data)) {
+			log('warn', `btch:${endpoint}`, 'limit/maintenance', { server, msg: data.msg });
+			throw new Error(`btch ${endpoint}: ${data.msg || 'limit reached'}`);
+		}
+		if (data.error) throw new Error(`btch ${endpoint}: ${data.error}`);
+		return data;
+	};
+
+	try {
+		return await Promise.any(BTCH_SERVERS.map(fetchFromServer));
+	} catch (err) {
+		if (err instanceof AggregateError) {
+			throw err.errors[err.errors.length - 1] ?? new Error(`btch ${endpoint}: all servers failed`);
+		}
+		throw err;
 	}
-	throw lastError || new Error(`btch ${endpoint}: all servers failed`);
 }

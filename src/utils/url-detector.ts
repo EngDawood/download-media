@@ -77,6 +77,10 @@ function normalizeInstagram(url: string): string {
 		// Keep only /{type}/{shortcode}/ — strip igshid, img_index, hl, etc.
 		const parts = u.pathname.split('/').filter(Boolean);
 		if (parts.length >= 2) {
+			// Preserve story ID: /stories/{username}/{storyId}/
+			if (parts[0] === 'stories' && parts.length >= 3) {
+				return `https://www.instagram.com/${parts[0]}/${parts[1]}/${parts[2]}/`;
+			}
 			return `https://www.instagram.com/${parts[0]}/${parts[1]}/`;
 		}
 	} catch { /* fall through */ }
@@ -276,5 +280,12 @@ export function detectMediaUrl(text: string): DetectedUrl | null {
 			return { url: generic[0], platform: 'Other' };
 		}
 	}
+
+	// Retry with https:// prepended for protocol-less URLs (e.g. "twitter.com/i/status/123")
+	const noProto = text.match(/(?:^|\s)((?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/\S+)/);
+	if (noProto) {
+		return detectMediaUrl(`https://${noProto[1]}`);
+	}
+
 	return null;
 }

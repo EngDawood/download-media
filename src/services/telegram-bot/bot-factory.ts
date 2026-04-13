@@ -13,7 +13,9 @@ import { resolveLocale, DEFAULT_LOCALE, t, getLocale } from '../../i18n';
  * @returns Configured grammY Bot instance
  */
 export function createBot(env: Env): Bot {
-	const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
+	const bot = new Bot(env.TELEGRAM_BOT_TOKEN, {
+		client: { timeoutSeconds: 25 },
+	});
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
 	const kv = env.DOWNLOAD_CACHE;
 

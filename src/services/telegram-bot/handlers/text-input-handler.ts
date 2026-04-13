@@ -2,20 +2,14 @@ import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { getAdminState, setAdminState, clearAdminState } from '../storage/admin-state';
 import { detectMediaUrl, isBlockedDomain, getDirectFileMediaType } from '../../../utils/url-detector';
-import { CACHE_PREFIX_BLOCKED_URL, CACHE_PREFIX_DOWNLOAD_LOCK, CACHE_PREFIX_LOCK_PENDING } from '../../../constants';
+import { CACHE_PREFIX_BLOCKED_URL } from '../../../constants';
 import { downloadAndSendMedia } from './download-and-send';
 import { fetchFacebookInfo, fetchTikTokInfo } from '../../media-downloader';
 import { checkSubscriptionGate } from './subscription-gate';
 import { incrementLinkStats, isUserBlocked, isDomainAllowlisted } from '../../../utils/stats';
-import { t, getLocale, type Locale } from '../../../i18n';
+import { t, getLocale } from '../../../i18n';
 
 const IG_RESERVED = ['p', 'reel', 'tv', 'explore', 'accounts', 'stories', 'direct', 'ar', 'live'];
-
-interface PendingMessage {
-	chatId: number;
-	messageId: number;
-	locale: string;
-}
 
 /**
  * Returns the Instagram username if the URL is a profile page (instagram.com/username),
@@ -36,52 +30,12 @@ function extractInstagramProfileUsername(url: string): string | null {
 	}
 }
 
-/** Store a pending "already processing" message so it can be updated when the download finishes. */
-async function storePendingMessage(kv: KVNamespace, userId: number, chatId: number, messageId: number, locale: string): Promise<void> {
-	const key = `${CACHE_PREFIX_LOCK_PENDING}${userId}`;
-	const existing: PendingMessage[] = JSON.parse((await kv.get(key)) ?? '[]');
-	existing.push({ chatId, messageId, locale });
-	await kv.put(key, JSON.stringify(existing), { expirationTtl: 60 }).catch(() => {});
-}
-
-/** Edit all stored pending messages and remove them from KV. */
-async function clearPendingMessages(
-	bot: Bot,
-	kv: KVNamespace,
-	userId: number,
-	getText: (locale: Locale) => string,
-): Promise<void> {
-	const key = `${CACHE_PREFIX_LOCK_PENDING}${userId}`;
-	const raw = await kv.get(key);
-	if (!raw) return;
-	await kv.delete(key).catch(() => {});
-	try {
-		const pending: PendingMessage[] = JSON.parse(raw);
-		await Promise.all(
-			pending.map(p => bot.api.editMessageText(p.chatId, p.messageId, getText(p.locale as Locale)).catch(() => {})),
-		);
-	} catch { /* ignore parse errors */ }
-}
-
 /**
  * Register the main text handler to process URL detection and download flows.
  */
 export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): void {
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
 	const telegraphToken = env.TELEGRAPH_ACCESS_TOKEN;
-
-	// Cancel the stuck download lock so the user can send a new URL
-	bot.callbackQuery('cancel:lock', async (ctx) => {
-		await ctx.answerCallbackQuery();
-		const userId = ctx.from?.id;
-		const locale = getLocale(ctx);
-		if (userId) {
-			await kv.delete(`${CACHE_PREFIX_DOWNLOAD_LOCK}${userId}`).catch(() => {});
-			await clearPendingMessages(bot, kv, userId, (l) => t(l, 'cancel.done'));
-		}
-		// Fallback in case current message wasn't in the pending list (e.g. TTL already expired)
-		await ctx.editMessageText(t(locale, 'cancel.done')).catch(() => {});
-	});
 
 	bot.on('message:text', async (ctx) => {
 		const text = ctx.message.text;
@@ -108,32 +62,19 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 				const isAdmin = userId === adminId;
 				const storyUrl = `https://www.instagram.com/stories/${username}/`;
 				const userLink = `<a href="https://www.instagram.com/${username}/">@${username}</a>`;
-				const storyLockKey = `${CACHE_PREFIX_DOWNLOAD_LOCK}${userId}`;
-				if (await kv.get(storyLockKey)) {
-					const cancelKeyboard = new InlineKeyboard().text(t(locale, 'input.btn_cancel_download'), 'cancel:lock');
-					const reply = await ctx.reply(t(locale, 'input.already_downloading'), { reply_markup: cancelKeyboard });
-					await storePendingMessage(kv, userId, ctx.chat!.id, reply.message_id, locale);
-					return;
-				}
-				await kv.put(storyLockKey, '1', { expirationTtl: 60 });
-				try {
-					const statusMsg = await ctx.reply(
-						t(locale, 'download.status_stories', { userLink }),
-						{ parse_mode: 'HTML' },
-					);
-					await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
-						kv,
-						adminId: isAdmin ? adminId : undefined,
-						guestMode: !isAdmin,
-						userId,
-						firstName: ctx.from?.first_name,
-						username: ctx.from?.username,
-						locale,
-					});
-				} finally {
-					await kv.delete(storyLockKey).catch(() => {});
-					await clearPendingMessages(bot, kv, userId, (l) => t(l, 'input.stale_lock_done'));
-				}
+				const statusMsg = await ctx.reply(
+					t(locale, 'download.status_stories', { userLink }),
+					{ parse_mode: 'HTML' },
+				);
+				await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
+					kv,
+					adminId: isAdmin ? adminId : undefined,
+					guestMode: !isAdmin,
+					userId,
+					firstName: ctx.from?.first_name,
+					username: ctx.from?.username,
+					locale,
+				});
 				return;
 			}
 		}
@@ -169,20 +110,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 				}
 			}
 
-			// Per-user download lock — prevents duplicate downloads when user re-sends a URL
-			const lockKey = userId ? `${CACHE_PREFIX_DOWNLOAD_LOCK}${userId}` : null;
-			if (lockKey) {
-				if (await kv.get(lockKey)) {
-					const cancelKeyboard = new InlineKeyboard().text(t(locale, 'input.btn_cancel_download'), 'cancel:lock');
-					const reply = await ctx.reply(t(locale, 'input.already_downloading'), { reply_markup: cancelKeyboard });
-					await storePendingMessage(kv, userId!, ctx.chat!.id, reply.message_id, locale);
-					return;
-				}
-				await kv.put(lockKey, '1', { expirationTtl: 60 });
-			}
-
-			try {
-				// Instagram stories URL (instagram.com/stories/username) or profile URL → download their stories
+			// Instagram stories URL (instagram.com/stories/username) or profile URL → download their stories
 				const igStoriesUsername = url.match(/instagram\.com\/stories\/([^/?]+)/i)?.[1] ?? null;
 				const igProfileUsername = igStoriesUsername ? null : extractInstagramProfileUsername(url);
 				const igStoriesTarget = igStoriesUsername ?? igProfileUsername;
@@ -261,8 +189,6 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 							action: 'downloading_media',
 							context: { downloadUrl: url, downloadPlatform: platform },
 						});
-						// Release lock — actual download happens later via dl:hd / dl:sd callback
-						if (lockKey) await kv.delete(lockKey).catch(() => {});
 					} else {
 						await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, {
 							kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
@@ -285,10 +211,6 @@ export function registerTextInputHandler(bot: Bot, env: Env, kv: KVNamespace): v
 					kv, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
 				});
 				return;
-			} finally {
-				if (lockKey) await kv.delete(lockKey).catch(() => {});
-				if (userId) await clearPendingMessages(bot, kv, userId, (l) => t(l, 'input.stale_lock_done'));
-			}
 		}
 
 		const state = await getAdminState(kv, adminId);
