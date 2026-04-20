@@ -13,18 +13,18 @@
 		"postinstall": "node scripts/gen-deploy-id.cjs"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.12.4",
+		"@cloudflare/vitest-pool-workers": "^0.14.8",
 		"@eslint/js": "^10.0.1",
-		"@types/node": "^25.2.3",
-		"eslint": "^10.0.3",
-		"prettier": "^3.5.3",
+		"@types/node": "^25.6.0",
+		"eslint": "^10.2.1",
+		"prettier": "^3.8.3",
 		"typescript": "^5.5.2",
-		"typescript-eslint": "^8.57.1",
+		"typescript-eslint": "^8.59.0",
 		"vitest": "~3.2.0",
-		"wrangler": "^4.65.0"
+		"wrangler": "^4.84.0"
 	},
 	"dependencies": {
-		"grammy": "^1.40.0",
-		"hono": "^4.11.9"
+		"grammy": "^1.42.0",
+		"hono": "^4.12.14"
 	}
 }
