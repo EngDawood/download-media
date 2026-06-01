@@ -31,6 +31,8 @@ export interface AdminState {
 export interface TelegramMediaMessage {
 	type: 'photo' | 'video' | 'audio' | 'document' | 'mediagroup' | 'text';
 	url?: string;
+	buffer?: Uint8Array;  // in-memory binary (used instead of url for document uploads)
+	filename?: string;
 	thumbnailUrl?: string;
 	caption: string;
 	media?: Array<{

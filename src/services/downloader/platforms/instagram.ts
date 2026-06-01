@@ -109,15 +109,17 @@ export class InstagramProvider implements IDownloaderProvider {
 		}
 
 		// Non-story posts: btch AIO → btch igdl
+		let aioCaption = '';
 		try {
 			const res = await btchFetch('aio', url, true);
 			const data = res.data;
 			if (data) {
+				aioCaption = buildCaption(data.title);
 				const media: MediaItem[] = [];
 				if (data.gallery?.items?.length > 0) media.push(...parseAioGallery(data.gallery.items));
 				if (media.length === 0 && data.links) media.push(...parseLinksSection(data.links.video, 'video'));
 				if (media.length > 0) {
-					return { status: 'success', media, caption: buildCaption(data.title), thumbnail: data.thumbnail };
+					return { status: 'success', media, caption: aioCaption, thumbnail: data.thumbnail };
 				}
 			}
 		} catch { /* fall through to igdl */ }
@@ -128,7 +130,7 @@ export class InstagramProvider implements IDownloaderProvider {
 			return {
 				status: 'success',
 				media: items.filter((i: any) => isUrl(i.url)).map((i: any) => ({ type: detectMediaType(i.url), url: i.url })),
-				caption: '',
+				caption: aioCaption,
 				thumbnail: items[0]?.thumbnail,
 			};
 		}

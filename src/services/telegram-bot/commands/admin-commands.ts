@@ -1,10 +1,11 @@
 import { Bot } from 'grammy';
 import { KV_KEY_REQUIRED_CHANNEL, KV_KEY_FREE_USES, FREE_USES_BEFORE_GATE } from '../../../constants';
+import { setConfig } from '../../../utils/db';
 import { t, getLocale } from '../../../i18n';
 
 const ADMIN_STATUSES = ['administrator', 'creator'];
 
-export function registerAdminCommands(bot: Bot, env: Env, kv: KVNamespace): void {
+export function registerAdminCommands(bot: Bot, env: Env, db: D1Database): void {
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
 
 	bot.command('setchannel', async (ctx) => {
@@ -45,7 +46,7 @@ export function registerAdminCommands(bot: Bot, env: Env, kv: KVNamespace): void
 			return;
 		}
 
-		await kv.put(KV_KEY_REQUIRED_CHANNEL, channelUsername);
+		await setConfig(db, KV_KEY_REQUIRED_CHANNEL, channelUsername);
 
 		const channelName = channelUsername.replace('@', '');
 		await ctx.reply(
@@ -70,7 +71,7 @@ export function registerAdminCommands(bot: Bot, env: Env, kv: KVNamespace): void
 			return;
 		}
 
-		await kv.put(KV_KEY_FREE_USES, String(count));
+		await setConfig(db, KV_KEY_FREE_USES, String(count));
 		await ctx.reply(t(locale, 'setfreeuses.success', { count: String(count) }), { parse_mode: 'HTML' });
 	});
 }

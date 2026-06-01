@@ -8,6 +8,8 @@ export type DownloaderMode = 'auto' | 'audio' | 'hd' | 'sd';
 export interface MediaItem {
 	type: 'video' | 'photo' | 'audio' | 'document';
 	url: string;
+	buffer?: Uint8Array;  // in-memory binary data (overrides url for upload)
+	filename?: string;    // filename for buffer-based items
 	quality?: string;
 	filesize?: number;
 }

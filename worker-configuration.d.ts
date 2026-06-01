@@ -4,6 +4,7 @@
 declare namespace Cloudflare {
 	interface Env {
 		DOWNLOAD_CACHE: KVNamespace;
+		download_media_bot_db: D1Database;
 		ANALYTICS: AnalyticsEngineDataset;
 		TELEGRAM_BOT_TOKEN: string;
 		ADMIN_TELEGRAM_ID: string;

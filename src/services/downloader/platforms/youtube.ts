@@ -24,18 +24,28 @@ export class YouTubeProvider implements IDownloaderProvider {
 			if (data?.links) {
 				const caption = buildCaption(data.title);
 				const thumbnail = data.thumbnail;
+				const audioItems = parseLinksSection(data.links.audio, 'audio');
+				const mp3Url = audioItems[0]?.url;
 				if (mode === 'audio') {
-					const audioItems = parseLinksSection(data.links.audio, 'audio');
 					if (audioItems.length) return { status: 'success', media: [audioItems[0]], caption, thumbnail };
 				}
 				const videos: MediaItem[] = parseLinksSection(data.links.video, 'video');
 				if (videos.length) {
 					if (mode !== 'auto' && mode !== 'audio') {
 						const match = videos.find(v => v.quality?.includes(mode));
-						if (match) return { status: 'success', media: [match], caption, thumbnail };
+						if (match) return { status: 'success', media: [match], caption, thumbnail, mp3Url };
 					}
-					return { status: 'success', media: [videos[0]], caption, thumbnail };
+					return { status: 'success', media: [videos[0]], caption, thumbnail, mp3Url };
 				}
+			}
+			// btch AIO for YouTube sometimes returns { mp4, mp3, title } at the top level
+			const flatCaption = buildCaption(aio.title || data?.title);
+			const flatThumb = aio.thumbnail || data?.thumbnail;
+			if (isUrl(aio.mp4)) {
+				return { status: 'success', media: [{ type: 'video', url: aio.mp4 }], caption: flatCaption, thumbnail: flatThumb, mp3Url: isUrl(aio.mp3) ? aio.mp3 : undefined };
+			}
+			if (isUrl(aio.mp3)) {
+				return { status: 'success', media: [{ type: 'audio', url: aio.mp3 }], caption: flatCaption, thumbnail: flatThumb };
 			}
 		} catch { /* all failed */ }
 

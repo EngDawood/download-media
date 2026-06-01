@@ -161,6 +161,15 @@ async function sendDocumentMessage(
 	message: TelegramMediaMessage,
 	disableNotification: boolean,
 ): Promise<void> {
+	// Buffer-based document (e.g., GitHub folder zip built in-memory)
+	if (message.buffer) {
+		const file = new InputFile(message.buffer, message.filename || 'document');
+		await sendWithCaption(
+			(caption) => bot.api.sendDocument(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			bot, chatId, message.caption, disableNotification
+		);
+		return;
+	}
 	if (!message.url) throw new Error('Document URL is missing');
 	const url = message.url;
 	// Derive filename from URL path; for GitHub archive downloads use repo-branch.zip
