@@ -94,6 +94,7 @@ export const en = {
 	'download.done_info': 'Done. ({info})',
 	'download.sent_album': 'Sent {count} items as album.',
 	'download.failed': "❌ Download failed. The link may be private, deleted, or unsupported.\n<code>{url}</code>\n<i>Error: {error}</i>",
+	'download.processing_retry': "⏳ YouTube is still processing this video — this can take a moment the first time.\n<code>{url}</code>\n<i>Tap Retry in a few seconds.</i>",
 	'download.no_media': "😕 No media found. The post may be private or deleted.\n{url}",
 	'download.error': "⚠️ Something went wrong. Please try again in a moment.\n{url}",
 	'download.too_large': '😔 File too large for Telegram (50MB limit). Use the link below to download it directly.',

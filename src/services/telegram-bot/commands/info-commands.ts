@@ -1,16 +1,14 @@
 import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState, getAdminState, setAdminState } from '../storage/admin-state';
+import { deleteSession } from '../../../utils/db';
+import { getBlockedUrl, deleteBlockedUrl } from '../storage/session-store';
 import { downloadAndSendMedia } from '../handlers/download-and-send';
 import {
 	KV_KEY_REQUIRED_CHANNEL,
 	FREE_USES_BEFORE_GATE,
-	CACHE_PREFIX_USER_LANG,
-	CACHE_PREFIX_BLOCKED_URL,
-	KV_KEY_STATS_USER_PREFIX,
-	KV_KEY_STATS_STARTED_PREFIX,
 	KV_KEY_INSTAGRAM_FOOTER,
-	CACHE_PREFIX_DOWNLOAD_LOCK,
 } from '../../../constants';
+import { getConfig, setConfig, deleteConfig, setUserLang } from '../../../utils/db';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
 import {
 	getStatsReport,
@@ -25,23 +23,20 @@ import {
 	incrementStartUsers,
 	getDailyStats,
 	getTodayDownloadHistory,
-} from '../../../utils/stats';
-import type { StatsReport, UserStats } from '../../../utils/stats';
+} from '../../../utils/stats-d1';
+import type { StatsReport } from '../../../utils/stats-d1';
 
-/** Format file size bytes to human-readable string */
 function fmtBytes(bytes: number): string {
 	if (bytes <= 0) return '';
 	if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
 	return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-/** Format duration ms to seconds string */
 function fmtDuration(ms: number): string {
 	if (ms <= 0) return '';
 	return `${(ms / 1000).toFixed(1)}s`;
 }
 
-/** Build a mini bar chart for a value relative to a max */
 function miniBar(value: number, max: number, width = 8): string {
 	if (max <= 0) return '';
 	const filled = Math.round((value / max) * width);
@@ -56,10 +51,7 @@ function formatTimeAgo(ts: number): string {
 	return `${Math.floor(diff / 86400)}d ago`;
 }
 
-/**
- * Register basic information and control commands.
- */
-export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void {
+export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
 
 	bot.command('start', async (ctx) => {
@@ -68,16 +60,14 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		const locale = getLocale(ctx);
 		const greeting = name ? t(locale, 'start.admin.greeting', { firstName: name }) : '';
 
-		// Track unique /start users (fire-and-forget)
-		if (ctx.from?.id) void incrementStartUsers(kv, ctx.from.id);
+		if (ctx.from?.id) void incrementStartUsers(db, ctx.from.id);
 
 		if (isAdmin) {
 			await ctx.reply(greeting + t(locale, 'start.admin.body'), { parse_mode: 'HTML' });
 			return;
 		}
 
-		// Guest: show channel requirement if configured
-		const channelUsername = await kv.get(KV_KEY_REQUIRED_CHANNEL);
+		const channelUsername = await getConfig(db, KV_KEY_REQUIRED_CHANNEL);
 		const channelLine = channelUsername
 			? t(locale, 'start.guest.channel_line', { freeUses: FREE_USES_BEFORE_GATE, channel: channelUsername })
 			: '';
@@ -96,8 +86,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 
-		// Guest
-		const channelUsername = await kv.get(KV_KEY_REQUIRED_CHANNEL);
+		const channelUsername = await getConfig(db, KV_KEY_REQUIRED_CHANNEL);
 		const freeTierLine = channelUsername
 			? t(locale, 'help.guest.free_tier', { freeUses: FREE_USES_BEFORE_GATE, channel: channelUsername })
 			: '';
@@ -108,12 +97,11 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 	bot.command('cancel', async (ctx) => {
 		const locale = getLocale(ctx);
 		const userId = ctx.from?.id;
-		await clearAdminState(kv, adminId);
-		if (userId) await kv.delete(CACHE_PREFIX_DOWNLOAD_LOCK + userId).catch(() => {});
+		await clearAdminState(db, adminId);
+		if (userId) await deleteSession(db, 'lock', userId).catch(() => {});
 		await ctx.reply(t(locale, 'cancel.done'));
 	});
 
-	// --- Stats helpers ---
 	function buildStatsText(report: StatsReport, locale: Locale, channelSubscribers?: number | null, channelUsername?: string | null): string {
 		const g = report.global;
 		const rate = g.totalLinks > 0 ? Math.round((g.totalSuccess / g.totalLinks) * 100) : 0;
@@ -131,7 +119,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			t(locale, 'stats.today', { links: String(report.today.links), success: String(report.today.success), errors: String(report.today.errors ?? 0) }),
 		];
 
-		// Channel + gate stats
 		if (channelUsername) {
 			const gateLine = channelSubscribers != null
 				? t(locale, 'stats.channel_subscribers', { channel: channelUsername, count: String(channelSubscribers) })
@@ -146,7 +133,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			}
 		}
 
-		// Platform bar chart (top 7)
 		const sortedPlatforms = Object.entries(g.platforms).sort((a, b) => b[1] - a[1]).slice(0, 7);
 		if (sortedPlatforms.length > 0) {
 			const maxCount = sortedPlatforms[0][1];
@@ -156,7 +142,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			}
 		}
 
-		// Top users (show @username when available)
 		if (g.topUsers.length > 0) {
 			lines.push('', t(locale, 'stats.top_users_header'));
 			for (let i = 0; i < Math.min(g.topUsers.length, 5); i++) {
@@ -189,7 +174,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 
-		const [report, channelUsername] = await Promise.all([getStatsReport(kv), kv.get(KV_KEY_REQUIRED_CHANNEL)]);
+		const [report, channelUsername] = await Promise.all([getStatsReport(db), getConfig(db, KV_KEY_REQUIRED_CHANNEL)]);
 		if (report.global.totalLinks === 0 && (report.global.totalStartUsers ?? 0) === 0) {
 			await ctx.reply(t(locale, 'stats.no_data'));
 			return;
@@ -203,14 +188,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.reply(buildStatsText(report, locale, channelSubscribers, channelUsername), { parse_mode: 'HTML', reply_markup: buildStatsKeyboard(locale) });
 	});
 
-	// Stats callback: show daily breakdown (last 7 days)
 	bot.callbackQuery('stats:daily', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const daily = await getDailyStats(kv, 7);
+		const daily = await getDailyStats(db, 7);
 
 		const lines: string[] = [t(locale, 'stats.daily_header'), ''];
 		let hasData = false;
@@ -246,7 +230,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Helper: render a history entry in compact format
 	function renderHistoryEntry(entry: { url: string; platform: string; userId: number; username?: string; firstName: string; timestamp: number; success: boolean; durationMs?: number; fileSizeBytes?: number }, showDate = false): string[] {
 		const time = new Date(entry.timestamp).toLocaleString('en-GB', {
 			timeZone: 'UTC',
@@ -266,14 +249,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		];
 	}
 
-	// Stats callback: show today's download history
 	bot.callbackQuery('stats:today_history', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const history = await getTodayDownloadHistory(kv, 20);
+		const history = await getTodayDownloadHistory(db, 20);
 		if (history.length === 0) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_history') });
 			return;
@@ -289,14 +271,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Stats callback: show download history
 	bot.callbackQuery('stats:history', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const history = await getDownloadHistory(kv, 20);
+		const history = await getDownloadHistory(db, 20);
 		if (history.length === 0) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_history') });
 			return;
@@ -312,14 +293,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Stats callback: show blocked users
 	bot.callbackQuery('stats:blocked', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const blocked = await getBlockedUsers(kv);
+		const blocked = await getBlockedUsers(db);
 
 		const lines: string[] = [t(locale, 'stats.blocked_header'), ''];
 		if (blocked.length === 0) {
@@ -340,14 +320,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Stats callback: show failed downloads
 	bot.callbackQuery('stats:failed', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const failed = await getFailedDownloads(kv, 15);
+		const failed = await getFailedDownloads(db, 15);
 
 		if (failed.length === 0) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_failed') });
@@ -370,14 +349,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Stats callback: hourly distribution
 	bot.callbackQuery('stats:hourly', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const report = await getStatsReport(kv);
+		const report = await getStatsReport(db);
 		const hourly = report.global.hourlyDistribution ?? new Array(24).fill(0);
 		const total = hourly.reduce((s: number, v: number) => s + v, 0);
 
@@ -389,7 +367,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		const maxVal = Math.max(...hourly);
 		const lines: string[] = [t(locale, 'stats.hourly_header'), ''];
 
-		// Two-column layout: hours 0-11 left, 12-23 right
 		for (let h = 0; h < 12; h++) {
 			const lv = hourly[h] ?? 0;
 			const rv = hourly[h + 12] ?? 0;
@@ -408,14 +385,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Stats callback: gate funnel
 	bot.callbackQuery('stats:gate', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const [report, channelUsername] = await Promise.all([getStatsReport(kv), kv.get(KV_KEY_REQUIRED_CHANNEL)]);
+		const [report, channelUsername] = await Promise.all([getStatsReport(db), getConfig(db, KV_KEY_REQUIRED_CHANNEL)]);
 		const g = report.global;
 
 		if (!channelUsername && (g.totalGateBlocked ?? 0) === 0) {
@@ -449,14 +425,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Stats callback: users overview
 	bot.callbackQuery('stats:users', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const report = await getStatsReport(kv);
+		const report = await getStatsReport(db);
 		const topUsers = report.global.topUsers ?? [];
 
 		if (topUsers.length === 0) {
@@ -464,37 +439,25 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 
-		// Scan all user stats for activity buckets
-		let cursor: string | undefined;
+		// Query all user stats for activity bucketing
+		const userRows = await db
+			.prepare(`SELECT user_id, first_name, username, count, failures, platforms, last_seen FROM user_stats`)
+			.all<{ user_id: number; first_name: string; username: string | null; count: number; failures: number; platforms: string; last_seen: number }>();
+
 		const now = Date.now();
 		const ms7d = 7 * 24 * 3600 * 1000;
 		const ms30d = 30 * 24 * 3600 * 1000;
 		let active7 = 0, active30 = 0, inactive = 0;
 		const userDetails: Array<{ userId: number; firstName: string; username?: string; count: number; failures: number; topPlatform: string }> = [];
 
-		do {
-			const result: KVNamespaceListResult<unknown, string> = cursor
-				? await kv.list({ prefix: KV_KEY_STATS_USER_PREFIX, cursor })
-				: await kv.list({ prefix: KV_KEY_STATS_USER_PREFIX });
-			const rawValues = await Promise.all(result.keys.map((k) => kv.get(k.name)));
-			for (let i = 0; i < result.keys.length; i++) {
-				const raw = rawValues[i];
-				if (!raw) continue;
-				try {
-					const u = JSON.parse(raw) as UserStats;
-					const lastSeen = u.lastSeen ?? 0;
-					const age = now - lastSeen;
-					if (age <= ms7d) active7++;
-					else if (age <= ms30d) active30++;
-					else inactive++;
-					// top platform
-					const topPlatform = Object.entries(u.platforms ?? {}).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-					const userId = parseInt(result.keys[i].name.slice(KV_KEY_STATS_USER_PREFIX.length), 10);
-					userDetails.push({ userId, firstName: u.firstName, username: u.username, count: u.count, failures: u.failures ?? 0, topPlatform });
-				} catch (_e) { /* ignored */ }
-			}
-			cursor = result.list_complete ? undefined : (result as KVNamespaceListResult<unknown, string> & { cursor: string }).cursor;
-		} while (cursor);
+		for (const r of userRows.results) {
+			const age = now - r.last_seen;
+			if (age <= ms7d) active7++;
+			else if (age <= ms30d) active30++;
+			else inactive++;
+			const topPlatform = Object.entries<number>(JSON.parse(r.platforms || '{}')).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+			userDetails.push({ userId: r.user_id, firstName: r.first_name, username: r.username ?? undefined, count: r.count, failures: r.failures, topPlatform });
+		}
 
 		userDetails.sort((a, b) => b.count - a.count);
 		const powerUsers = userDetails.slice(0, 10);
@@ -527,19 +490,17 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Stats callback: back to main stats
 	bot.callbackQuery('stats:back', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const report = await getStatsReport(kv);
+		const report = await getStatsReport(db);
 		await ctx.answerCallbackQuery();
 		await ctx.editMessageText(buildStatsText(report, locale), { parse_mode: 'HTML', reply_markup: buildStatsKeyboard(locale) });
 	});
 
-	// /block command
 	bot.command('block', async (ctx) => {
 		const locale = getLocale(ctx);
 		if (ctx.from?.id !== adminId) {
@@ -559,22 +520,16 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 
-		// Try to find user's name from stats
-		const userKey = `${KV_KEY_STATS_USER_PREFIX}${userId}`;
-		const userRaw = await kv.get(userKey);
-		let firstName = 'Unknown';
-		if (userRaw) {
-			try {
-				const userStats = JSON.parse(userRaw) as { firstName: string };
-				firstName = userStats.firstName;
-			} catch {}
-		}
+		const userRow = await db
+			.prepare(`SELECT first_name FROM user_stats WHERE user_id = ?`)
+			.bind(userId)
+			.first<{ first_name: string }>();
+		const firstName = userRow?.first_name ?? 'Unknown';
 
-		await blockUser(kv, userId, { firstName });
+		await blockUser(db, userId, { firstName });
 		await ctx.reply(t(locale, 'block.success', { userId: String(userId) }), { parse_mode: 'HTML' });
 	});
 
-	// /unblock command
 	bot.command('unblock', async (ctx) => {
 		const locale = getLocale(ctx);
 		if (ctx.from?.id !== adminId) {
@@ -594,7 +549,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 
-		const removed = await unblockUser(kv, userId);
+		const removed = await unblockUser(db, userId);
 		if (removed) {
 			await ctx.reply(t(locale, 'unblock.success', { userId: String(userId) }), { parse_mode: 'HTML' });
 		} else {
@@ -602,7 +557,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		}
 	});
 
-	// Callback: user claims their blocked URL is not adult content
 	bot.callbackQuery('report:notadult', async (ctx) => {
 		const userId = ctx.from?.id;
 		const locale = getLocale(ctx);
@@ -611,7 +565,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 
-		const url = await kv.get(`${CACHE_PREFIX_BLOCKED_URL}${userId}`);
+		const url = await getBlockedUrl(db, userId);
 		if (!url) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'callback.session_expired') });
 			return;
@@ -634,39 +588,36 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageReplyMarkup({ reply_markup: undefined });
 	});
 
-	// Callback: admin accepts one-time — remove cached URL so user can retry once
 	bot.callbackQuery(/^report:accept:(\d+)$/, async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
 			return;
 		}
-		const reportedUserId = ctx.match[1];
-		await kv.delete(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`);
+		const reportedUserId = parseInt(ctx.match[1], 10);
+		await deleteBlockedUrl(db, reportedUserId);
 		await ctx.answerCallbackQuery({ text: '✅ Accepted — user can retry the link.' });
 		await ctx.editMessageText(`${ctx.callbackQuery?.message?.text ?? ''}\n\n✅ <b>Accepted (one-time)</b> by admin.`, { parse_mode: 'HTML' });
 	});
 
-	// Callback: admin whitelists the domain permanently
 	bot.callbackQuery(/^report:whitelist:(\d+)$/, async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
 			return;
 		}
-		const reportedUserId = ctx.match[1];
-		const url = await kv.get(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`);
+		const reportedUserId = parseInt(ctx.match[1], 10);
+		const url = await getBlockedUrl(db, reportedUserId);
 		if (!url) {
 			await ctx.answerCallbackQuery({ text: '⚠️ URL expired, cannot whitelist.' });
 			return;
 		}
 		const hostname = new URL(url).hostname.replace(/^www\./, '');
-		await Promise.all([addDomainToAllowlist(kv, hostname), kv.delete(`${CACHE_PREFIX_BLOCKED_URL}${reportedUserId}`)]);
+		await Promise.all([addDomainToAllowlist(db, hostname), deleteBlockedUrl(db, reportedUserId)]);
 		await ctx.answerCallbackQuery({ text: `✅ ${hostname} added to allowlist.` });
 		await ctx.editMessageText(`${ctx.callbackQuery?.message?.text ?? ''}\n\n✅ <b>Whitelisted: <code>${hostname}</code></b> by admin.`, {
 			parse_mode: 'HTML',
 		});
 	});
 
-	// Callback: admin denies the report
 	bot.callbackQuery(/^report:deny:(\d+)$/, async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
@@ -676,14 +627,13 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(`${ctx.callbackQuery?.message?.text ?? ''}\n\n❌ <b>Denied</b> by admin.`, { parse_mode: 'HTML' });
 	});
 
-	// /allowlist — view and manage whitelisted domains
 	bot.command('allowlist', async (ctx) => {
 		const locale = getLocale(ctx);
 		if (ctx.from?.id !== adminId) {
 			await ctx.reply(t(locale, 'stats.admin_only'));
 			return;
 		}
-		const list = await getAllowlist(kv);
+		const list = await getAllowlist(db);
 		if (list.length === 0) {
 			await ctx.reply(`${t(locale, 'allowlist.header')}\n\n${t(locale, 'allowlist.empty')}`, { parse_mode: 'HTML' });
 			return;
@@ -695,7 +645,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.reply(t(locale, 'allowlist.header'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	// Callback: remove a domain from the allowlist
 	bot.callbackQuery(/^allowlist:rm:(.+)$/, async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
@@ -703,11 +652,10 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		}
 		const locale = getLocale(ctx);
 		const hostname = ctx.match[1];
-		const removed = await removeDomainFromAllowlist(kv, hostname);
+		const removed = await removeDomainFromAllowlist(db, hostname);
 		if (removed) {
 			await ctx.answerCallbackQuery({ text: `🗑 ${hostname} removed.` });
-			// Refresh the list
-			const list = await getAllowlist(kv);
+			const list = await getAllowlist(db);
 			if (list.length === 0) {
 				await ctx.editMessageText(`${t(locale, 'allowlist.header')}\n\n${t(locale, 'allowlist.empty')}`, { parse_mode: 'HTML' });
 			} else {
@@ -739,55 +687,44 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 		const userId = ctx.from.id;
-		await kv.put(`${CACHE_PREFIX_USER_LANG}${userId}`, newLocale);
-		// Update ctx locale for the response
+		await setUserLang(db, userId, newLocale);
 		(ctx as any).locale = newLocale;
 		await ctx.editMessageText(t(newLocale, 'lang.changed', { language: localeName(newLocale) }), { parse_mode: 'HTML' });
 		await ctx.answerCallbackQuery();
 	});
 
-	// /broadcast — admin sends a message to all users
 	bot.command('broadcast', async (ctx) => {
 		const locale = getLocale(ctx);
 		if (ctx.from?.id !== adminId) {
 			await ctx.reply(t(locale, 'stats.admin_only'));
 			return;
 		}
-		await setAdminState(kv, adminId, { action: 'awaiting_broadcast' });
+		await setAdminState(db, adminId, { action: 'awaiting_broadcast' });
 		await ctx.reply(t(locale, 'broadcast.prompt'), { parse_mode: 'HTML' });
 	});
 
-	// Callback: admin confirms broadcast
 	bot.callbackQuery('broadcast:confirm', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		const state = await getAdminState(kv, adminId);
+		const state = await getAdminState(db, adminId);
 		if (!state || state.action !== 'awaiting_broadcast' || !state.context?.broadcastMessage) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'callback.session_expired') });
 			return;
 		}
 		const message = state.context.broadcastMessage;
-		await clearAdminState(kv, adminId);
+		await clearAdminState(db, adminId);
 		await ctx.answerCallbackQuery();
 		await ctx.editMessageText(t(locale, 'broadcast.sending'), { parse_mode: 'HTML' });
 
-		// Collect all user IDs from stats:started:* keys
-		const userIds: number[] = [];
-		let cursor: string | undefined;
-		do {
-			const result: KVNamespaceListResult<unknown, string> = cursor
-				? await kv.list({ prefix: KV_KEY_STATS_STARTED_PREFIX, cursor })
-				: await kv.list({ prefix: KV_KEY_STATS_STARTED_PREFIX });
-			for (const key of result.keys) {
-				const idStr = key.name.slice(KV_KEY_STATS_STARTED_PREFIX.length);
-				const id = parseInt(idStr, 10);
-				if (!isNaN(id) && id !== adminId) userIds.push(id);
-			}
-			cursor = result.list_complete ? undefined : (result as KVNamespaceListResult<unknown, string> & { cursor: string }).cursor;
-		} while (cursor);
+		// Collect all user IDs who have used /start
+		const startedRows = await db
+			.prepare(`SELECT user_id FROM user_stats WHERE started = 1 AND user_id != ?`)
+			.bind(adminId)
+			.all<{ user_id: number }>();
+		const userIds = startedRows.results.map((r) => r.user_id);
 
 		if (userIds.length === 0) {
 			await ctx.editMessageText(t(locale, 'broadcast.no_users'));
@@ -808,19 +745,17 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		await ctx.editMessageText(t(locale, 'broadcast.done', { sent: String(sent), failed: String(failed) }), { parse_mode: 'HTML' });
 	});
 
-	// Callback: admin cancels broadcast
 	bot.callbackQuery('broadcast:cancel', async (ctx) => {
 		if (ctx.from?.id !== adminId) {
 			await ctx.answerCallbackQuery({ text: t(getLocale(ctx), 'stats.admin_only') });
 			return;
 		}
 		const locale = getLocale(ctx);
-		await clearAdminState(kv, adminId);
+		await clearAdminState(db, adminId);
 		await ctx.answerCallbackQuery();
 		await ctx.editMessageText(t(locale, 'broadcast.cancelled'));
 	});
 
-	// /reply — admin sends a message to a specific user by ID
 	bot.command('reply', async (ctx) => {
 		const locale = getLocale(ctx);
 		if (ctx.from?.id !== adminId) {
@@ -849,9 +784,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		}
 	});
 
-	// /story — download stories by username (available to all users)
-	// Usage: /story [platform] <username|link>
-	// Platform aliases: ig/instagram (default), more to be added
 	bot.command('story', async (ctx) => {
 		const locale = getLocale(ctx);
 		const userId = ctx.from?.id;
@@ -859,7 +791,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		const isAdmin = userId === adminId;
 		const raw = ctx.match?.trim() ?? '';
 
-		// Parse optional platform prefix: "ig", "instagram" (default + only supported for now)
 		const PLATFORM_ALIASES: Record<string, string> = { ig: 'instagram', instagram: 'instagram' };
 		const parts = raw.split(/\s+/);
 		let platform = 'instagram';
@@ -882,12 +813,11 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		};
 
 		if (!inputArg) {
-			await setAdminState(kv, userId, { action: 'awaiting_story_username' });
+			await setAdminState(db, userId, { action: 'awaiting_story_username' });
 			await ctx.reply(t(locale, 'story.prompt'), { parse_mode: 'HTML' });
 			return;
 		}
 
-		// Only Instagram supported for now
 		const username = parseInstagramUsername(inputArg);
 		if (!username) {
 			await ctx.reply(t(locale, 'story.invalid'), { parse_mode: 'HTML' });
@@ -901,7 +831,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			{ parse_mode: 'HTML' },
 		);
 		await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
-			kv,
+			db,
 			adminId: isAdmin ? adminId : undefined,
 			guestMode: !isAdmin,
 			analytics: env.ANALYTICS,
@@ -912,7 +842,6 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		});
 	});
 
-	// /footer — admin sets/views/clears the Instagram caption footer
 	bot.command('footer', async (ctx) => {
 		const locale = getLocale(ctx);
 		if (ctx.from?.id !== adminId) {
@@ -921,7 +850,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		}
 		const arg = ctx.match?.trim();
 		if (!arg) {
-			const current = await kv.get(KV_KEY_INSTAGRAM_FOOTER);
+			const current = await getConfig(db, KV_KEY_INSTAGRAM_FOOTER);
 			if (current) {
 				await ctx.reply(t(locale, 'footer.current', { text: current }), { parse_mode: 'HTML' });
 			} else {
@@ -930,15 +859,14 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 			return;
 		}
 		if (arg === 'clear') {
-			await kv.delete(KV_KEY_INSTAGRAM_FOOTER);
+			await deleteConfig(db, KV_KEY_INSTAGRAM_FOOTER);
 			await ctx.reply(t(locale, 'footer.cleared'), { parse_mode: 'HTML' });
 			return;
 		}
-		await kv.put(KV_KEY_INSTAGRAM_FOOTER, arg);
+		await setConfig(db, KV_KEY_INSTAGRAM_FOOTER, arg);
 		await ctx.reply(t(locale, 'footer.set', { text: arg }), { parse_mode: 'HTML' });
 	});
 
-	// /logs — admin views recent failed downloads (optionally filtered by platform)
 	bot.command('logs', async (ctx) => {
 		const locale = getLocale(ctx);
 		if (ctx.from?.id !== adminId) {
@@ -947,7 +875,7 @@ export function registerInfoCommands(bot: Bot, env: Env, kv: KVNamespace): void 
 		}
 
 		const filter = ctx.message?.text?.split(' ')[1]?.toLowerCase();
-		let entries = await getFailedDownloads(kv, 50);
+		let entries = await getFailedDownloads(db, 50);
 		if (filter) entries = entries.filter(e => e.platform.toLowerCase().includes(filter));
 		const top = entries.slice(0, 10);
 

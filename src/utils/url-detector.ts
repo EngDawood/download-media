@@ -131,7 +131,11 @@ function normalizeGitHub(url: string): string {
 			const filePath = parts.slice(4).join('/');
 			return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
 		}
-		// /owner/repo/tree/branch[/subpath] — download that branch as zip
+		// /owner/repo/tree/branch/subpath — keep original URL; GitHubProvider downloads just this folder
+		if (parts.length >= 5 && parts[2] === 'tree') {
+			return url;
+		}
+		// /owner/repo/tree/branch (no subpath) — download whole branch as zip
 		if (parts.length >= 4 && parts[2] === 'tree') {
 			const branch = parts[3];
 			return `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;

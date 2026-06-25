@@ -7,17 +7,12 @@ import { registerSubscriptionCallbacks } from './callbacks/subscription-callback
 import { registerReportCallbacks } from './callbacks/report-callbacks';
 import { resolveLocale, DEFAULT_LOCALE, t, getLocale } from '../../i18n';
 
-/**
- * Create and configure Telegram bot instance with all handlers.
- * @param env - Cloudflare Workers environment with secrets and bindings
- * @returns Configured grammY Bot instance
- */
 export function createBot(env: Env): Bot {
 	const bot = new Bot(env.TELEGRAM_BOT_TOKEN, {
 		client: { timeoutSeconds: 25 },
 	});
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
-	const kv = env.DOWNLOAD_CACHE;
+	const db = env.download_media_bot_db;
 
 	// Global error handler
 	bot.catch(async (err) => {
@@ -53,7 +48,7 @@ export function createBot(env: Env): Bot {
 	bot.use(async (ctx, next) => {
 		const userId = ctx.from?.id;
 		if (userId) {
-			(ctx as Context & { locale: string }).locale = await resolveLocale(kv, userId, ctx.from?.language_code);
+			(ctx as Context & { locale: string }).locale = await resolveLocale(db, userId, ctx.from?.language_code);
 		} else {
 			(ctx as Context & { locale: string }).locale = DEFAULT_LOCALE;
 		}
@@ -82,28 +77,18 @@ export function createBot(env: Env): Bot {
 		await next();
 	});
 
-	// Register info commands: /start, /help, /cancel
-	registerInfoCommands(bot, env, kv);
+	registerInfoCommands(bot, env, db);
+	registerAdminCommands(bot, env, db);
+	registerSubscriptionCallbacks(bot, db);
+	registerTextInputHandler(bot, env, db);
+	registerReportCallbacks(bot, db, adminId, env.TELEGRAPH_ACCESS_TOKEN);
 
-	// Register admin commands: /setchannel
-	registerAdminCommands(bot, env, kv);
-
-	// Register subscription callbacks: subscription:verify
-	registerSubscriptionCallbacks(bot, kv);
-
-	// Register text input handler (URL detection + multi-step download flows)
-	registerTextInputHandler(bot, env, kv);
-
-	// Register report callbacks: report:issue
-	registerReportCallbacks(bot, kv, adminId, env.TELEGRAPH_ACCESS_TOKEN);
-
-	// Register download callback query handlers
 	bot.on('callback_query:data', async (ctx, next) => {
 		console.log('[DEBUG] Received callback:', ctx.callbackQuery.data);
 		await next();
 	});
 
-	registerDownloadCallbacks(bot, env, kv);
+	registerDownloadCallbacks(bot, env, db);
 
 	// Debug: catch unmatched callback queries
 	bot.on('callback_query:data', async (ctx) => {

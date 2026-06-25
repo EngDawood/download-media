@@ -3,22 +3,15 @@ import type { Bot } from 'grammy';
 import { downloadMedia, formatFileSize } from '../../media-downloader';
 import { sendMediaToChannel, sendWithCaption } from './send-media';
 import { setAdminState, clearAdminState } from '../storage/admin-state';
+import { setReportData } from '../storage/session-store';
 import type { TelegramMediaMessage } from '../../../types/telegram';
 import { trackEvent } from '../../../utils/analytics';
-import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats';
+import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats-d1';
+import { getConfig } from '../../../utils/db';
 import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
-import { CACHE_PREFIX_REPORT, KV_KEY_INSTAGRAM_FOOTER, DEFAULT_INSTAGRAM_FOOTER } from '../../../constants';
+import { KV_KEY_INSTAGRAM_FOOTER, DEFAULT_INSTAGRAM_FOOTER } from '../../../constants';
 import { log } from '../../../utils/logger';
 
-/**
- * Download media from a URL and send it to a chat.
- * Used by both direct text input and callback buttons.
- *
- * @param directUrl When true, treat `url` as a direct media URL (skip platform detection)
- * @param options   When provided with kv + adminId, enables interactive mode:
- *                  if Telegram can't fetch the URL directly, shows a Download/Cancel picker
- *                  instead of auto-downloading through the Worker.
- */
 export async function downloadAndSendMedia(
 	bot: Bot,
 	chatId: number,
@@ -27,7 +20,7 @@ export async function downloadAndSendMedia(
 	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
-	options?: { kv?: KVNamespace; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; firstName?: string; username?: string; locale?: Locale; originalUrl?: string; telegraphToken?: string },
+	options?: { db?: D1Database; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; firstName?: string; username?: string; locale?: Locale; originalUrl?: string; telegraphToken?: string },
 ): Promise<void> {
 	const userType = options?.guestMode ? 'guest' : 'admin';
 	const userId = options?.userId ?? 0;
@@ -40,12 +33,11 @@ export async function downloadAndSendMedia(
 
 	const downloadStartTime = Date.now();
 
-	// Helper to record success + history
 	const recordSuccess = async (durationMs?: number, fileSizeBytes?: number) => {
-		if (!options?.kv || !userId) return;
+		if (!options?.db || !userId) return;
 		await Promise.all([
-			incrementSuccessStats(options.kv, { userId, firstName: options?.firstName || '', platform, username: options?.username }),
-			addDownloadHistory(options.kv, {
+			incrementSuccessStats(options.db, { userId, firstName: options?.firstName || '', platform, username: options?.username }),
+			addDownloadHistory(options.db, {
 				url,
 				platform,
 				userId,
@@ -58,17 +50,15 @@ export async function downloadAndSendMedia(
 		]).catch(() => {});
 	};
 
-	// Helper to record error + history, and clear stale KV state
 	const recordError = async (errorReason: string) => {
-		if (!options?.kv) return;
-		// Clear admin state on failure to prevent stale state causing wrong downloads
+		if (!options?.db) return;
 		if (options.adminId) {
-			clearAdminState(options.kv, options.adminId).catch(() => {});
+			clearAdminState(options.db, options.adminId).catch(() => {});
 		}
 		await Promise.all([
-			incrementErrorStats(options.kv, { userId: userId || undefined, firstName: options?.firstName, username: options?.username }),
+			incrementErrorStats(options.db, { userId: userId || undefined, firstName: options?.firstName, username: options?.username }),
 			userId
-				? addDownloadHistory(options.kv, {
+				? addDownloadHistory(options.db, {
 						url,
 						platform,
 						userId,
@@ -77,7 +67,7 @@ export async function downloadAndSendMedia(
 						success: false,
 					})
 				: Promise.resolve(),
-			addFailedDownload(options.kv, {
+			addFailedDownload(options.db, {
 				url,
 				platform,
 				errorReason,
@@ -89,13 +79,9 @@ export async function downloadAndSendMedia(
 		]).catch(() => {});
 	};
 
-	// Helper to edit the status message with an error.
-	// Admin: [🔄 Retry] [Cancelled]
-	// Guest: [🔄 Retry] [📬 Report to Admin] — stores context in KV so the report callback can send it
 	const showError = async (errorText: string, parseMode?: 'HTML', rawError?: string) => {
-		if (!options?.guestMode && options?.kv && options?.adminId) {
-			// Admin — retry + cancel
-			await setAdminState(options.kv, options.adminId, {
+		if (!options?.guestMode && options?.db && options?.adminId) {
+			await setAdminState(options.db, options.adminId, {
 				action: 'downloading_media',
 				context: { downloadUrl: options?.originalUrl ?? url, downloadPlatform: platform, downloadMode: mode },
 			});
@@ -109,17 +95,15 @@ export async function downloadAndSendMedia(
 				await bot.api.sendMessage(chatId, errorText, editOpts).catch(() => {});
 			}
 		} else {
-			// Guest — store report context in KV, show Retry + Report buttons
-			if (options?.kv && userId) {
-				const reportData = JSON.stringify({
+			if (options?.db && userId) {
+				setReportData(options.db, userId, {
 					url,
 					platform,
 					error: rawError || errorText.replace(/<[^>]+>/g, ''),
 					firstName: options.firstName || '',
 					username: options.username,
 					userId,
-				});
-				options.kv.put(`${CACHE_PREFIX_REPORT}${userId}`, reportData, { expirationTtl: 3600 }).catch(() => {});
+				}).catch(() => {});
 			}
 			const contactInfo = t(locale, 'download.contact_admin');
 			const fullText = `${errorText}\n\n${contactInfo}`;
@@ -146,22 +130,18 @@ export async function downloadAndSendMedia(
 		} catch (e: any) {
 			const alreadyShowing = e?.description?.includes('message is not modified') || e?.message?.includes('message is not modified');
 			if (!alreadyShowing) {
-				// Edit failed for a real reason — send a new message and track its ID instead
 				const fallback = await bot.api.sendMessage(chatId, statusText, { parse_mode: 'HTML' });
 				statusMessageId = fallback.message_id;
 			}
-			// If alreadyShowing, the message is already correct — keep existing statusMessageId
 		}
 	} else {
 		const msg = await bot.api.sendMessage(chatId, statusText, { parse_mode: 'HTML' });
 		statusMessageId = msg.message_id;
 	}
 
-	// Track result outside try-catch so error handlers can access mp3Url/thumbnail/caption
 	let result: Awaited<ReturnType<typeof downloadMedia>> | undefined;
 
 	try {
-		// If directUrl, send the URL directly (used for YouTube quality selection)
 		if (directUrl) {
 			const msg: TelegramMediaMessage = { type: options?.mediaType || 'video', url, caption: '' };
 			await sendMediaToChannel(bot, chatId, msg);
@@ -175,6 +155,10 @@ export async function downloadAndSendMedia(
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			await recordError(result.error || 'API error');
+			if (result.retryable) {
+				await showError(t(locale, 'download.processing_retry', { url }), 'HTML', result.error);
+				return;
+			}
 			const safeError = (result.error || 'unknown error').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 			await showError(t(locale, 'download.failed', { error: safeError, url }), 'HTML', result.error);
 			return;
@@ -182,13 +166,13 @@ export async function downloadAndSendMedia(
 
 		if (result.media && result.media.length > 0) {
 			let caption = result.caption || '';
-			// Append Instagram footer (custom if set, otherwise default)
 			if (platform === 'Instagram') {
-				const footer = options?.kv ? (await options.kv.get(KV_KEY_INSTAGRAM_FOOTER)) ?? DEFAULT_INSTAGRAM_FOOTER : DEFAULT_INSTAGRAM_FOOTER;
+				const footer = options?.db
+					? (await getConfig(options.db, KV_KEY_INSTAGRAM_FOOTER)) ?? DEFAULT_INSTAGRAM_FOOTER
+					: DEFAULT_INSTAGRAM_FOOTER;
 				caption = caption ? `${caption}\n\n${footer}` : footer;
 			}
 			const totalFileSizeBytes = result.media.reduce((sum, m) => sum + (m.filesize ?? 0), 0);
-			// Build size/quality info for the "Done" message
 			const sizeInfo = result.media
 				.map(m => {
 					const parts: string[] = [];
@@ -204,7 +188,6 @@ export async function downloadAndSendMedia(
 				const groupableItems = result.media.filter(m => m.type === 'photo' || m.type === 'video');
 
 				if (groupableItems.length > 1) {
-					// Telegram media group limit is 10 — chunk and send sequentially
 					for (let i = 0; i < groupableItems.length; i += 4) {
 						const chunk = groupableItems.slice(i, i + 4);
 						const msg: TelegramMediaMessage = {
@@ -227,6 +210,8 @@ export async function downloadAndSendMedia(
 						const msg: TelegramMediaMessage = {
 							type: item.type,
 							url: item.url,
+							buffer: item.buffer,
+							filename: item.filename,
 							caption: caption,
 						};
 						await sendMediaToChannel(bot, chatId, msg);
@@ -240,16 +225,17 @@ export async function downloadAndSendMedia(
 				const msg: TelegramMediaMessage = {
 					type: item.type,
 					url: item.url,
+					buffer: item.buffer,
+					filename: item.filename,
 					caption: caption,
 				};
 				await sendMediaToChannel(bot, chatId, msg);
 				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 				await recordSuccess(Date.now() - downloadStartTime, totalFileSizeBytes);
 
-				// YouTube & TikTok: show MP3 button after successful video send
-				if (result.mp3Url && options?.kv && (platform === 'YouTube' || platform === 'TikTok')) {
+				if (result.mp3Url && options?.db && (platform === 'YouTube' || platform === 'TikTok')) {
 					const mp3Keyboard = new InlineKeyboard().text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3');
-					await setAdminState(options.kv, options.adminId || userId, {
+					await setAdminState(options.db, options.adminId || userId, {
 						action: 'downloading_media',
 						context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url },
 					});
@@ -265,7 +251,6 @@ export async function downloadAndSendMedia(
 		await recordError('No media found');
 		await showError(t(locale, 'download.no_media', { url }), undefined, 'No media found');
 	} catch (err: unknown) {
-		// YouTube: send thumbnail + mp4/mp3 URLs when file is too large
 		if (result?.mp3Url && result?.thumbnail && /too large/i.test((err as Error).message || '')) {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			await recordError('File too large (YouTube)');
@@ -274,11 +259,17 @@ export async function downloadAndSendMedia(
 			const sorry = options?.firstName
 				? t(locale, 'download.too_large_name', { firstName: options.firstName })
 				: t(locale, 'download.too_large');
+			if (options?.db) {
+				await setAdminState(options.db, options.adminId || userId, {
+					action: 'downloading_media',
+					context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url },
+				});
+			}
 			const keyboard = new InlineKeyboard()
+				.text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3')
 				.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot');
-			const photoCaption = `${caption}\n\n${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n🎬 Video:\n<code>${mp4Url}</code>\n\n🎵 Audio:\n<code>${result.mp3Url}</code>`;
+			const photoCaption = `${caption}\n\n${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n🎬 Video:\n<code>${mp4Url}</code>`;
 
-			// Send with caption logic (splits if too long for photo, falls back to text if photo fails)
 			try {
 				await sendWithCaption(
 					(cap) =>
@@ -293,25 +284,21 @@ export async function downloadAndSendMedia(
 					false,
 				);
 			} catch {
-				// Entire photo operation failed — fall back to plain text
 				await bot.api.sendMessage(chatId, photoCaption, {
 					parse_mode: 'HTML',
 					reply_markup: keyboard,
 				});
 			}
-			// Clean up the status message
 			try { await bot.api.deleteMessage(chatId, statusMessageId!); } catch { /* ignore */ }
 			return;
 		}
 
-		log('error', 'download-and-send', 'Download and send error', { error: err?.message, platform, url });
+		log('error', 'download-and-send', 'Download and send error', { error: (err as Error)?.message, platform, url });
 		trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 		const errMsg = (err as Error).message || 'Unknown error';
 		await recordError(errMsg);
-		const msg = errMsg;
-		// If file is too large for Telegram, send the link as text instead
 		try {
-			if (msg.includes('too large') || msg.includes('Too large')) {
+			if (errMsg.includes('too large') || errMsg.includes('Too large')) {
 				const sorry = options?.firstName
 					? t(locale, 'download.too_large_limit_name', { firstName: options.firstName })
 					: t(locale, 'download.too_large_limit');
@@ -326,7 +313,7 @@ export async function downloadAndSendMedia(
 					{ parse_mode: 'HTML', reply_markup: keyboard },
 				);
 			} else {
-				await showError(t(locale, 'download.error', { url }), undefined, msg);
+				await showError(t(locale, 'download.error', { url }), undefined, errMsg);
 			}
 		} catch {
 			await bot.api.sendMessage(chatId, t(locale, 'download.error', { url })).catch(() => {});

@@ -96,6 +96,7 @@ export const ar: Translations = {
 	'download.done_info': 'تم. ({info})',
 	'download.sent_album': 'تم إرسال {count} عناصر كألبوم.',
 	'download.failed': "❌ فشل التحميل. قد يكون الرابط خاصاً أو محذوفاً أو غير مدعوم.\n<code>{url}</code>\n<i>الخطأ: {error}</i>",
+	'download.processing_retry': "⏳ لا يزال يوتيوب يعالج هذا الفيديو — قد يستغرق ذلك لحظة في المرة الأولى.\n<code>{url}</code>\n<i>اضغط إعادة المحاولة بعد بضع ثوانٍ.</i>",
 	'download.no_media': "😕 لم يتم العثور على وسائط. قد يكون المنشور خاصاً أو محذوفاً.\n{url}",
 	'download.error': "⚠️ حدث خطأ ما. يرجى المحاولة مرة أخرى.\n{url}",
 	'download.too_large': '😔 الملف أكبر من حد Telegram البالغ 50MB. استخدم الرابط أدناه للتحميل مباشرةً.',

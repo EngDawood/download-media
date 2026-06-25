@@ -13,6 +13,7 @@ import { ThreadsProvider } from './downloader/platforms/threads';
 import { SoundCloudProvider } from './downloader/platforms/soundcloud';
 import { SpotifyProvider } from './downloader/platforms/spotify';
 import { PinterestProvider } from './downloader/platforms/pinterest';
+import { GitHubProvider } from './downloader/platforms/github';
 
 export type { DownloaderMode, MediaItem, DownloaderResult };
 export { formatFileSize };
@@ -48,6 +49,7 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 		new SoundCloudProvider(),
 		new SpotifyProvider(),
 		new PinterestProvider(),
+		new GitHubProvider(),
 	]);
 }
 

@@ -19,15 +19,24 @@ export function isBtchLimitError(data: any): boolean {
 	return data.code === -1 || msg.includes('limit') || msg.includes('maintenance');
 }
 
+/** Returns true when an error came from an aborted/timed-out fetch (cold extraction taking too long). */
+export function isTimeoutError(err: any): boolean {
+	if (err?.isTimeout) return true;
+	const name = err?.name || '';
+	const msg = (err?.message || '').toLowerCase();
+	return name === 'TimeoutError' || name === 'AbortError' || msg.includes('aborted') || msg.includes('timeout');
+}
+
 /**
  * Fetch from btch API, racing all backends in parallel.
  * Returns the first successful response; throws if all fail.
+ * A thrown error caused by all backends timing out carries `.isTimeout = true`.
  */
-export async function btchFetch(endpoint: string, url: string, retryOn4xx = false): Promise<any> {
+export async function btchFetch(endpoint: string, url: string, retryOn4xx = false, timeoutMs = 8_000): Promise<any> {
 	const fetchFromServer = async (server: string): Promise<any> => {
 		const res = await fetch(`${server}/api/downloader/${endpoint}?url=${encodeURIComponent(url)}`, {
 			headers: BTCH_HEADERS,
-			signal: AbortSignal.timeout(8_000),
+			signal: AbortSignal.timeout(timeoutMs),
 		});
 		if (!res.ok) {
 			log('warn', `btch:${endpoint}`, `${res.status}`, { server });
@@ -47,7 +56,9 @@ export async function btchFetch(endpoint: string, url: string, retryOn4xx = fals
 		return await Promise.any(BTCH_SERVERS.map(fetchFromServer));
 	} catch (err) {
 		if (err instanceof AggregateError) {
-			throw err.errors[err.errors.length - 1] ?? new Error(`btch ${endpoint}: all servers failed`);
+			const chosen = err.errors[err.errors.length - 1] ?? new Error(`btch ${endpoint}: all servers failed`);
+			if (err.errors.some(isTimeoutError)) (chosen as any).isTimeout = true;
+			throw chosen;
 		}
 		throw err;
 	}
