@@ -1,25 +1,29 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
-import { btchFetch } from '../btch-client';
+import { btchFetch, isTimeoutError } from '../btch-client';
 import { parseLinksSection } from '../aio-parser';
 import { buildCaption, isUrl } from '../media-helpers';
+
+/** YouTube extraction is the slowest btch operation; give it more headroom than the 8s default. */
+const YOUTUBE_TIMEOUT_MS = 20_000;
 
 export class YouTubeProvider implements IDownloaderProvider {
 	readonly platforms = ['youtube.com', 'youtu.be', 'music.youtube.com'];
 
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
+		let timedOut = false;
 		try {
-			const res = await btchFetch('youtube', url, true);
+			const res = await btchFetch('youtube', url, true, YOUTUBE_TIMEOUT_MS);
 			const caption = buildCaption(res.title);
 			const thumbnail = res.thumbnail;
 			if (mode === 'audio' && isUrl(res.mp3)) return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption, thumbnail };
 			if (isUrl(res.mp4)) {
 				return { status: 'success', media: [{ type: 'video', url: res.mp4 }], caption, thumbnail, mp3Url: isUrl(res.mp3) ? res.mp3 : undefined };
 			}
-		} catch { /* fall through to AIO */ }
+		} catch (e) { if (isTimeoutError(e)) timedOut = true; /* fall through to AIO */ }
 
 		try {
-			const aio = await btchFetch('aio', url, true);
+			const aio = await btchFetch('aio', url, true, YOUTUBE_TIMEOUT_MS);
 			const data = aio.data;
 			if (data?.links) {
 				const caption = buildCaption(data.title);
@@ -47,8 +51,11 @@ export class YouTubeProvider implements IDownloaderProvider {
 			if (isUrl(aio.mp3)) {
 				return { status: 'success', media: [{ type: 'audio', url: aio.mp3 }], caption: flatCaption, thumbnail: flatThumb };
 			}
-		} catch { /* all failed */ }
+		} catch (e) { if (isTimeoutError(e)) timedOut = true; /* all failed */ }
 
+		if (timedOut) {
+			return { status: 'error', error: 'YouTube is still processing this video', retryable: true };
+		}
 		return { status: 'error', error: 'No YouTube media found' };
 	}
 }

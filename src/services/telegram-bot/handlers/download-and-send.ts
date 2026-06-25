@@ -155,6 +155,10 @@ export async function downloadAndSendMedia(
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			await recordError(result.error || 'API error');
+			if (result.retryable) {
+				await showError(t(locale, 'download.processing_retry', { url }), 'HTML', result.error);
+				return;
+			}
 			const safeError = (result.error || 'unknown error').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 			await showError(t(locale, 'download.failed', { error: safeError, url }), 'HTML', result.error);
 			return;

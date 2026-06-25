@@ -13,54 +13,92 @@ When working on Claude Code features (hooks, skills, subagents, MCP servers, etc
 
 Any user can send a URL for auto-download. The admin gets extra controls: quality pickers for YouTube/TikTok/Facebook.
 
-No RSS. No channel subscriptions. No cron jobs. Download only.
+No channel subscriptions. No cron jobs. Download only. Instagram Stories use public RSSHub instances (picnob.info bridge) as the primary source.
 
 ## Commands
 
-* `npm` — is not avaliable so use bun instead
-* `bun run dev` — Start local dev server (port 8787) or bun , pnpm if npm not worked.
-* `bun run deploy` — Deploy to Cloudflare Workers
-* `bun run cf-typegen` — Regenerate worker-configuration.d.ts from wrangler.jsonc
-* `bunx wrangler secret put TELEGRAM_BOT_TOKEN` — Set bot token
-* `bunx wrangler secret put TELEGRAM_WEBHOOK_SECRET` — Set webhook secret
+* `pnpm dev` — Start local dev server (port 8787)
+* `pnpm deploy` — Deploy to Cloudflare Workers
+* `pnpm cf-typegen` — Regenerate worker-configuration.d.ts from wrangler.jsonc
+* `pnpm exec wrangler secret put TELEGRAM_BOT_TOKEN` — Set bot token
+* `pnpm exec wrangler secret put TELEGRAM_WEBHOOK_SECRET` — Set webhook secret
 
 ## Architecture
 
 ```
 src/
-├── index.ts                  # Hono app: GET /health, GET /setup, POST /telegram
-├── constants.ts              # CACHE_PREFIX_TELEGRAM_STATE only
+├── index.ts                        # Hono app: GET /health, GET /setup, POST /telegram
+├── constants.ts                    # Shared constants: KV prefixes, RSSHUB_SERVERS, KV_KEY_INSTAGRAM_FOOTER
 ├── routes/
-│   └── setup.ts              # GET /setup — registers bot commands + menu button via Telegram API
+│   └── setup.ts                    # GET /setup — registers bot commands + menu button via Telegram API
 ├── types/
-│   └── telegram.ts           # AdminState (downloading_media), TelegramMediaMessage, FormatSettings
+│   ├── telegram.ts                 # AdminState, TelegramMediaMessage, FormatSettings
+│   ├── downloader.ts               # MediaItem, DownloaderResult, DownloaderMode (shared types)
+│   └── downloader-provider.ts      # IDownloaderProvider interface
 ├── services/
-│   ├── media-downloader.ts   # btch API wrapper (4 servers, failover), 9 platforms
+│   ├── media-downloader.ts         # Entry point only (~110 lines): registry wiring, downloadMedia, fetchTikTokInfo, fetchFacebookInfo
+│   ├── downloader/
+│   │   ├── btch-client.ts          # btchFetch (4-server failover) + isBtchLimitError
+│   │   ├── aio-parser.ts           # tryAIO, parseAioGallery, parseLinksSection
+│   │   ├── media-helpers.ts        # isUrl, detectMediaType, detectTypeFromJwtUrl, buildCaption, formatFileSize, decodeTiktokDirectUrl
+│   │   ├── provider-registry.ts    # ProviderRegistry class (findForUrl, download)
+│   │   └── platforms/
+│   │       ├── tiktok.ts           # TikTokProvider (+ fetchInfo for picker UI)
+│   │       ├── instagram.ts        # InstagramProvider (RSSHub/picnob.info primary for stories; btch AIO → igdl for posts)
+│   │       ├── twitter.ts          # TwitterProvider (AIO → btch → fxtwitter fallback chain)
+│   │       ├── youtube.ts          # YouTubeProvider
+│   │       ├── facebook.ts         # FacebookProvider (+ fetchInfo for HD/SD picker)
+│   │       ├── threads.ts          # ThreadsProvider
+│   │       ├── soundcloud.ts       # SoundCloudProvider
+│   │       ├── spotify.ts          # SpotifyProvider
+│   │       └── pinterest.ts        # PinterestProvider
 │   └── telegram-bot/
-│       ├── bot-factory.ts    # Bot creation, admin middleware, handler registration
+│       ├── bot-factory.ts          # Bot creation, admin middleware, handler registration
 │       ├── commands/
-│       │   └── info-commands.ts      # /start, /help, /cancel
+│       │   └── info-commands.ts    # /start, /help, /cancel, /story (all users), /footer (admin)
 │       ├── callbacks/
 │       │   └── download-callbacks.ts # dl:video, dl:audio, dl:hd, dl:sd, dl:yt:*, dl:confirm
 │       ├── handlers/
-│       │   ├── text-input-handler.ts # URL detection → platform pickers → auto-download (admin+guest)
-│       │   ├── download-and-send.ts  # Core download + Telegram send logic
-│       │   └── send-media.ts         # URL-first send strategy, >50MB handling
+│       │   ├── text-input-handler.ts  # URL detection → platform pickers → auto-download
+│       │   ├── download-and-send.ts   # Core download + Telegram send logic
+│       │   └── send-media.ts          # URL-first send strategy, >50MB handling
 │       └── storage/
-│           └── admin-state.ts        # KV state for multi-step download flows
+│           └── admin-state.ts         # KV state for multi-step download flows
 └── utils/
-    ├── url-detector.ts       # Platform URL detection (9 platforms)
-    └── cache.ts              # KV get/set helpers
+    ├── url-detector.ts             # Platform URL detection + normalization (9 platforms)
+    └── cache.ts                    # KV get/set helpers
 ```
+
+## Downloader Architecture
+
+The downloader uses a **Provider Registry + Strategy Pattern**. `media-downloader.ts` is a thin entry point that delegates to platform-specific providers via `ProviderRegistry`.
+
+**Adding a new platform:**
+1. Create `src/services/downloader/platforms/<name>.ts` implementing `IDownloaderProvider`
+2. Register it in `media-downloader.ts` inside the `ProviderRegistry` constructor
+3. Add URL patterns to `src/utils/url-detector.ts` if needed for the picker flow
+
+**Key modules:**
+- `btch-client.ts` — all HTTP calls to the btch API go through here. Handles 4-server failover, timeouts, limit/maintenance detection. Never call `fetch` against btch servers directly.
+- `aio-parser.ts` — `tryAIO` is the shared fallback used by most platforms. `parseAioGallery` and `parseLinksSection` are the extracted helpers that eliminate duplicated response-parsing logic.
+- `media-helpers.ts` — pure utility functions (no side effects, fully unit-tested).
+- `IDownloaderProvider` — each platform implements `download(url, mode)` and optionally `fetchInfo(url)` for picker UIs (TikTok, Facebook).
+
+**Fallback pattern used by most platforms:**
+```
+try AIO (richer data, caption, gallery) → fallback to platform-specific btch endpoint → error
+```
+Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter endpoint`. FxTwitter is used first because it returns full tweet text, per-video thumbnails, and properly separated `videos[]`/`photos[]` arrays. See `docs/FxEmbed-API.md`.
 
 ## Conventions
 
 * TypeScript strict mode
 * Hono framework for routing
 * KV binding: `DOWNLOAD_CACHE` (separate from other projects)
-* Env type from worker-configuration.d.ts (run `npm run cf-typegen` after changing wrangler.jsonc)
-* No cheerio, no RSS XML, no Instagram auth cookies
-
+* Env type from worker-configuration.d.ts (run `pnpm run cf-typegen` after changing wrangler.jsonc)
+* No cheerio, no Instagram auth cookies
+* Instagram Stories use RSSHub (picnob.info bridge) — RSS XML is only used here; all other platforms use btch API
+* Platform files stay under 150 lines each; `media-downloader.ts` stays under 150 lines
 
 ## Deployment
 
@@ -93,6 +131,7 @@ src/
 * **YouTube** — fetches quality list, shows picker (up to 4 + Audio button)
 * **TikTok** — slideshows auto-download; videos show Video/Audio picker
 * **Facebook** — shows HD/SD picker if multiple qualities available
+* **Instagram Stories** — fetched via RSSHub/picnob.info; sent in media groups of 4. `/story` command available to all users (accepts `@username`, plain username, or URL). Optional custom footer via `/footer` (admin).
 * **SoundCloud / Spotify** — audio auto-download
 * **All others** — auto-download best quality
 
@@ -100,7 +139,7 @@ src/
 
 **Media send strategy (URL-first):** `send-media.ts` tries Telegram URL pass-through first. If rejected, interactive mode shows `[📥 Download] [❌ Cancel] [📤 Send to @urluploadxbot]`. Files >50MB show URL + @urluploadxbot button. `TelegramUrlFetchError` triggers fallback; `directMediaUrl` stored in KV for `dl:confirm` callback.
 
-**Admin state:** Stored in `DOWNLOAD_CACHE` under key `telegram:state:{userId}` (TTL 1h). Only action is `downloading_media`.
+**Admin state:** Stored in `DOWNLOAD_CACHE` under key `telegram:state:{userId}` (TTL 1h). Actions: `downloading_media`, `awaiting_broadcast`, `awaiting_story_username`. The `awaiting_story_username` action is set per-user (not just admin) so any user can use the two-step `/story` flow.
 
 ## Data flow
 

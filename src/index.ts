@@ -2,6 +2,13 @@ import { Hono } from 'hono';
 import { createBot } from './services/telegram-bot/bot-factory';
 import { handleSetup, runSetup } from './routes/setup';
 import { DEPLOY_ID } from './_deploy-id';
+import {
+	localOnlyGuard,
+	handleGetDashboard,
+	handleGetTestUrls,
+	handlePostTestUrls,
+	handleTestDownload,
+} from './routes/test-dashboard';
 
 const DEPLOY_KV_KEY = 'deploy:id';
 
@@ -9,6 +16,12 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.get('/health', (c) => c.json({ ok: true }));
 app.get('/setup', handleSetup);
+
+// Dev-only manual testing dashboard and APIs
+app.get('/test', localOnlyGuard, handleGetDashboard);
+app.get('/api/test-urls', localOnlyGuard, handleGetTestUrls);
+app.post('/api/test-urls', localOnlyGuard, handlePostTestUrls);
+app.post('/api/test-download', localOnlyGuard, handleTestDownload);
 
 app.post('/telegram', async (c) => {
 	const secret = c.req.header('X-Telegram-Bot-Api-Secret-Token');

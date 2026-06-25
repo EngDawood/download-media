@@ -60,15 +60,6 @@ function getTodayDate(): string {
 	return `${yyyy}-${mm}-${dd}`;
 }
 
-async function updateHourlyDistribution(db: D1Database, hour: number): Promise<void> {
-	const row = await db
-		.prepare(`SELECT hourly_distribution FROM global_stats WHERE id = 1`)
-		.first<{ hourly_distribution: string }>();
-	const dist: number[] = row?.hourly_distribution ? JSON.parse(row.hourly_distribution) : new Array(24).fill(0);
-	dist[hour] = (dist[hour] ?? 0) + 1;
-	await db.prepare(`UPDATE global_stats SET hourly_distribution = ? WHERE id = 1`).bind(JSON.stringify(dist)).run();
-}
-
 export async function incrementLinkStats(
 	db: D1Database,
 	opts: { userId: number; firstName: string; platform: string },
@@ -109,37 +100,40 @@ export async function incrementSuccessStats(
 	const todayDate = getTodayDate();
 	const expiresAt = now + DAY_TTL_MS;
 
-	const existingRow = await db
-		.prepare(`SELECT platforms FROM user_stats WHERE user_id = ?`)
-		.bind(opts.userId)
-		.first<{ platforms: string }>();
-	const platforms: Record<string, number> = existingRow ? JSON.parse(existingRow.platforms || '{}') : {};
-	platforms[opts.platform] = (platforms[opts.platform] ?? 0) + 1;
-
+	// All updates are atomic SQL — no read-modify-write, safe under concurrency.
 	await db.batch([
 		db.prepare(
 			`INSERT INTO user_stats (user_id, first_name, username, count, failures, platforms, last_seen, first_seen)
-			 VALUES (?, ?, ?, 1, 0, ?, ?, ?)
+			 VALUES (?, ?, ?, 1, 0, json_object(?, 1), ?, ?)
 			 ON CONFLICT(user_id) DO UPDATE SET
 			   count = count + 1,
 			   first_name = excluded.first_name,
 			   username = COALESCE(excluded.username, username),
-			   platforms = excluded.platforms,
+			   platforms = json_set(
+			     platforms, '$.' || ?,
+			     COALESCE(CAST(json_extract(platforms, '$.' || ?) AS INTEGER), 0) + 1
+			   ),
 			   last_seen = excluded.last_seen`,
-		).bind(opts.userId, opts.firstName, opts.username ?? null, JSON.stringify(platforms), now, now),
+		).bind(opts.userId, opts.firstName, opts.username ?? null, opts.platform, now, now, opts.platform, opts.platform),
 		db.prepare(
 			`INSERT INTO platform_counts (scope, platform, count) VALUES ('global', ?, 1)
 			 ON CONFLICT(scope, platform) DO UPDATE SET count = count + 1`,
 		).bind(opts.platform),
-		db.prepare(`UPDATE global_stats SET total_success = total_success + 1 WHERE id = 1`),
+		db.prepare(
+			`UPDATE global_stats SET
+			   total_success = total_success + 1,
+			   hourly_distribution = json_set(
+			     hourly_distribution, '$[' || ? || ']',
+			     CAST(json_extract(hourly_distribution, '$[' || ? || ']') AS INTEGER) + 1
+			   )
+			 WHERE id = 1`,
+		).bind(hour, hour),
 		db.prepare(
 			`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
 			 VALUES (?, 0, 1, 0, 0, 0, ?)
 			 ON CONFLICT(date) DO UPDATE SET success = success + 1`,
 		).bind(todayDate, expiresAt),
 	]);
-
-	updateHourlyDistribution(db, hour).catch(() => {});
 }
 
 export async function incrementErrorStats(

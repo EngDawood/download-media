@@ -21,4 +21,6 @@ export interface DownloaderResult {
 	thumbnail?: string;
 	mp3Url?: string;
 	error?: string;
+	/** True when the error is transient (e.g. backend still extracting) and retrying is likely to succeed. */
+	retryable?: boolean;
 }
