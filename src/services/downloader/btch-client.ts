@@ -32,7 +32,7 @@ export function isTimeoutError(err: any): boolean {
  * Returns the first successful response; throws if all fail.
  * A thrown error caused by all backends timing out carries `.isTimeout = true`.
  */
-export async function btchFetch(endpoint: string, url: string, retryOn4xx = false, timeoutMs = 8_000): Promise<any> {
+export async function btchFetch(endpoint: string, url: string, _retryOn4xx = false, timeoutMs = 8_000): Promise<any> {
 	const fetchFromServer = async (server: string): Promise<any> => {
 		const res = await fetch(`${server}/api/downloader/${endpoint}?url=${encodeURIComponent(url)}`, {
 			headers: BTCH_HEADERS,

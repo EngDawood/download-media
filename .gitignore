@@ -182,3 +182,11 @@ repors/*
 example.md
 .claude/plans/Reports-Logging-Reliability.md
 .claude/.settings.json
+.claude/settings.json
+test/dashboard.html
+test/downloader-integration.spec.ts
+test/provider-registry.spec.ts
+test/test.txt
+test/tmp-yt-verify.spec.ts
+test/url-detector.spec.ts
+.claude/settings.json

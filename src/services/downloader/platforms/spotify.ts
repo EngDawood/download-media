@@ -18,6 +18,7 @@ export class SpotifyProvider implements IDownloaderProvider {
 						status: 'success',
 						media: [{ type: 'audio', url: best.url, quality: best.quality }],
 						caption: buildCaption(data.title),
+						title: data.title,
 						thumbnail: data.thumbnail,
 					};
 				}

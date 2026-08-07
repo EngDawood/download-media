@@ -1,0 +1,294 @@
+{
+  "meta": {
+    "version": 1,
+    "updated_at": "2026-06-01T19:57:00+03:00",
+    "total_urls": 69
+  },
+  "platforms": {
+    "twitter": {
+      "label": "Twitter / X",
+      "icon": "𝕏",
+      "color": "#1da1f2",
+      "downloader": "twitter",
+      "categories": {
+        "posts": {
+          "label": "Posts & Tweets",
+          "urls": [
+            "https://twitter.com/IsraelPersian/status/2034214386164998262",
+            "https://x.com/abdulrahman_vin/status/1388435675314335745",
+            "https://x.com/EMUNOPLA/status/1388429874860281857",
+            "https://x.com/FuadAlHashim/status/2035473805603197267",
+            "https://x.com/Erwin_Rommel8/status/2039848806355804500"
+          ]
+        },
+        "media": {
+          "label": "Media & Videos",
+          "urls": [
+            "https://x.com/i/status/2033685683940802760",
+            "https://x.com/trq212/status/2027463795355095314",
+            "https://x.com/trq212/status/2034761017771925996",
+            "https://x.com/i/status/2034872623516045798",
+            "https://twitter.com/i/status/2043296559182364815",
+            "https://twitter.com/i/status/2043599749752754557",
+            "https://twitter.com/i/status/2043554618085458296"
+          ]
+        },
+        "proxies": {
+          "label": "Proxy / Mirror URLs",
+          "urls": [
+            "https://api.fxtwitter.com/trq212/status/2034761016320696565"
+          ]
+        }
+      }
+    },
+    "youtube": {
+      "label": "YouTube",
+      "icon": "▶",
+      "color": "#ff0000",
+      "downloader": "youtube",
+      "categories": {
+        "short": {
+          "label": "Short Links (youtu.be)",
+          "urls": [
+            "https://youtu.be/vhmxuUPaqKA",
+            "https://youtu.be/GP0H5C7JFPk",
+            "https://youtu.be/7Id83Egvnk0",
+            "https://youtu.be/5I2-jNwc1ao",
+            "https://youtu.be/piCk4D4OiGE",
+            "https://youtu.be/8vJyFaEJGyQ",
+            "https://youtu.be/kUu0CHaVTsM",
+            "https://youtu.be/02ul_eJD9Fo",
+            "https://youtu.be/3F4aOW9jIe8",
+            "https://youtu.be/e7LCIIPbIms"
+          ]
+        },
+        "full": {
+          "label": "Full URLs (youtube.com)",
+          "urls": [
+            "https://www.youtube.com/watch?v=oyAvIFbP9KI",
+            "https://www.youtube.com/watch?v=DbWeQrm0qlo"
+          ]
+        }
+      }
+    },
+    "instagram": {
+      "label": "Instagram",
+      "icon": "📷",
+      "color": "#e1306c",
+      "downloader": "igdl",
+      "categories": {
+        "reels": {
+          "label": "Reels",
+          "urls": [
+            "https://www.instagram.com/reel/DUlNAWHlRXx/",
+            "https://www.instagram.com/reel/DGAhAaotORQ/",
+            "https://www.instagram.com/reel/DV2rIl-EVrd/",
+            "https://www.instagram.com/reel/DYQHETSIqdG/",
+            "https://www.instagram.com/reel/DW45aNpGOfZ/"
+          ]
+        },
+        "stories": {
+          "label": "Stories",
+          "urls": [
+            "https://www.instagram.com/stories/00h___m11/"
+          ]
+        },
+        "proxies": {
+          "label": "Proxy / Mirror URLs",
+          "urls": [
+            "https://www.ddinstagram.com/reel/DV2rIl-EVrd"
+          ]
+        }
+      }
+    },
+    "facebook": {
+      "label": "Facebook",
+      "icon": "f",
+      "color": "#1877f2",
+      "downloader": "fbdown",
+      "categories": {
+        "reels": {
+          "label": "Reels",
+          "urls": [
+            "https://www.facebook.com/reel/2446146615839202",
+            "https://www.facebook.com/reel/837812056001773/",
+            "https://www.facebook.com/reel/1006859031907684/"
+          ]
+        },
+        "videos": {
+          "label": "Shared Videos",
+          "urls": [
+            "https://www.facebook.com/share/v/18YzSS3xHt/",
+            "https://www.facebook.com/share/v/18Mb8MdNos/",
+            "https://www.facebook.com/share/v/18Q87ep2Z9/",
+            "https://www.facebook.com/share/v/1ChUi5VXUF/"
+          ]
+        },
+        "posts": {
+          "label": "Posts & Shares",
+          "urls": [
+            "https://www.facebook.com/share/1CfPnskh4N/",
+            "https://www.facebook.com/share/r/17STKHyS9X/"
+          ]
+        }
+      }
+    },
+    "tiktok": {
+      "label": "TikTok",
+      "icon": "♪",
+      "color": "#00f2ea",
+      "downloader": "ttdl",
+      "categories": {
+        "short": {
+          "label": "Short Links (vt.tiktok)",
+          "urls": [
+            "https://vt.tiktok.com/ZS9a6bkMX/",
+            "https://vt.tiktok.com/ZS9ooRoNh/",
+            "https://vt.tiktok.com/ZSxju1KQF/",
+            "https://vt.tiktok.com/ZSxr2jxjH/",
+            "https://vt.tiktok.com/ZSxSjjREa/",
+            "https://vt.tiktok.com/ZSxAqgXdQ/",
+            "https://vt.tiktok.com/ZSxCY2pH8/",
+            "https://vt.tiktok.com/ZSxpKqQWh/"
+          ]
+        }
+      }
+    },
+    "spotify": {
+      "label": "Spotify",
+      "icon": "🎵",
+      "color": "#1ed760",
+      "downloader": "spotify",
+      "categories": {
+        "tracks": {
+          "label": "Tracks",
+          "urls": [
+            "https://open.spotify.com/track/1pC5UrCJNenTF9itoYE8f0"
+          ]
+        }
+      }
+    },
+    "github": {
+      "label": "GitHub",
+      "icon": "⌨",
+      "color": "#e8e8ed",
+      "downloader": null,
+      "categories": {
+        "repos": {
+          "label": "Repositories",
+          "urls": [
+            "https://github.com/alchaincyf/huashu-design",
+            "https://github.com/juice-shop/juice-shop",
+            "https://github.com/Leonxlnx/taste-skill"
+          ]
+        },
+        "paths": {
+          "label": "Specific Paths",
+          "urls": [
+            "https://github.com/wrandelshofer/jhotdraw/tree/077183faa06baa0688820507360c7bea9c48c065/jhotdraw8",
+            "https://github.com/centminmod/my-claude-code-setup/tree/master/.claude/skills/claude-docs-consultant"
+          ]
+        }
+      }
+    },
+    "linkedin": {
+      "label": "LinkedIn",
+      "icon": "in",
+      "color": "#0077b5",
+      "downloader": null,
+      "categories": {
+        "media": {
+          "label": "Media & Images",
+          "urls": [
+            "https://media.licdn.com/dms/image/v2/D4D03AQGPGEmsm5Qnvw/profile-displayphoto-crop_800_800/B4DZyq1lNYKQAM-/0/1772392701984"
+          ]
+        }
+      }
+    },
+    "telegram": {
+      "label": "Telegram",
+      "icon": "✈",
+      "color": "#26a5e3",
+      "downloader": null,
+      "categories": {
+        "files": {
+          "label": "Files & Images",
+          "urls": [
+            "https://cdn4.telesco.pe/file/p6ZupaUSmDjxZFVu6NkbaYdVArkgRIzx6jAofrJ4tfWFx9SeIYvRZpMHE1IKYwGj46T4MeI5_M892qm7rrO1G7Dm8jJC4pesKNrZUr5o83NqToundAsM6n6AJvdtFEdPTdXwrlwf7lQu3FYw2wQiRf0laiImgOwaGRDYGohLn-cAtVdNiHWTsv8cmMcemnysebsWEEYre_d2hjYlAtDSBGIE7fFOQZKjTsV4kEKZTCVmemsJZIVBf84iJ_5ql9Tum80CTwU3i89saF7l6XWsM4FOdUEKp0tf3_pxQmkiMUUnmMvundHFw_ME0HAe7qiJJYGOQwmx2ba5_PnTYs014A.jpg"
+          ]
+        }
+      }
+    },
+    "threads": {
+      "label": "Threads",
+      "icon": "🧵",
+      "color": "#ffffff",
+      "downloader": "threads",
+      "categories": {
+        "posts": {
+          "label": "Posts",
+          "urls": [
+            "https://www.threads.net/@cindyyuvia/post/C_Nqx3khgkI",
+            "https://www.threads.net/@zuck/post/Cx7zB5rxZ4O"
+          ]
+        }
+      }
+    },
+    "pinterest": {
+      "label": "Pinterest",
+      "icon": "📌",
+      "color": "#bd081c",
+      "downloader": "pinterest",
+      "categories": {
+        "pins": {
+          "label": "Pins",
+          "urls": [
+            "https://pin.it/4CVodSq",
+            "https://www.pinterest.com/pin/478507541673892701/"
+          ]
+        }
+      }
+    },
+    "soundcloud": {
+      "label": "SoundCloud",
+      "icon": "☁️",
+      "color": "#ff5500",
+      "downloader": "soundcloud",
+      "categories": {
+        "tracks": {
+          "label": "Tracks",
+          "urls": [
+            "https://soundcloud.com/postmalone/circles",
+            "https://soundcloud.com/issabella-marchelina/sisa-rasa-mahalini-official-audio"
+          ]
+        }
+      }
+    },
+    "other": {
+      "label": "Other",
+      "icon": "🔗",
+      "color": "#8b8b9e",
+      "downloader": "aio",
+      "categories": {
+        "audio": {
+          "label": "Audio Files",
+          "urls": [
+            "https://n.uguu.se/kEsJpSbj.mp3"
+          ]
+        },
+        "downloads": {
+          "label": "Direct Downloads",
+          "urls": [
+            "http://gaia.cs.umass.edu/wireshark-labs/wireshark-traces-8e.zip"
+          ]
+        },
+        "misc": {
+          "label": "Miscellaneous",
+          "urls": [
+            "https://travis40.savenow.to/pacific/?UuzOYHxUzxvCY9A5RkkHAnn"
+          ]
+        }
+      }
+    }
+  }
+}

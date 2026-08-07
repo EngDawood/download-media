@@ -18,6 +18,8 @@ export interface DownloaderResult {
 	status: 'success' | 'error' | 'picker';
 	media?: MediaItem[];
 	caption?: string;
+	/** Raw (unformatted) title of the content — used to name audio files sent to Telegram. */
+	title?: string;
 	thumbnail?: string;
 	mp3Url?: string;
 	error?: string;
