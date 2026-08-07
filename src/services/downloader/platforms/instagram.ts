@@ -46,14 +46,26 @@ async function parseDescHtmlRewriter(html: string): Promise<RssItem | null> {
 	let imgSrc: string | undefined;
 
 	await new HTMLRewriter()
-		.on('source', { element(el) { videoSrc ??= el.getAttribute('src') ?? undefined; } })
-		.on('video',  { element(el) { poster ??= el.getAttribute('poster') ?? undefined; } })
-		.on('img',    { element(el) { imgSrc ??= el.getAttribute('src') ?? undefined; } })
+		.on('source', {
+			element(el) {
+				videoSrc ??= el.getAttribute('src') ?? undefined;
+			},
+		})
+		.on('video', {
+			element(el) {
+				poster ??= el.getAttribute('poster') ?? undefined;
+			},
+		})
+		.on('img', {
+			element(el) {
+				imgSrc ??= el.getAttribute('src') ?? undefined;
+			},
+		})
 		.transform(new Response(html, { headers: { 'content-type': 'text/html' } }))
 		.arrayBuffer();
 
 	if (videoSrc && isUrl(videoSrc)) return { url: videoSrc, type: 'video', thumbnail: poster };
-	if (imgSrc && isUrl(imgSrc))     return { url: imgSrc,   type: 'photo' };
+	if (imgSrc && isUrl(imgSrc)) return { url: imgSrc, type: 'photo' };
 	return null;
 }
 
@@ -64,7 +76,7 @@ async function parseRssItems(xml: string): Promise<RssItem[]> {
 		const descRaw = itemXml.match(/<description>([\s\S]*?)<\/description>/)?.[1] ?? '';
 		// Two decode passes: XML entities first, then inner HTML attribute encoding
 		const desc = decodeEntities(decodeEntities(descRaw));
-		const item = parseDescHtmlRegex(desc) ?? await parseDescHtmlRewriter(desc);
+		const item = parseDescHtmlRegex(desc) ?? (await parseDescHtmlRewriter(desc));
 		if (item) items.push(item);
 	}
 	return items;
@@ -80,14 +92,14 @@ async function fetchStoriesFromServer(server: string, username: string): Promise
 	const items = await parseRssItems(xml);
 	if (items.length === 0) throw new Error('empty feed');
 	const media: MediaItem[] = items.map(({ url, type }) => ({ url, type }));
-	const thumbnail = items.find(i => i.thumbnail)?.thumbnail;
+	const thumbnail = items.find((i) => i.thumbnail)?.thumbnail;
 	return { status: 'success', media, caption: `<a href="https://www.instagram.com/${username}/">@${username}</a> • Stories`, thumbnail };
 }
 
 async function tryViaRSSHub(username: string): Promise<DownloaderResult | null> {
 	try {
 		// Race all servers in parallel — return first success, max wait = 10s
-		return await Promise.any(RSSHUB_SERVERS.map(server => fetchStoriesFromServer(server, username)));
+		return await Promise.any(RSSHUB_SERVERS.map((server) => fetchStoriesFromServer(server, username)));
 	} catch {
 		log('warn', 'instagram', 'All RSSHub servers failed for stories', { username });
 		return null;
@@ -105,7 +117,10 @@ export class InstagramProvider implements IDownloaderProvider {
 		if (username) {
 			const result = await tryViaRSSHub(username);
 			if (result) return result;
-			return { status: 'error', error: 'Could not fetch stories. The account may be private, have no active stories, or be unknown to the service.' };
+			return {
+				status: 'error',
+				error: 'Could not fetch stories. The account may be private, have no active stories, or be unknown to the service.',
+			};
 		}
 
 		// Non-story posts: btch AIO → btch igdl
@@ -122,7 +137,9 @@ export class InstagramProvider implements IDownloaderProvider {
 					return { status: 'success', media, caption: aioCaption, thumbnail: data.thumbnail };
 				}
 			}
-		} catch { /* fall through to igdl */ }
+		} catch {
+			/* fall through to igdl */
+		}
 
 		const res = await btchFetch('igdl', url, true);
 		const items = Array.isArray(res) ? res : Array.isArray(res.result) ? res.result : null;

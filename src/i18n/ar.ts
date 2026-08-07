@@ -80,7 +80,7 @@ export const ar: Translations = {
 	'input.btn_cancel_download': '✖️ إلغاء',
 	'input.stale_lock_done': '✅ اكتمل التحميل! أرسل الرابط مجدداً إذا كنت لا تزال بحاجة إليه.',
 	'input.no_action': 'لا يوجد إجراء نشط. أرسل رابط مدعوم لتحميل الوسائط.',
-	'input.fetching_post': 'جاري جلب معلومات المنشور...', 
+	'input.fetching_post': 'جاري جلب معلومات المنشور...',
 	'input.fetching_video': 'جاري جلب معلومات الفيديو...',
 	'input.choose_format': '<b>{platform}</b> — اختر الصيغة:',
 	'input.choose_quality': '<b>{platform}</b> — اختر الجودة:',
@@ -95,10 +95,11 @@ export const ar: Translations = {
 	'download.done': '✅ تم.',
 	'download.done_info': 'تم. ({info})',
 	'download.sent_album': 'تم إرسال {count} عناصر كألبوم.',
-	'download.failed': "❌ فشل التحميل. قد يكون الرابط خاصاً أو محذوفاً أو غير مدعوم.\n<code>{url}</code>\n<i>الخطأ: {error}</i>",
-	'download.processing_retry': "⏳ لا يزال يوتيوب يعالج هذا الفيديو — قد يستغرق ذلك لحظة في المرة الأولى.\n<code>{url}</code>\n<i>اضغط إعادة المحاولة بعد بضع ثوانٍ.</i>",
-	'download.no_media': "😕 لم يتم العثور على وسائط. قد يكون المنشور خاصاً أو محذوفاً.\n{url}",
-	'download.error': "⚠️ حدث خطأ ما. يرجى المحاولة مرة أخرى.\n{url}",
+	'download.failed': '❌ فشل التحميل. قد يكون الرابط خاصاً أو محذوفاً أو غير مدعوم.\n<code>{url}</code>\n<i>الخطأ: {error}</i>',
+	'download.processing_retry':
+		'⏳ لا يزال يوتيوب يعالج هذا الفيديو — قد يستغرق ذلك لحظة في المرة الأولى.\n<code>{url}</code>\n<i>اضغط إعادة المحاولة بعد بضع ثوانٍ.</i>',
+	'download.no_media': '😕 لم يتم العثور على وسائط. قد يكون المنشور خاصاً أو محذوفاً.\n{url}',
+	'download.error': '⚠️ حدث خطأ ما. يرجى المحاولة مرة أخرى.\n{url}',
 	'download.too_large': '😔 الملف أكبر من حد Telegram البالغ 50MB. استخدم الرابط أدناه للتحميل مباشرةً.',
 	'download.too_large_name': '😔 عذراً {firstName}، هذا الملف يتجاوز حد 50MB في Telegram. استخدم الرابط أدناه للتحميل مباشرةً.',
 	'download.too_large_limit': '😔 الملف أكبر من حد Telegram البالغ 50MB. استخدم الرابط أدناه للتحميل مباشرةً.',
@@ -111,10 +112,11 @@ export const ar: Translations = {
 	'download.btn_report_admin': '📬 الإبلاغ عن مشكلة',
 	'download.contact_admin': 'تحتاج مساعدة؟ انضم لقناة الدعم @dawo5d أو تواصل مع المشرف @Daw5d.',
 	'download.report_sent': '✅ تم إرسال التقرير للمشرف.',
-	'download.admin_error_report': '🚨 <b>تقرير تحميل فاشل</b>\n\n👤 المستخدم: {user}\n📱 المنصة: {platform}\n🔗 الرابط: <code>{url}</code>\n❌ الخطأ: <code>{error}</code>',
+	'download.admin_error_report':
+		'🚨 <b>تقرير تحميل فاشل</b>\n\n👤 المستخدم: {user}\n📱 المنصة: {platform}\n🔗 الرابط: <code>{url}</code>\n❌ الخطأ: <code>{error}</code>',
 
 	// --- callbacks ---
-	'callback.session_expired': "⏱ انتهت الجلسة. يرجى إرسال الرابط مجدداً للبدء من جديد.",
+	'callback.session_expired': '⏱ انتهت الجلسة. يرجى إرسال الرابط مجدداً للبدء من جديد.',
 	'callback.cancelled': 'تم الإلغاء.',
 
 	// --- subscription gate ---
@@ -128,8 +130,7 @@ export const ar: Translations = {
 	// --- subscription callbacks ---
 	'gate.access_granted_alert': '✅ تم منح الوصول!',
 	'gate.welcome_alert': '✅ أهلاً! يمكنك الآن استخدام البوت.',
-	'gate.subscribed':
-		'✅ *تم منح الوصول\\!*\n\nأنت مشترك في [{channel}](https://t.me/{channelName})\\.\nأرسل رابط لتحميل الوسائط\\.',
+	'gate.subscribed': '✅ *تم منح الوصول\\!*\n\nأنت مشترك في [{channel}](https://t.me/{channelName})\\.\nأرسل رابط لتحميل الوسائط\\.',
 	'gate.not_joined': '⚠️ يبدو أنك لم تنضم بعد. انضم للقناة أولاً، ثم اضغط تحقق.',
 	'gate.verify_failed': '⚠️ لم نتمكن من التحقق من اشتراكك. تأكد من انضمامك، ثم حاول مرة أخرى.',
 
@@ -141,14 +142,9 @@ export const ar: Translations = {
 	// --- admin commands ---
 	'setchannel.usage': 'الاستخدام: /setchannel @channelname',
 	'setchannel.bot_info_fail': '⚠️ تعذر جلب تفاصيل البوت. يرجى المحاولة مرة أخرى.',
-	'setchannel.not_admin':
-		'⚠️ أنا في *{channel}* لكنني لست مشرفاً هناك\\.\n\n' +
-		'يرجى ترقيتي لمشرف في القناة، ثم حاول مرة أخرى\\.',
+	'setchannel.not_admin': '⚠️ أنا في *{channel}* لكنني لست مشرفاً هناك\\.\n\n' + 'يرجى ترقيتي لمشرف في القناة، ثم حاول مرة أخرى\\.',
 	'setchannel.not_found':
-		'❌ تعذر العثور على القناة *{channel}* أو ليس لدي صلاحية الوصول\\.\n\n' +
-		'تأكد من:\n' +
-		'1\\. القناة موجودة\n' +
-		'2\\. أضفتني كمشرف',
+		'❌ تعذر العثور على القناة *{channel}* أو ليس لدي صلاحية الوصول\\.\n\n' + 'تأكد من:\n' + '1\\. القناة موجودة\n' + '2\\. أضفتني كمشرف',
 	'setchannel.success':
 		'✅ تم تعيين القناة المطلوبة [{channel}](https://t.me/{channelName})\\.\n\n' +
 		'سيحتاج المستخدمون للانضمام إليها بعد {freeUses} تحميلات مجانية\\.',
@@ -234,17 +230,18 @@ export const ar: Translations = {
 	'allowlist.empty': 'لا توجد نطاقات مسموح بها بعد.',
 	'allowlist.removed': '🗑 تم حذف <b>{hostname}</b> من القائمة البيضاء.',
 	'allowlist.not_found': '⚠️ النطاق غير موجود في القائمة البيضاء.',
-'input.blocked_domain': '🚫 هذا الرابط غير مسموح به. إذا كنت تعتقد أن هذا خطأ، اضغط الزر أدناه.',
+	'input.blocked_domain': '🚫 هذا الرابط غير مسموح به. إذا كنت تعتقد أن هذا خطأ، اضغط الزر أدناه.',
 	'input.blocked_domain_btn': '✋ الإبلاغ عن محتوى آمن',
 	'report.sent': '✅ تم إرسال بلاغك إلى المشرف.',
-	'report.admin_notify': '🚨 <b>بلاغ نطاق</b>\n\nالمستخدم <b>{user}</b> (ID: <code>{userId}</code>) يقول أن هذا الرابط حُظر بشكل خاطئ:\n<code>{url}</code>',
+	'report.admin_notify':
+		'🚨 <b>بلاغ نطاق</b>\n\nالمستخدم <b>{user}</b> (ID: <code>{userId}</code>) يقول أن هذا الرابط حُظر بشكل خاطئ:\n<code>{url}</code>',
 
 	// --- /broadcast command ---
 	'broadcast.prompt': '📣 اكتب الرسالة التي تريد بثها لجميع المستخدمين.\n\nاستخدم /cancel للإلغاء.',
 	'broadcast.preview': '📣 <b>معاينة البث:</b>\n\n{message}\n\n<i>هل تريد إرسال هذا لجميع المستخدمين؟</i>',
 	'broadcast.btn_confirm': '✅ إرسال',
 	'broadcast.btn_cancel': '❌ إلغاء',
-	'broadcast.sending': '📤 جاري الإرسال لجميع المستخدمين...', 
+	'broadcast.sending': '📤 جاري الإرسال لجميع المستخدمين...',
 	'broadcast.done': '✅ تم إرسال الرسالة إلى <b>{sent}</b> مستخدم. <b>{failed}</b> فشل.',
 	'broadcast.no_users': '⚠️ لا يوجد مستخدمون للبث إليهم بعد.',
 	'broadcast.cancelled': '❌ تم إلغاء البث.',
@@ -270,7 +267,8 @@ export const ar: Translations = {
 	'stats.platform_errors_header': '❌ <b>الأخطاء حسب المنصة:</b>',
 
 	// --- /story command ---
-	'story.prompt': '📸 أرسل اسم مستخدم Instagram أو رابط قصة.\n\nأمثلة:\n<code>dawo5d</code>\n<code>@dawo5d</code>\n<code>instagram.com/stories/dawo5d/</code>',
+	'story.prompt':
+		'📸 أرسل اسم مستخدم Instagram أو رابط قصة.\n\nأمثلة:\n<code>dawo5d</code>\n<code>@dawo5d</code>\n<code>instagram.com/stories/dawo5d/</code>',
 	'story.invalid': '⚠️ لم أتمكن من العثور على اسم مستخدم Instagram. أرسل اسمًا مثل <code>dawo5d</code> أو رابط قصة.',
 
 	// --- /footer command ---

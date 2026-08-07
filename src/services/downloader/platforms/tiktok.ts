@@ -19,18 +19,28 @@ export class TikTokProvider implements IDownloaderProvider {
 						.map((img: any) => ({ type: 'photo' as const, url: typeof img === 'string' ? img : img.url }));
 					if (photos.length) return { status: 'success', media: photos, caption, thumbnail };
 				}
-				if (mode === 'audio' && isUrl(data.music)) return { status: 'success', media: [{ type: 'audio', url: data.music }], caption, title: data.title, thumbnail };
+				if (mode === 'audio' && isUrl(data.music))
+					return { status: 'success', media: [{ type: 'audio', url: data.music }], caption, title: data.title, thumbnail };
 				if (isUrl(data.play)) {
-					return { status: 'success', media: [{ type: 'video', url: data.play }], caption, thumbnail, mp3Url: isUrl(data.music) ? data.music : undefined };
+					return {
+						status: 'success',
+						media: [{ type: 'video', url: data.play }],
+						caption,
+						thumbnail,
+						mp3Url: isUrl(data.music) ? data.music : undefined,
+					};
 				}
 			}
-		} catch { /* fall through to ttdl */ }
+		} catch {
+			/* fall through to ttdl */
+		}
 
 		const res = await btchFetch('ttdl', url, true);
 		const caption = buildCaption(res.title);
 		const thumb = isUrl(res.cover) ? res.cover : isUrl(res.thumbnail) ? res.thumbnail : undefined;
 		const audio = Array.isArray(res.audio) && isUrl(res.audio[0]) ? decodeTiktokDirectUrl(res.audio[0]) || res.audio[0] : undefined;
-		if (mode === 'audio' && audio) return { status: 'success', media: [{ type: 'audio', url: audio }], caption, title: res.title, thumbnail: thumb };
+		if (mode === 'audio' && audio)
+			return { status: 'success', media: [{ type: 'audio', url: audio }], caption, title: res.title, thumbnail: thumb };
 		if (Array.isArray(res.video) && isUrl(res.video[0])) {
 			const video = decodeTiktokDirectUrl(res.video[0]) || res.video[0];
 			return { status: 'success', media: [{ type: 'video', url: video }], caption, thumbnail: thumb, mp3Url: audio };
@@ -49,7 +59,9 @@ export class TikTokProvider implements IDownloaderProvider {
 					audioAvailable: isUrl(data.music),
 				};
 			}
-		} catch { return null; }
+		} catch {
+			return null;
+		}
 		return null;
 	}
 }

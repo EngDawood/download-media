@@ -24,8 +24,16 @@ const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
 const VALID_MODES: DownloaderMode[] = ['auto', 'audio', 'hd', 'sd'];
 
 const SUPPORTED_PLATFORMS = [
-	'TikTok', 'Instagram', 'Twitter', 'YouTube', 'Facebook',
-	'Threads', 'SoundCloud', 'Spotify', 'Pinterest', 'GitHub',
+	'TikTok',
+	'Instagram',
+	'Twitter',
+	'YouTube',
+	'Facebook',
+	'Threads',
+	'SoundCloud',
+	'Spotify',
+	'Pinterest',
+	'GitHub',
 ];
 
 const INSTRUCTIONS =
@@ -129,7 +137,7 @@ function toolResult(payload: unknown) {
  * balloon into a huge JSON object, and buffer-only items have no link to hand to a client.
  */
 function toPublicMedia(media: MediaItem[] = []) {
-	const linkable = media.filter(item => typeof item.url === 'string' && item.url.length > 0);
+	const linkable = media.filter((item) => typeof item.url === 'string' && item.url.length > 0);
 	const items = linkable.map(({ type, url, quality, filesize }) => ({
 		type,
 		url,
@@ -172,9 +180,7 @@ async function callDownloadMedia(args: Record<string, unknown>, env: Env) {
 	if (resolved.error) return toolError(resolved.error);
 	const { url, platform } = resolved.detected!;
 
-	const mode = (VALID_MODES as string[]).includes(String(args.mode))
-		? (args.mode as DownloaderMode)
-		: 'auto';
+	const mode = (VALID_MODES as string[]).includes(String(args.mode)) ? (args.mode as DownloaderMode) : 'auto';
 
 	const result = await downloadMedia(url, mode, platform, env);
 	if (result.status !== 'success' || !result.media?.length) {

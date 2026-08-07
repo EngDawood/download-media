@@ -17,12 +17,18 @@ type TelegraphContent = (string | TelegraphNode)[];
  */
 function blockTag(type: string): string {
 	switch (type) {
-		case 'header-one':   return 'h3';
-		case 'header-two':   return 'h4';
-		case 'blockquote':   return 'blockquote';
-		case 'unordered-list-item': return 'li';
-		case 'ordered-list-item':   return 'li';
-		default:             return 'p';
+		case 'header-one':
+			return 'h3';
+		case 'header-two':
+			return 'h4';
+		case 'blockquote':
+			return 'blockquote';
+		case 'unordered-list-item':
+			return 'li';
+		case 'ordered-list-item':
+			return 'li';
+		default:
+			return 'p';
 	}
 }
 
@@ -63,12 +69,7 @@ function buildInlineChildren(
 	while (i < text.length) {
 		const ann = chars[i];
 		let j = i + 1;
-		while (
-			j < text.length &&
-			chars[j].bold === ann.bold &&
-			chars[j].italic === ann.italic &&
-			chars[j].href === ann.href
-		) j++;
+		while (j < text.length && chars[j].bold === ann.bold && chars[j].italic === ann.italic && chars[j].href === ann.href) j++;
 
 		const slice = text.slice(i, j);
 		i = j;
@@ -92,11 +93,7 @@ function buildInlineChildren(
  * Convert FxTwitter article content blocks to Telegraph nodes.
  * Handles: unstyled, header-one/two, atomic (inline images), links, bold/italic.
  */
-function blocksToTelegraph(
-	blocks: any[],
-	entityMap: Record<string, any>,
-	mediaEntities: any[],
-): TelegraphContent {
+function blocksToTelegraph(blocks: any[], entityMap: Record<string, any>, mediaEntities: any[]): TelegraphContent {
 	// Build a lookup: mediaId → original_img_url
 	const mediaById: Record<string, string> = {};
 	for (const m of mediaEntities ?? []) {
@@ -181,9 +178,7 @@ function tweetToTelegraphNodes(tweet: any, index: number): TelegraphContent {
 	// Link back to this specific tweet
 	nodes.push({
 		tag: 'p',
-		children: [
-			{ tag: 'a', attrs: { href: tweet.url }, children: ['🔗 View tweet'] },
-		],
+		children: [{ tag: 'a', attrs: { href: tweet.url }, children: ['🔗 View tweet'] }],
 	});
 
 	return nodes;
@@ -193,10 +188,7 @@ function tweetToTelegraphNodes(tweet: any, index: number): TelegraphContent {
  * Publish a thread (array of FxTwitter tweet objects, oldest first) to Telegraph.
  * Returns the Telegraph page URL, or null on failure.
  */
-export async function publishThreadToTelegraph(
-	tweets: any[],
-	accessToken: string,
-): Promise<string | null> {
+export async function publishThreadToTelegraph(tweets: any[], accessToken: string): Promise<string | null> {
 	if (tweets.length === 0) return null;
 	try {
 		const first = tweets[0];
@@ -204,9 +196,7 @@ export async function publishThreadToTelegraph(
 
 		// Title: first tweet's text (truncated) or fallback
 		const rawTitle = first.text?.trim() || `Thread by @${author?.screen_name}`;
-		const title = rawTitle.length > 100
-			? rawTitle.slice(0, 97) + '…'
-			: rawTitle;
+		const title = rawTitle.length > 100 ? rawTitle.slice(0, 97) + '…' : rawTitle;
 
 		// Build content
 		const content: TelegraphContent = [
@@ -286,9 +276,7 @@ export async function publishArticleToTelegraph(
 		// Author attribution line linking back to original tweet
 		content.push({
 			tag: 'p',
-			children: [
-				{ tag: 'a', attrs: { href: tweetUrl }, children: [`@${author.screenName} on X`] },
-			],
+			children: [{ tag: 'a', attrs: { href: tweetUrl }, children: [`@${author.screenName} on X`] }],
 		});
 
 		content.push(...blocksToTelegraph(blocks, entityMap, mediaEntities));

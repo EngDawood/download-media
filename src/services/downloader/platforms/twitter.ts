@@ -16,11 +16,7 @@ function extractTweetId(url: string): string | null {
 /**
  * Handle tweet.article — publishes to Telegraph and returns cover image + link.
  */
-async function handleArticle(
-	tweet: any,
-	tweetUrl: string,
-	accessToken: string,
-): Promise<DownloaderResult | null> {
+async function handleArticle(tweet: any, tweetUrl: string, accessToken: string): Promise<DownloaderResult | null> {
 	const article = tweet.article;
 	if (!article) return null;
 
@@ -47,7 +43,7 @@ async function handleArticle(
 
 	return {
 		status: 'success',
-		media: coverUrl ? [{ type: 'photo', url: coverUrl }] : (avatar ? [{ type: 'photo', url: avatar }] : []),
+		media: coverUrl ? [{ type: 'photo', url: coverUrl }] : avatar ? [{ type: 'photo', url: avatar }] : [],
 		caption,
 		thumbnail,
 	};
@@ -60,8 +56,7 @@ async function handleArticle(
  * is replying to themselves: replying_to === author.screen_name.
  */
 function isThreadTweet(tweet: any): boolean {
-	return !!tweet.replying_to &&
-		tweet.replying_to.toLowerCase() === tweet.author?.screen_name?.toLowerCase();
+	return !!tweet.replying_to && tweet.replying_to.toLowerCase() === tweet.author?.screen_name?.toLowerCase();
 }
 
 /**
@@ -152,7 +147,10 @@ async function tryViaFxTwitter(url: string, accessToken: string): Promise<Downlo
 				let coverUrl: string | undefined;
 				for (const t of threadTweets) {
 					const photo = t.media?.photos?.[0]?.url;
-					if (photo) { coverUrl = photo; break; }
+					if (photo) {
+						coverUrl = photo;
+						break;
+					}
 				}
 
 				const captionLines: string[] = [];
@@ -181,7 +179,7 @@ async function tryViaFxTwitter(url: string, accessToken: string): Promise<Downlo
 		if (Array.isArray(tweet.media?.all) && tweet.media.all.length > 0) {
 			for (const m of tweet.media.all) {
 				if (isUrl(m.url)) {
-					media.push({ type: (m.type === 'video' || m.type === 'gif') ? 'video' : 'photo', url: m.url });
+					media.push({ type: m.type === 'video' || m.type === 'gif' ? 'video' : 'photo', url: m.url });
 				}
 			}
 			if (media.length > 0) {
@@ -233,7 +231,7 @@ async function tryViaAIO(url: string): Promise<DownloaderResult | null> {
 	try {
 		const result = await tryAIO(url);
 		if (!result?.media?.length) return null;
-		const videos = result.media.filter(m => m.type === 'video');
+		const videos = result.media.filter((m) => m.type === 'video');
 		return videos.length > 0 ? { ...result, media: [videos[0]] } : result;
 	} catch (e) {
 		log('warn', 'downloader:Twitter', 'btch AIO failed', { error: (e as Error).message });
@@ -291,10 +289,9 @@ export class TwitterProvider implements IDownloaderProvider {
 	 */
 	async download(url: string, _mode: DownloaderMode): Promise<DownloaderResult> {
 		return (
-			await tryViaFxTwitter(url, this.accessToken) ??
-			await tryViaAIO(url) ??
-			await tryViaBtch(url) ??
-			{ status: 'error', error: 'No Twitter media found' }
+			(await tryViaFxTwitter(url, this.accessToken)) ??
+			(await tryViaAIO(url)) ??
+			(await tryViaBtch(url)) ?? { status: 'error', error: 'No Twitter media found' }
 		);
 	}
 }

@@ -43,7 +43,7 @@ export async function sendWithCaption(
 	bot: Bot,
 	chatId: number,
 	caption: string | undefined,
-	disableNotification: boolean
+	disableNotification: boolean,
 ): Promise<void> {
 	const text = caption || '';
 	if (text.length <= MEDIA_CAPTION_LIMIT) {
@@ -100,7 +100,7 @@ async function sendTextMessage(
 	chatId: number,
 	message: TelegramMediaMessage,
 	disableNotification: boolean,
-	settings?: FormatSettings
+	settings?: FormatSettings,
 ): Promise<void> {
 	await bot.api.sendMessage(chatId, message.caption, {
 		parse_mode: 'HTML',
@@ -109,48 +109,50 @@ async function sendTextMessage(
 	});
 }
 
-async function sendPhotoMessage(
-	bot: Bot,
-	chatId: number,
-	message: TelegramMediaMessage,
-	disableNotification: boolean,
-): Promise<void> {
+async function sendPhotoMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
 	if (!message.url) throw new Error('Photo URL is missing');
 	const url = message.url;
 	try {
 		await sendWithCaption(
 			(caption) => bot.api.sendPhoto(chatId, url, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
 		const file = await downloadAsInputFile(url, 'photo.jpg');
 		await sendWithCaption(
 			(caption) => bot.api.sendPhoto(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 	}
 }
 
-async function sendVideoMessage(
-	bot: Bot,
-	chatId: number,
-	message: TelegramMediaMessage,
-	disableNotification: boolean,
-): Promise<void> {
+async function sendVideoMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
 	if (!message.url) throw new Error('Video URL is missing');
 	const url = message.url;
 	try {
 		await sendWithCaption(
 			(caption) => bot.api.sendVideo(chatId, url, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
 		const file = await downloadAsInputFile(url, 'video.mp4');
 		await sendWithCaption(
 			(caption) => bot.api.sendVideo(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 	}
 }
@@ -169,12 +171,7 @@ export function audioFilename(title?: string): string {
 	return base ? `${base}.mp3` : 'audio.mp3';
 }
 
-async function sendAudioMessage(
-	bot: Bot,
-	chatId: number,
-	message: TelegramMediaMessage,
-	disableNotification: boolean,
-): Promise<void> {
+async function sendAudioMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
 	if (!message.url) throw new Error('Audio URL is missing');
 	const url = message.url;
 	// Telegram labels the track with `title` when present; without it the raw
@@ -183,30 +180,34 @@ async function sendAudioMessage(
 	try {
 		await sendWithCaption(
 			(caption) => bot.api.sendAudio(chatId, url, { caption, title, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
 		const file = await downloadAsInputFile(url, message.filename || audioFilename(title));
 		await sendWithCaption(
 			(caption) => bot.api.sendAudio(chatId, file, { caption, title, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 	}
 }
 
-async function sendDocumentMessage(
-	bot: Bot,
-	chatId: number,
-	message: TelegramMediaMessage,
-	disableNotification: boolean,
-): Promise<void> {
+async function sendDocumentMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
 	// Buffer-based document (e.g., GitHub folder zip built in-memory)
 	if (message.buffer) {
 		const file = new InputFile(message.buffer, message.filename || 'document');
 		await sendWithCaption(
 			(caption) => bot.api.sendDocument(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 		return;
 	}
@@ -222,9 +223,7 @@ async function sendDocumentMessage(
 		const parts = parsedUrl.pathname.split('/').filter(Boolean);
 		const repo = parts[1] ?? 'repo';
 		const refParts = parts.slice(3); // after /zip/
-		const ref = refParts[0] === 'refs'
-			? refParts[refParts.length - 1]
-			: (refParts[0]?.slice(0, 7) ?? 'main');
+		const ref = refParts[0] === 'refs' ? refParts[refParts.length - 1] : (refParts[0]?.slice(0, 7) ?? 'main');
 		filename = `${repo}-${ref}.zip`;
 		forceDownload = true;
 	} else if (parsedUrl.hostname === 'github.com' && parsedUrl.pathname.includes('/archive/')) {
@@ -248,31 +247,35 @@ async function sendDocumentMessage(
 		const file = await downloadAsInputFile(url, filename);
 		await sendWithCaption(
 			(caption) => bot.api.sendDocument(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 		return;
 	}
 	try {
 		await sendWithCaption(
 			(caption) => bot.api.sendDocument(chatId, url, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
 		const file = await downloadAsInputFile(url, filename);
 		await sendWithCaption(
 			(caption) => bot.api.sendDocument(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot, chatId, message.caption, disableNotification
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
 		);
 	}
 }
 
-async function sendMediaGroupMessage(
-	bot: Bot,
-	chatId: number,
-	message: TelegramMediaMessage,
-	disableNotification: boolean
-): Promise<void> {
+async function sendMediaGroupMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
 	if (!message.media || message.media.length === 0) {
 		console.warn(`[sendMedia] mediagroup message has no media items for chat ${chatId}, skipping`);
 		return;
@@ -290,10 +293,8 @@ async function sendMediaGroupMessage(
 				source = await downloadAsInputFile(item.media, `media.${ext}`);
 			}
 			const opts = { caption: item.caption, parse_mode: item.parse_mode as 'HTML' | undefined };
-			return item.type === 'video'
-				? InputMediaBuilder.video(source, opts)
-				: InputMediaBuilder.photo(source, opts);
-		})
+			return item.type === 'video' ? InputMediaBuilder.video(source, opts) : InputMediaBuilder.photo(source, opts);
+		}),
 	);
 
 	try {
@@ -308,10 +309,8 @@ async function sendMediaGroupMessage(
 				const ext = item.type === 'video' ? 'mp4' : 'jpg';
 				const file = await downloadAsInputFile(item.media, `media.${ext}`);
 				const opts = { caption: item.caption, parse_mode: item.parse_mode as 'HTML' | undefined };
-				return item.type === 'video'
-					? InputMediaBuilder.video(file, opts)
-					: InputMediaBuilder.photo(file, opts);
-			})
+				return item.type === 'video' ? InputMediaBuilder.video(file, opts) : InputMediaBuilder.photo(file, opts);
+			}),
 		);
 		await bot.api.sendMediaGroup(chatId, uploadedMedia, {
 			disable_notification: disableNotification,

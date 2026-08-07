@@ -19,22 +19,9 @@ export type { DownloaderMode, MediaItem, DownloaderResult };
 export { formatFileSize };
 
 // ─── Re-export helpers consumed by callbacks ─────────────────────────────────
-export {
-	isBtchLimitError,
-	btchFetch,
-} from './downloader/btch-client';
-export {
-	parseAioGallery,
-	parseLinksSection,
-	tryAIO,
-} from './downloader/aio-parser';
-export {
-	isUrl,
-	detectMediaType,
-	detectTypeFromJwtUrl,
-	buildCaption,
-	decodeTiktokDirectUrl,
-} from './downloader/media-helpers';
+export { isBtchLimitError, btchFetch } from './downloader/btch-client';
+export { parseAioGallery, parseLinksSection, tryAIO } from './downloader/aio-parser';
+export { isUrl, detectMediaType, detectTypeFromJwtUrl, buildCaption, decodeTiktokDirectUrl } from './downloader/media-helpers';
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
@@ -85,12 +72,10 @@ export async function downloadMedia(
 /**
  * Fetch TikTok video info for the picker UI (caption, image post flag, audio availability).
  */
-export async function fetchTikTokInfo(
-	url: string,
-): Promise<{ caption: string; isImagePost: boolean; audioAvailable: boolean } | null> {
+export async function fetchTikTokInfo(url: string): Promise<{ caption: string; isImagePost: boolean; audioAvailable: boolean } | null> {
 	const registry = buildRegistry('');
 	const provider = registry.findForUrl(url) as TikTokProvider | null;
-	return provider?.fetchInfo?.(url) as Promise<{ caption: string; isImagePost: boolean; audioAvailable: boolean } | null> ?? null;
+	return (provider?.fetchInfo?.(url) as Promise<{ caption: string; isImagePost: boolean; audioAvailable: boolean } | null>) ?? null;
 }
 
 /**
@@ -99,7 +84,7 @@ export async function fetchTikTokInfo(
 export async function fetchFacebookInfo(url: string): Promise<{ hdLabel: string; sdLabel: string } | null> {
 	const registry = buildRegistry('');
 	const provider = registry.findForUrl(url) as FacebookProvider | null;
-	return provider?.fetchInfo?.(url) as Promise<{ hdLabel: string; sdLabel: string } | null> ?? null;
+	return (provider?.fetchInfo?.(url) as Promise<{ hdLabel: string; sdLabel: string } | null>) ?? null;
 }
 
 // ─── AIO catch-all (platforms not matched by registry) ───────────────────────

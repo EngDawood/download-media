@@ -64,7 +64,13 @@ export function createBot(env: Env): Bot {
 		}
 		// Allow subscription verify, lang selection, and MP3 button for all users
 		const cbData = ctx.callbackQuery?.data;
-		if (cbData === 'subscription:verify' || cbData?.startsWith('lang:') || cbData === 'dl:yt:mp3' || cbData === 'report:issue' || cbData === 'dl:retry') {
+		if (
+			cbData === 'subscription:verify' ||
+			cbData?.startsWith('lang:') ||
+			cbData === 'dl:yt:mp3' ||
+			cbData === 'report:issue' ||
+			cbData === 'dl:retry'
+		) {
 			await next();
 			return;
 		}

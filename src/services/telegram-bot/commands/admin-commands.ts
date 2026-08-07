@@ -32,27 +32,20 @@ export function registerAdminCommands(bot: Bot, env: Env, db: D1Database): void 
 		try {
 			const member = await bot.api.getChatMember(channelUsername, botId);
 			if (!ADMIN_STATUSES.includes(member.status)) {
-				await ctx.reply(
-					t(locale, 'setchannel.not_admin', { channel: channelUsername }),
-					{ parse_mode: 'MarkdownV2' },
-				);
+				await ctx.reply(t(locale, 'setchannel.not_admin', { channel: channelUsername }), { parse_mode: 'MarkdownV2' });
 				return;
 			}
 		} catch {
-			await ctx.reply(
-				t(locale, 'setchannel.not_found', { channel: channelUsername }),
-				{ parse_mode: 'MarkdownV2' },
-			);
+			await ctx.reply(t(locale, 'setchannel.not_found', { channel: channelUsername }), { parse_mode: 'MarkdownV2' });
 			return;
 		}
 
 		await setConfig(db, KV_KEY_REQUIRED_CHANNEL, channelUsername);
 
 		const channelName = channelUsername.replace('@', '');
-		await ctx.reply(
-			t(locale, 'setchannel.success', { channel: channelUsername, channelName, freeUses: FREE_USES_BEFORE_GATE }),
-			{ parse_mode: 'MarkdownV2' },
-		);
+		await ctx.reply(t(locale, 'setchannel.success', { channel: channelUsername, channelName, freeUses: FREE_USES_BEFORE_GATE }), {
+			parse_mode: 'MarkdownV2',
+		});
 	});
 
 	bot.command('setfreeuses', async (ctx) => {

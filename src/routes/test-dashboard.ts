@@ -47,11 +47,14 @@ export async function handlePostTestUrls(c: Context) {
 	} catch (err: unknown) {
 		const msg = err instanceof Error ? err.message : String(err);
 		console.error('[Dashboard API] Error writing urls.json:', msg);
-		return c.json({ 
-			success: false, 
-			error: msg || 'Write permission denied', 
-			message: 'Could not write to disk. Changes saved to browser storage only.' 
-		}, 500);
+		return c.json(
+			{
+				success: false,
+				error: msg || 'Write permission denied',
+				message: 'Could not write to disk. Changes saved to browser storage only.',
+			},
+			500,
+		);
 	}
 }
 

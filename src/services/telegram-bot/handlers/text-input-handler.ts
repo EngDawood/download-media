@@ -41,12 +41,13 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 			const userState = await getAdminState(db, userId);
 			if (userState?.action === 'awaiting_story_username') {
 				await clearAdminState(db, userId);
-				const storyMatch = text.match(/instagram\.com\/stories\/([^/?]+)/i)
-					?? text.match(/instagram\.com\/([^/?]+)/i);
+				const storyMatch = text.match(/instagram\.com\/stories\/([^/?]+)/i) ?? text.match(/instagram\.com\/([^/?]+)/i);
 				const cleaned = text.startsWith('@') ? text.slice(1).trim() : text.trim();
 				const username = storyMatch
-					? (!['p', 'reel', 'tv', 'explore', 'accounts', 'stories'].includes(storyMatch[1]) ? storyMatch[1] : null) ?? storyMatch[1]
-					: /^[a-zA-Z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
+					? ((!['p', 'reel', 'tv', 'explore', 'accounts', 'stories'].includes(storyMatch[1]) ? storyMatch[1] : null) ?? storyMatch[1])
+					: /^[a-zA-Z0-9._]{1,30}$/.test(cleaned)
+						? cleaned
+						: null;
 				if (!username) {
 					await ctx.reply(t(locale, 'story.invalid'), { parse_mode: 'HTML' });
 					return;
@@ -54,10 +55,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				const isAdmin = userId === adminId;
 				const storyUrl = `https://www.instagram.com/stories/${username}/`;
 				const userLink = `<a href="https://www.instagram.com/${username}/">@${username}</a>`;
-				const statusMsg = await ctx.reply(
-					t(locale, 'download.status_stories', { userLink }),
-					{ parse_mode: 'HTML' },
-				);
+				const statusMsg = await ctx.reply(t(locale, 'download.status_stories', { userLink }), { parse_mode: 'HTML' });
 				await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
 					db,
 					adminId: isAdmin ? adminId : undefined,
@@ -107,10 +105,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 			if (igStoriesTarget) {
 				const storyUrl = `https://www.instagram.com/stories/${igStoriesTarget}/`;
 				const userLink = `<a href="https://www.instagram.com/${igStoriesTarget}/">@${igStoriesTarget}</a>`;
-				const statusMsg = await ctx.reply(
-					t(locale, 'download.status_stories', { userLink }),
-					{ parse_mode: 'HTML' },
-				);
+				const statusMsg = await ctx.reply(t(locale, 'download.status_stories', { userLink }), { parse_mode: 'HTML' });
 				await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
 					db,
 					adminId: isAdmin ? adminId : undefined,
@@ -132,21 +127,43 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				const directMediaType = getDirectFileMediaType(url);
 				if (directMediaType) {
 					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, {
-						guestMode: true, db, analytics: env.ANALYTICS, userId, firstName, username, locale, mediaType: directMediaType, telegraphToken,
+						guestMode: true,
+						db,
+						analytics: env.ANALYTICS,
+						userId,
+						firstName,
+						username,
+						locale,
+						mediaType: directMediaType,
+						telegraphToken,
 					});
 					return;
 				}
 
-				const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
+				const mode = platform === 'SoundCloud' || platform === 'Spotify' ? 'audio' : 'auto';
 				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, {
-					guestMode: true, db, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+					guestMode: true,
+					db,
+					analytics: env.ANALYTICS,
+					userId,
+					firstName,
+					username,
+					locale,
+					telegraphToken,
 				});
 				return;
 			}
 
 			if (platform === 'YouTube') {
 				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, undefined, {
-					db, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+					db,
+					adminId,
+					analytics: env.ANALYTICS,
+					userId,
+					firstName,
+					username,
+					locale,
+					telegraphToken,
 				});
 				return;
 			}
@@ -154,7 +171,14 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 			if (platform === 'TikTok') {
 				const statusMsg = await ctx.reply(t(locale, 'input.fetching_post'));
 				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, {
-					db, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+					db,
+					adminId,
+					analytics: env.ANALYTICS,
+					userId,
+					firstName,
+					username,
+					locale,
+					telegraphToken,
 				});
 				return;
 			}
@@ -163,22 +187,25 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				const statusMsg = await ctx.reply(t(locale, 'input.fetching_video'));
 				const fbInfo = await fetchFacebookInfo(url);
 				if (fbInfo) {
-					const keyboard = new InlineKeyboard()
-						.text(fbInfo.hdLabel, 'dl:hd')
-						.text(fbInfo.sdLabel, 'dl:sd');
-					await bot.api.editMessageText(
-						ctx.chat!.id,
-						statusMsg.message_id,
-						t(locale, 'input.choose_quality', { platform }),
-						{ parse_mode: 'HTML', reply_markup: keyboard },
-					);
+					const keyboard = new InlineKeyboard().text(fbInfo.hdLabel, 'dl:hd').text(fbInfo.sdLabel, 'dl:sd');
+					await bot.api.editMessageText(ctx.chat!.id, statusMsg.message_id, t(locale, 'input.choose_quality', { platform }), {
+						parse_mode: 'HTML',
+						reply_markup: keyboard,
+					});
 					await setAdminState(db, adminId, {
 						action: 'downloading_media',
 						context: { downloadUrl: url, downloadPlatform: platform },
 					});
 				} else {
 					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, {
-						db, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+						db,
+						adminId,
+						analytics: env.ANALYTICS,
+						userId,
+						firstName,
+						username,
+						locale,
+						telegraphToken,
 					});
 				}
 				return;
@@ -187,14 +214,29 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 			const directMediaType = getDirectFileMediaType(url);
 			if (directMediaType) {
 				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, {
-					db, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, mediaType: directMediaType, telegraphToken,
+					db,
+					adminId,
+					analytics: env.ANALYTICS,
+					userId,
+					firstName,
+					username,
+					locale,
+					mediaType: directMediaType,
+					telegraphToken,
 				});
 				return;
 			}
 
-			const mode = (platform === 'SoundCloud' || platform === 'Spotify') ? 'audio' : 'auto';
+			const mode = platform === 'SoundCloud' || platform === 'Spotify' ? 'audio' : 'auto';
 			await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, {
-				db, adminId, analytics: env.ANALYTICS, userId, firstName, username, locale, telegraphToken,
+				db,
+				adminId,
+				analytics: env.ANALYTICS,
+				userId,
+				firstName,
+				username,
+				locale,
+				telegraphToken,
 			});
 			return;
 		}
@@ -210,10 +252,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 			const keyboard = new InlineKeyboard()
 				.text(t(locale, 'broadcast.btn_confirm'), 'broadcast:confirm')
 				.text(t(locale, 'broadcast.btn_cancel'), 'broadcast:cancel');
-			await ctx.reply(
-				t(locale, 'broadcast.preview', { message: text }),
-				{ parse_mode: 'HTML', reply_markup: keyboard },
-			);
+			await ctx.reply(t(locale, 'broadcast.preview', { message: text }), { parse_mode: 'HTML', reply_markup: keyboard });
 			return;
 		}
 

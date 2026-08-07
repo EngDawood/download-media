@@ -30,7 +30,16 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 			await clearAdminState(db, stateOwner);
 			await ctx.answerCallbackQuery();
 			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, {
-				db, analytics: env.ANALYTICS, userId, mediaType: 'audio', mediaTitle, firstName, username, locale, originalUrl: downloadUrl, telegraphToken,
+				db,
+				analytics: env.ANALYTICS,
+				userId,
+				mediaType: 'audio',
+				mediaTitle,
+				firstName,
+				username,
+				locale,
+				originalUrl: downloadUrl,
+				telegraphToken,
 			});
 			return;
 		}
@@ -60,11 +69,21 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 			mode = 'auto';
 		} else if (action.startsWith('yt:') && qualities) {
 			const selectedQuality = action.slice(3);
-			const match = qualities.find(q => q.quality === selectedQuality);
+			const match = qualities.find((q) => q.quality === selectedQuality);
 			if (match) {
-				const mediaType = selectedQuality === 'Audio' ? 'audio' as const : 'video' as const;
+				const mediaType = selectedQuality === 'Audio' ? ('audio' as const) : ('video' as const);
 				await downloadAndSendMedia(bot, chatId, match.url, downloadPlatform || 'YouTube', 'auto', msgId, true, {
-					db, adminId, analytics: env.ANALYTICS, userId: adminId, mediaType, mediaTitle, firstName, username, locale, originalUrl: downloadUrl, telegraphToken,
+					db,
+					adminId,
+					analytics: env.ANALYTICS,
+					userId: adminId,
+					mediaType,
+					mediaTitle,
+					firstName,
+					username,
+					locale,
+					originalUrl: downloadUrl,
+					telegraphToken,
 				});
 				return;
 			}
@@ -72,7 +91,14 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 		}
 
 		await downloadAndSendMedia(bot, chatId, downloadUrl, downloadPlatform || 'Unknown', mode, msgId, undefined, {
-			db, adminId, analytics: env.ANALYTICS, userId: adminId, firstName, username, locale, telegraphToken,
+			db,
+			adminId,
+			analytics: env.ANALYTICS,
+			userId: adminId,
+			firstName,
+			username,
+			locale,
+			telegraphToken,
 		});
 	});
 }

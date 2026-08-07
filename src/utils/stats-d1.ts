@@ -60,34 +60,32 @@ function getTodayDate(): string {
 	return `${yyyy}-${mm}-${dd}`;
 }
 
-export async function incrementLinkStats(
-	db: D1Database,
-	opts: { userId: number; firstName: string; platform: string },
-): Promise<void> {
+export async function incrementLinkStats(db: D1Database, opts: { userId: number; firstName: string; platform: string }): Promise<void> {
 	const now = Date.now();
 	const todayDate = getTodayDate();
 	const expiresAt = now + DAY_TTL_MS;
 
-	const existing = await db
-		.prepare(`SELECT 1 FROM user_stats WHERE user_id = ?`)
-		.bind(opts.userId)
-		.first();
+	const existing = await db.prepare(`SELECT 1 FROM user_stats WHERE user_id = ?`).bind(opts.userId).first();
 	const isNew = !existing;
 
 	await db.batch([
-		db.prepare(
-			`INSERT INTO user_stats (user_id, first_name, count, failures, platforms, last_seen, first_seen)
+		db
+			.prepare(
+				`INSERT INTO user_stats (user_id, first_name, count, failures, platforms, last_seen, first_seen)
 			 VALUES (?, ?, 0, 0, '{}', ?, ?)
 			 ON CONFLICT(user_id) DO UPDATE SET first_name = excluded.first_name`,
-		).bind(opts.userId, opts.firstName, now, now),
+			)
+			.bind(opts.userId, opts.firstName, now, now),
 		db.prepare(
 			`UPDATE global_stats SET total_links = total_links + 1${isNew ? ', total_unique_users = total_unique_users + 1' : ''} WHERE id = 1`,
 		),
-		db.prepare(
-			`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
+		db
+			.prepare(
+				`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
 			 VALUES (?, 1, 0, 0, 0, 0, ?)
 			 ON CONFLICT(date) DO UPDATE SET links = links + 1`,
-		).bind(todayDate, expiresAt),
+			)
+			.bind(todayDate, expiresAt),
 	]);
 }
 
@@ -102,8 +100,9 @@ export async function incrementSuccessStats(
 
 	// All updates are atomic SQL — no read-modify-write, safe under concurrency.
 	await db.batch([
-		db.prepare(
-			`INSERT INTO user_stats (user_id, first_name, username, count, failures, platforms, last_seen, first_seen)
+		db
+			.prepare(
+				`INSERT INTO user_stats (user_id, first_name, username, count, failures, platforms, last_seen, first_seen)
 			 VALUES (?, ?, ?, 1, 0, json_object(?, 1), ?, ?)
 			 ON CONFLICT(user_id) DO UPDATE SET
 			   count = count + 1,
@@ -114,25 +113,32 @@ export async function incrementSuccessStats(
 			     COALESCE(CAST(json_extract(platforms, '$.' || ?) AS INTEGER), 0) + 1
 			   ),
 			   last_seen = excluded.last_seen`,
-		).bind(opts.userId, opts.firstName, opts.username ?? null, opts.platform, now, now, opts.platform, opts.platform),
-		db.prepare(
-			`INSERT INTO platform_counts (scope, platform, count) VALUES ('global', ?, 1)
+			)
+			.bind(opts.userId, opts.firstName, opts.username ?? null, opts.platform, now, now, opts.platform, opts.platform),
+		db
+			.prepare(
+				`INSERT INTO platform_counts (scope, platform, count) VALUES ('global', ?, 1)
 			 ON CONFLICT(scope, platform) DO UPDATE SET count = count + 1`,
-		).bind(opts.platform),
-		db.prepare(
-			`UPDATE global_stats SET
+			)
+			.bind(opts.platform),
+		db
+			.prepare(
+				`UPDATE global_stats SET
 			   total_success = total_success + 1,
 			   hourly_distribution = json_set(
 			     hourly_distribution, '$[' || ? || ']',
 			     CAST(json_extract(hourly_distribution, '$[' || ? || ']') AS INTEGER) + 1
 			   )
 			 WHERE id = 1`,
-		).bind(hour, hour),
-		db.prepare(
-			`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
+			)
+			.bind(hour, hour),
+		db
+			.prepare(
+				`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
 			 VALUES (?, 0, 1, 0, 0, 0, ?)
 			 ON CONFLICT(date) DO UPDATE SET success = success + 1`,
-		).bind(todayDate, expiresAt),
+			)
+			.bind(todayDate, expiresAt),
 	]);
 }
 
@@ -146,24 +152,28 @@ export async function incrementErrorStats(
 
 	const stmts: D1PreparedStatement[] = [
 		db.prepare(`UPDATE global_stats SET total_errors = total_errors + 1 WHERE id = 1`),
-		db.prepare(
-			`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
+		db
+			.prepare(
+				`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
 			 VALUES (?, 0, 0, 1, 0, 0, ?)
 			 ON CONFLICT(date) DO UPDATE SET errors = errors + 1`,
-		).bind(todayDate, expiresAt),
+			)
+			.bind(todayDate, expiresAt),
 	];
 
 	if (opts?.userId) {
 		stmts.push(
-			db.prepare(
-				`INSERT INTO user_stats (user_id, first_name, username, count, failures, platforms, last_seen, first_seen)
+			db
+				.prepare(
+					`INSERT INTO user_stats (user_id, first_name, username, count, failures, platforms, last_seen, first_seen)
 				 VALUES (?, ?, ?, 0, 1, '{}', ?, ?)
 				 ON CONFLICT(user_id) DO UPDATE SET
 				   failures = failures + 1,
 				   first_name = excluded.first_name,
 				   username = COALESCE(excluded.username, username),
 				   last_seen = excluded.last_seen`,
-			).bind(opts.userId, opts.firstName ?? '', opts.username ?? null, now, now),
+				)
+				.bind(opts.userId, opts.firstName ?? '', opts.username ?? null, now, now),
 		);
 	}
 
@@ -174,11 +184,13 @@ export async function incrementGateBlocked(db: D1Database): Promise<void> {
 	const expiresAt = Date.now() + DAY_TTL_MS;
 	await db.batch([
 		db.prepare(`UPDATE global_stats SET total_gate_blocked = total_gate_blocked + 1 WHERE id = 1`),
-		db.prepare(
-			`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
+		db
+			.prepare(
+				`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
 			 VALUES (?, 0, 0, 0, 1, 0, ?)
 			 ON CONFLICT(date) DO UPDATE SET gate_blocked = gate_blocked + 1`,
-		).bind(getTodayDate(), expiresAt),
+			)
+			.bind(getTodayDate(), expiresAt),
 	]);
 }
 
@@ -186,11 +198,13 @@ export async function incrementGateVerified(db: D1Database): Promise<void> {
 	const expiresAt = Date.now() + DAY_TTL_MS;
 	await db.batch([
 		db.prepare(`UPDATE global_stats SET total_gate_verified = total_gate_verified + 1 WHERE id = 1`),
-		db.prepare(
-			`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
+		db
+			.prepare(
+				`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
 			 VALUES (?, 0, 0, 0, 0, 1, ?)
 			 ON CONFLICT(date) DO UPDATE SET gate_verified = gate_verified + 1`,
-		).bind(getTodayDate(), expiresAt),
+			)
+			.bind(getTodayDate(), expiresAt),
 	]);
 }
 
@@ -199,19 +213,18 @@ export async function incrementGateStillBlocked(db: D1Database): Promise<void> {
 }
 
 export async function incrementStartUsers(db: D1Database, userId: number): Promise<void> {
-	const existing = await db
-		.prepare(`SELECT started FROM user_stats WHERE user_id = ?`)
-		.bind(userId)
-		.first<{ started: number }>();
+	const existing = await db.prepare(`SELECT started FROM user_stats WHERE user_id = ?`).bind(userId).first<{ started: number }>();
 	if (existing?.started === 1) return;
 
 	const now = Date.now();
 	await db.batch([
-		db.prepare(
-			`INSERT INTO user_stats (user_id, first_name, count, failures, platforms, last_seen, first_seen, started)
+		db
+			.prepare(
+				`INSERT INTO user_stats (user_id, first_name, count, failures, platforms, last_seen, first_seen, started)
 			 VALUES (?, '', 0, 0, '{}', ?, ?, 1)
 			 ON CONFLICT(user_id) DO UPDATE SET started = 1`,
-		).bind(userId, now, now),
+			)
+			.bind(userId, now, now),
 		db.prepare(`UPDATE global_stats SET total_start_users = total_start_users + 1 WHERE id = 1`),
 	]);
 }
@@ -223,10 +236,14 @@ export async function getStatsReport(db: D1Database): Promise<StatsReport> {
 		db.prepare(`SELECT * FROM global_stats WHERE id = 1`).first<Record<string, unknown>>(),
 		db.prepare(`SELECT * FROM daily_stats WHERE date = ?`).bind(todayDate).first<Record<string, unknown>>(),
 		db.prepare(`SELECT user_id, first_name, username, count FROM user_stats ORDER BY count DESC LIMIT 10`).all<{
-			user_id: number; first_name: string; username: string | null; count: number;
+			user_id: number;
+			first_name: string;
+			username: string | null;
+			count: number;
 		}>(),
 		db.prepare(`SELECT platform, count FROM platform_counts WHERE scope = 'global'`).all<{
-			platform: string; count: number;
+			platform: string;
+			count: number;
 		}>(),
 	]);
 
@@ -254,9 +271,7 @@ export async function getStatsReport(db: D1Database): Promise<StatsReport> {
 			totalGateBlocked: (globalRow?.total_gate_blocked as number) ?? 0,
 			totalGateVerified: (globalRow?.total_gate_verified as number) ?? 0,
 			totalGateStillBlocked: (globalRow?.total_gate_still_blocked as number) ?? 0,
-			hourlyDistribution: globalRow?.hourly_distribution
-				? JSON.parse(globalRow.hourly_distribution as string)
-				: new Array(24).fill(0),
+			hourlyDistribution: globalRow?.hourly_distribution ? JSON.parse(globalRow.hourly_distribution as string) : new Array(24).fill(0),
 		},
 		today: {
 			links: (todayRow?.links as number) ?? 0,
@@ -276,9 +291,7 @@ export async function getDailyStats(
 	for (let i = 0; i < days; i++) {
 		const d = new Date();
 		d.setUTCDate(d.getUTCDate() - i);
-		dates.push(
-			`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`,
-		);
+		dates.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`);
 	}
 
 	const placeholders = dates.map(() => '?').join(',');
@@ -316,19 +329,25 @@ function mapHistoryRow(r: Record<string, unknown>): DownloadHistoryEntry {
 	};
 }
 
-export async function addDownloadHistory(
-	db: D1Database,
-	entry: Omit<DownloadHistoryEntry, 'timestamp'>,
-): Promise<void> {
+export async function addDownloadHistory(db: D1Database, entry: Omit<DownloadHistoryEntry, 'timestamp'>): Promise<void> {
 	const now = Date.now();
 	await db.batch([
-		db.prepare(
-			`INSERT INTO download_history (url, platform, user_id, username, first_name, timestamp, success, duration_ms, file_size_bytes)
+		db
+			.prepare(
+				`INSERT INTO download_history (url, platform, user_id, username, first_name, timestamp, success, duration_ms, file_size_bytes)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		).bind(
-			entry.url, entry.platform, entry.userId, entry.username ?? null, entry.firstName,
-			now, entry.success ? 1 : 0, entry.durationMs ?? null, entry.fileSizeBytes ?? null,
-		),
+			)
+			.bind(
+				entry.url,
+				entry.platform,
+				entry.userId,
+				entry.username ?? null,
+				entry.firstName,
+				now,
+				entry.success ? 1 : 0,
+				entry.durationMs ?? null,
+				entry.fileSizeBytes ?? null,
+			),
 		db.prepare(
 			`DELETE FROM download_history WHERE id NOT IN (SELECT id FROM download_history ORDER BY timestamp DESC LIMIT ${DOWNLOAD_HISTORY_LIMIT})`,
 		),
@@ -353,16 +372,15 @@ export async function getTodayDownloadHistory(db: D1Database, limit = 50): Promi
 	return result.results.map(mapHistoryRow);
 }
 
-export async function addFailedDownload(
-	db: D1Database,
-	entry: Omit<FailedDownloadEntry, 'timestamp'>,
-): Promise<void> {
+export async function addFailedDownload(db: D1Database, entry: Omit<FailedDownloadEntry, 'timestamp'>): Promise<void> {
 	const now = Date.now();
 	await db.batch([
-		db.prepare(
-			`INSERT INTO failed_downloads (url, platform, error_reason, timestamp, user_id, first_name, username, mode)
+		db
+			.prepare(
+				`INSERT INTO failed_downloads (url, platform, error_reason, timestamp, user_id, first_name, username, mode)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		).bind(entry.url, entry.platform, entry.errorReason, now, entry.userId, entry.firstName, entry.username ?? null, entry.mode ?? null),
+			)
+			.bind(entry.url, entry.platform, entry.errorReason, now, entry.userId, entry.firstName, entry.username ?? null, entry.mode ?? null),
 		db.prepare(
 			`DELETE FROM failed_downloads WHERE id NOT IN (SELECT id FROM failed_downloads ORDER BY timestamp DESC LIMIT ${FAILED_DOWNLOAD_LIMIT})`,
 		),
@@ -386,11 +404,7 @@ export async function getFailedDownloads(db: D1Database, limit = 20): Promise<Fa
 	}));
 }
 
-export async function blockUser(
-	db: D1Database,
-	userId: number,
-	info: { username?: string; firstName: string },
-): Promise<void> {
+export async function blockUser(db: D1Database, userId: number, info: { username?: string; firstName: string }): Promise<void> {
 	await db
 		.prepare(
 			`INSERT INTO blocked_users (user_id, username, first_name, blocked_at) VALUES (?, ?, ?, ?)

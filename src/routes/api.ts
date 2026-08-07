@@ -36,9 +36,7 @@ export async function handleApiDownload(c: Context) {
 		return c.json({ status: 'error', error: 'url is required' }, 400);
 	}
 
-	const mode = (VALID_MODES as string[]).includes(body.mode ?? '')
-		? (body.mode as DownloaderMode)
-		: 'auto';
+	const mode = (VALID_MODES as string[]).includes(body.mode ?? '') ? (body.mode as DownloaderMode) : 'auto';
 
 	// Reuse the bot's detection so the API normalizes URLs and enforces the same content policy.
 	const detected = detectMediaUrl(body.url);

@@ -1,12 +1,4 @@
-export type SessionKeyType =
-	| 'state'
-	| 'lock'
-	| 'lock_pending'
-	| 'usage'
-	| 'blocked_url'
-	| 'report'
-	| 'report_sent'
-	| 'report_pending';
+export type SessionKeyType = 'state' | 'lock' | 'lock_pending' | 'usage' | 'blocked_url' | 'report' | 'report_sent' | 'report_pending';
 
 export async function getSession(db: D1Database, keyType: SessionKeyType, userId: number): Promise<string | null> {
 	const now = Date.now();
@@ -16,7 +8,10 @@ export async function getSession(db: D1Database, keyType: SessionKeyType, userId
 		.first<{ value: string; expires_at: number | null }>();
 	if (!row) return null;
 	if (row.expires_at !== null && row.expires_at <= now) {
-		db.prepare(`DELETE FROM session_store WHERE key_type = ? AND user_id = ?`).bind(keyType, userId).run().catch(() => {});
+		db.prepare(`DELETE FROM session_store WHERE key_type = ? AND user_id = ?`)
+			.bind(keyType, userId)
+			.run()
+			.catch(() => {});
 		return null;
 	}
 	return row.value;
@@ -60,10 +55,7 @@ export async function deleteConfig(db: D1Database, key: string): Promise<void> {
 }
 
 export async function getUserLang(db: D1Database, userId: number): Promise<string | null> {
-	const row = await db
-		.prepare(`SELECT lang FROM user_settings WHERE user_id = ?`)
-		.bind(userId)
-		.first<{ lang: string }>();
+	const row = await db.prepare(`SELECT lang FROM user_settings WHERE user_id = ?`).bind(userId).first<{ lang: string }>();
 	return row?.lang ?? null;
 }
 
