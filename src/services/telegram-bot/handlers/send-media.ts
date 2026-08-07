@@ -5,13 +5,36 @@ import type { TelegramMediaMessage, FormatSettings } from '../../../types/telegr
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB Telegram bot upload limit
 export const MEDIA_CAPTION_LIMIT = 1024; // Telegram caption limit for photo/video/audio/mediagroup
 
+/**
+ * 400s that are about the chat or the request itself, not about the URL we passed.
+ * Re-fetching and re-uploading would burn a large download and then fail identically.
+ */
+const NON_URL_400_PATTERNS = [
+	'chat not found',
+	'chat_write_forbidden',
+	'not enough rights',
+	'have no rights to send',
+	'caption is too long',
+	'message is not modified',
+	'user is deactivated',
+	'bot was blocked',
+];
+
+/**
+ * True when Telegram refused to fetch the URL itself, so we should download the
+ * bytes and upload them instead.
+ *
+ * Telegram rejects URL pass-through for many reasons — it cannot reach the host,
+ * the CDN 403s its fetcher, or the file exceeds the 20MB cap on fetch-by-URL
+ * (well under the 50MB we may upload ourselves). Enumerating those descriptions
+ * missed cases like "file is too big", which silently killed every 20-50MB video.
+ * So treat any 400 as "Telegram won't take this URL" unless it is plainly about
+ * the chat: a wasted re-fetch is cheaper than a false failure.
+ */
 function isTelegramUrlError(err: unknown): boolean {
-	return (
-		err instanceof GrammyError &&
-		(err.description.includes('failed to get HTTP URL') ||
-			err.description.includes('wrong file identifier') ||
-			err.description.includes('wrong type of the web page content'))
-	);
+	if (!(err instanceof GrammyError) || err.error_code !== 400) return false;
+	const description = err.description.toLowerCase();
+	return !NON_URL_400_PATTERNS.some((pattern) => description.includes(pattern));
 }
 
 /** If caption fits, attach it to media. If too long, send media without caption then post caption as separate text. */
@@ -132,6 +155,20 @@ async function sendVideoMessage(
 	}
 }
 
+/**
+ * Turn a track title into a filesystem-safe name for the uploaded audio.
+ * Falls back to 'audio.mp3' only when no title is available.
+ */
+export function audioFilename(title?: string): string {
+	const base = (title ?? '')
+		.replace(/[\\/:*?"<>|\x00-\x1f]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, 64)
+		.trim();
+	return base ? `${base}.mp3` : 'audio.mp3';
+}
+
 async function sendAudioMessage(
 	bot: Bot,
 	chatId: number,
@@ -140,16 +177,19 @@ async function sendAudioMessage(
 ): Promise<void> {
 	if (!message.url) throw new Error('Audio URL is missing');
 	const url = message.url;
+	// Telegram labels the track with `title` when present; without it the raw
+	// filename from the CDN (or 'audio') is shown instead.
+	const title = message.title?.trim() || undefined;
 	try {
 		await sendWithCaption(
-			(caption) => bot.api.sendAudio(chatId, url, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			(caption) => bot.api.sendAudio(chatId, url, { caption, title, parse_mode: 'HTML', disable_notification: disableNotification }),
 			bot, chatId, message.caption, disableNotification
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
-		const file = await downloadAsInputFile(url, 'audio.mp3');
+		const file = await downloadAsInputFile(url, message.filename || audioFilename(title));
 		await sendWithCaption(
-			(caption) => bot.api.sendAudio(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			(caption) => bot.api.sendAudio(chatId, file, { caption, title, parse_mode: 'HTML', disable_notification: disableNotification }),
 			bot, chatId, message.caption, disableNotification
 		);
 	}
@@ -279,10 +319,17 @@ async function sendMediaGroupMessage(
 	}
 }
 
+/**
+ * Covers the full body read, not just the response headers, so it has to be large
+ * enough to pull a ~50MB CDN file. Workers bill CPU time rather than wall-clock,
+ * so a slow stream costs nothing; the old 20s budget just aborted big downloads.
+ */
+const MEDIA_FETCH_TIMEOUT_MS = 120_000;
+
 async function downloadAsInputFile(url: string, filename: string): Promise<InputFile> {
 	const resp = await fetch(url, {
 		headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-		signal: AbortSignal.timeout(20_000),
+		signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
 	});
 	if (!resp.ok) throw new Error(`Failed to download media: ${resp.status}`);
 

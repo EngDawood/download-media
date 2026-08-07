@@ -22,7 +22,7 @@ export class ThreadsProvider implements IDownloaderProvider {
 		const hasImage = (res.type === 'image' || res.type === 'mixed') && isUrl(res.image);
 		const cap = buildCaption(res.title);
 
-		if (mode === 'audio' && hasVideo) return { status: 'success', media: [{ type: 'audio', url: res.video }], caption: cap };
+		if (mode === 'audio' && hasVideo) return { status: 'success', media: [{ type: 'audio', url: res.video }], caption: cap, title: res.title };
 
 		if (res.type === 'mixed') {
 			const media: MediaItem[] = [];

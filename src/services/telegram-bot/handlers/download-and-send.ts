@@ -20,7 +20,7 @@ export async function downloadAndSendMedia(
 	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
-	options?: { db?: D1Database; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; firstName?: string; username?: string; locale?: Locale; originalUrl?: string; telegraphToken?: string },
+	options?: { db?: D1Database; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; mediaTitle?: string; firstName?: string; username?: string; locale?: Locale; originalUrl?: string; telegraphToken?: string },
 ): Promise<void> {
 	const userType = options?.guestMode ? 'guest' : 'admin';
 	const userId = options?.userId ?? 0;
@@ -143,7 +143,7 @@ export async function downloadAndSendMedia(
 
 	try {
 		if (directUrl) {
-			const msg: TelegramMediaMessage = { type: options?.mediaType || 'video', url, caption: '' };
+			const msg: TelegramMediaMessage = { type: options?.mediaType || 'video', url, caption: '', title: options?.mediaTitle };
 			await sendMediaToChannel(bot, chatId, msg);
 			await recordSuccess(Date.now() - downloadStartTime);
 			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.done'));
@@ -212,6 +212,7 @@ export async function downloadAndSendMedia(
 							url: item.url,
 							buffer: item.buffer,
 							filename: item.filename,
+							title: result.title,
 							caption: caption,
 						};
 						await sendMediaToChannel(bot, chatId, msg);
@@ -227,6 +228,7 @@ export async function downloadAndSendMedia(
 					url: item.url,
 					buffer: item.buffer,
 					filename: item.filename,
+					title: result.title,
 					caption: caption,
 				};
 				await sendMediaToChannel(bot, chatId, msg);
@@ -237,7 +239,7 @@ export async function downloadAndSendMedia(
 					const mp3Keyboard = new InlineKeyboard().text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3');
 					await setAdminState(options.db, options.adminId || userId, {
 						action: 'downloading_media',
-						context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url },
+						context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url, mediaTitle: result.title },
 					});
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: mp3Keyboard });
 				} else {
@@ -262,7 +264,7 @@ export async function downloadAndSendMedia(
 			if (options?.db) {
 				await setAdminState(options.db, options.adminId || userId, {
 					action: 'downloading_media',
-					context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url },
+					context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url, mediaTitle: result.title },
 				});
 			}
 			const keyboard = new InlineKeyboard()

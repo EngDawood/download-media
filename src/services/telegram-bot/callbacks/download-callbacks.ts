@@ -23,14 +23,14 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 			return;
 		}
 
-		const { downloadUrl, downloadPlatform, qualities, mp3Url } = state.context;
+		const { downloadUrl, downloadPlatform, qualities, mp3Url, mediaTitle } = state.context;
 
 		// YouTube MP3 — available to all users
 		if (action === 'yt:mp3' && mp3Url) {
 			await clearAdminState(db, stateOwner);
 			await ctx.answerCallbackQuery();
 			await downloadAndSendMedia(bot, chatId, mp3Url, downloadPlatform || 'YouTube', 'auto', msgId, true, {
-				db, analytics: env.ANALYTICS, userId, mediaType: 'audio', firstName, username, locale, originalUrl: downloadUrl, telegraphToken,
+				db, analytics: env.ANALYTICS, userId, mediaType: 'audio', mediaTitle, firstName, username, locale, originalUrl: downloadUrl, telegraphToken,
 			});
 			return;
 		}
@@ -64,7 +64,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 			if (match) {
 				const mediaType = selectedQuality === 'Audio' ? 'audio' as const : 'video' as const;
 				await downloadAndSendMedia(bot, chatId, match.url, downloadPlatform || 'YouTube', 'auto', msgId, true, {
-					db, adminId, analytics: env.ANALYTICS, userId: adminId, mediaType, firstName, username, locale, originalUrl: downloadUrl, telegraphToken,
+					db, adminId, analytics: env.ANALYTICS, userId: adminId, mediaType, mediaTitle, firstName, username, locale, originalUrl: downloadUrl, telegraphToken,
 				});
 				return;
 			}

@@ -12,7 +12,7 @@ export class SoundCloudProvider implements IDownloaderProvider {
 			const res = await btchFetch('soundcloud', url, true);
 			const audioUrl = isUrl(res.downloadMp3) ? res.downloadMp3 : isUrl(res.audio) ? res.audio : null;
 			if (audioUrl) {
-				return { status: 'success', media: [{ type: 'audio', url: audioUrl }], caption: buildCaption(res.title), thumbnail: res.thumbnail };
+				return { status: 'success', media: [{ type: 'audio', url: audioUrl }], caption: buildCaption(res.title), title: res.title, thumbnail: res.thumbnail };
 			}
 		} catch { /* fall through to AIO */ }
 		const aioResult = await tryAIO(url, 'audio');

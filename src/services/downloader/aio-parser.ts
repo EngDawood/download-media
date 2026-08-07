@@ -13,13 +13,21 @@ export function parseAioGallery(items: any[]): MediaItem[] {
 		.filter((item): item is MediaItem => item !== null);
 }
 
-/** Extracts MediaItems from a btch AIO links section (video/audio/photo). */
+/**
+ * Extracts MediaItems from a btch AIO links section (video/audio/photo).
+ * `size` (bytes) is carried through when present so callers can pick a variant
+ * that fits Telegram's upload limit instead of blindly taking the first one.
+ */
 export function parseLinksSection(links: unknown, type: MediaItem['type']): MediaItem[] {
 	if (!links) return [];
 	const entries: any[] = Array.isArray(links) ? links : Object.values(links as object);
 	return entries
 		.filter((e: any) => isUrl(e?.url))
-		.map((e: any) => ({ type, url: e.url, quality: e.q_text || e.resolution } as MediaItem));
+		.map((e: any) => {
+			const item: MediaItem = { type, url: e.url, quality: e.q_text || e.resolution };
+			if (typeof e.size === 'number' && e.size > 0) item.filesize = e.size;
+			return item;
+		});
 }
 
 /**
@@ -60,7 +68,7 @@ export async function tryAIO(url: string, mode: string = 'auto'): Promise<Downlo
 		}
 
 		if (media.length > 0) {
-			return { status: 'success', media, caption, thumbnail };
+			return { status: 'success', media, caption, title: data.title, thumbnail };
 		}
 	} catch (e) {
 		log('warn', 'downloader:AIO', 'tryAIO failed', { error: (e as Error).message });

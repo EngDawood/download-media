@@ -20,6 +20,8 @@ export interface AdminState {
 		downloadCaption?: string;
 		/** YouTube mp3 URL for audio button after video send */
 		mp3Url?: string;
+		/** Raw title of the pending media, so the mp3 button can name the audio file */
+		mediaTitle?: string;
 		/** Pending broadcast message text */
 		broadcastMessage?: string;
 		/** Download mode stored for retry button */
@@ -34,6 +36,8 @@ export interface TelegramMediaMessage {
 	buffer?: Uint8Array;  // in-memory binary (used instead of url for document uploads)
 	filename?: string;
 	thumbnailUrl?: string;
+	/** Track title — shown by Telegram as the audio name instead of the raw filename. */
+	title?: string;
 	caption: string;
 	media?: Array<{
 		type: 'photo' | 'video';
