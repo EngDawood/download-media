@@ -190,3 +190,4 @@ test/test.txt
 test/tmp-yt-verify.spec.ts
 test/url-detector.spec.ts
 test/urls.json
+.claude/settings.json
