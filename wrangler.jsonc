@@ -53,4 +53,5 @@
 	// - TELEGRAM_BOT_TOKEN
 	// - TELEGRAM_WEBHOOK_SECRET
 	// - TELEGRAPH_ACCESS_TOKEN
+	// - PUBLIC_API_KEY  (enables POST /api/download; endpoint is disabled if unset)
 }

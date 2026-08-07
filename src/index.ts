@@ -9,6 +9,8 @@ import {
 	handlePostTestUrls,
 	handleTestDownload,
 } from './routes/test-dashboard';
+import { handleApiDownload } from './routes/api';
+import { handleMcp, handleMcpMethodNotAllowed, handleMcpOptions } from './routes/mcp';
 
 const DEPLOY_KV_KEY = 'deploy:id';
 
@@ -16,6 +18,15 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.get('/health', (c) => c.json({ ok: true }));
 app.get('/setup', handleSetup);
+
+// Public download API (key-protected) — lets external apps download without the bot
+app.post('/api/download', handleApiDownload);
+
+// MCP server (key-protected) — same pipeline, exposed to AI agents over Streamable HTTP
+app.post('/mcp', handleMcp);
+app.options('/mcp', handleMcpOptions);
+app.get('/mcp', handleMcpMethodNotAllowed);
+app.delete('/mcp', handleMcpMethodNotAllowed);
 
 // Dev-only manual testing dashboard and APIs
 app.get('/test', localOnlyGuard, handleGetDashboard);
