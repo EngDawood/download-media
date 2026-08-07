@@ -25,20 +25,33 @@
 		}
 	},
 	// KV namespace for download-media-bot state cache
-	"kv_namespaces": [
+	/*"kv_namespaces": [
 		{
 			"binding": "DOWNLOAD_CACHE",
 			"id": "6769aec205aa4557ab05757c559c9618"
 		}
-	],
+	],*/
+	
 	"vars": {
 		"ADMIN_TELEGRAM_ID": "801062947"
 	},
 	// Analytics Engine dataset for download statistics
 	"analytics_engine_datasets": [
-		{ "binding": "ANALYTICS", "dataset": "ANALYTICS" }
+		{
+			"binding": "ANALYTICS",
+			"dataset": "ANALYTICS"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "download_media_bot_db",
+			"database_name": "download-media-bot-db",
+			"database_id": "db10a769-b0ed-438c-9e72-43fd687fbed3"
+		}
 	]
 	// Secrets (set via wrangler secret put):
 	// - TELEGRAM_BOT_TOKEN
 	// - TELEGRAM_WEBHOOK_SECRET
+	// - TELEGRAPH_ACCESS_TOKEN
+	// - PUBLIC_API_KEY  (enables POST /api/download; endpoint is disabled if unset)
 }

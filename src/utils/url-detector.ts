@@ -77,6 +77,10 @@ function normalizeInstagram(url: string): string {
 		// Keep only /{type}/{shortcode}/ — strip igshid, img_index, hl, etc.
 		const parts = u.pathname.split('/').filter(Boolean);
 		if (parts.length >= 2) {
+			// Preserve story ID: /stories/{username}/{storyId}/
+			if (parts[0] === 'stories' && parts.length >= 3) {
+				return `https://www.instagram.com/${parts[0]}/${parts[1]}/${parts[2]}/`;
+			}
 			return `https://www.instagram.com/${parts[0]}/${parts[1]}/`;
 		}
 	} catch { /* fall through */ }
@@ -115,6 +119,33 @@ function normalizeFacebook(url: string): string {
 	return url;
 }
 
+function normalizeGitHub(url: string): string {
+	try {
+		const u = new URL(url);
+		const parts = u.pathname.split('/').filter(Boolean);
+		if (parts.length < 2) return url;
+		const [owner, repo] = parts;
+		// /owner/repo/blob/branch/path/to/file → raw file URL (direct download)
+		if (parts.length >= 5 && parts[2] === 'blob') {
+			const branch = parts[3];
+			const filePath = parts.slice(4).join('/');
+			return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+		}
+		// /owner/repo/tree/branch/subpath — keep original URL; GitHubProvider downloads just this folder
+		if (parts.length >= 5 && parts[2] === 'tree') {
+			return url;
+		}
+		// /owner/repo/tree/branch (no subpath) — download whole branch as zip
+		if (parts.length >= 4 && parts[2] === 'tree') {
+			const branch = parts[3];
+			return `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.zip`;
+		}
+		// /owner/repo — default branch via HEAD redirect
+		return `https://github.com/${owner}/${repo}/archive/HEAD.zip`;
+	} catch { /* fall through */ }
+	return url;
+}
+
 function normalizeTwitter(url: string): string {
 	try {
 		const u = new URL(url);
@@ -137,6 +168,7 @@ function normalizeUrl(url: string, platform: string): string {
 		case 'TikTok':    return normalizeTikTok(url);
 		case 'Facebook':  return normalizeFacebook(url);
 		case 'Twitter':   return normalizeTwitter(url);
+		case 'GitHub':    return normalizeGitHub(url);
 		default:          return url;
 	}
 }
@@ -192,10 +224,40 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 		platform: 'Pinterest',
 		pattern: /https?:\/\/(?:[a-z]{2}\.)?pinterest\.com\/pin\/\S+|https?:\/\/pin\.it\/\S+/i,
 	},
+	// GitHub: repo root, /tree/branch (zip), or /blob/branch/file (raw file download)
+	{
+		platform: 'GitHub',
+		pattern: /https?:\/\/(?:www\.)?github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\/(?:tree|blob)\/\S+)?\/?(?=\s|$)/i,
+	},
 ];
 
 /** Generic URL pattern — catches any https:// URL not matched by specific platforms. */
 const GENERIC_URL_PATTERN = /https?:\/\/\S+/i;
+
+/** Detects if the URL points directly to a file based on its extension. */
+export function getDirectFileMediaType(url: string): 'video' | 'audio' | 'photo' | 'document' | null {
+	try {
+		const u = new URL(url);
+		
+		// Ensure the path actually has a file name with an extension
+		const filename = u.pathname.split('/').pop();
+		if (!filename || !filename.includes('.')) return null;
+
+		const ext = filename.split('.').pop()?.toLowerCase();
+		if (!ext) return null;
+
+		if (['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext)) return 'video';
+		if (['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac'].includes(ext)) return 'audio';
+		if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'].includes(ext)) return 'photo';
+		if (['html', 'htm', 'php', 'asp', 'aspx', 'jsp'].includes(ext)) return null; // Not a downloadable media/file
+		if (ext.length > 15) return null; // Unlikely to be a valid file extension
+
+		// Default unknown types to 'document' so they are sent as files
+		return 'document';
+	} catch {
+		return null;
+	}
+}
 
 /**
  * Detect the first supported media platform URL in message text.
@@ -222,5 +284,12 @@ export function detectMediaUrl(text: string): DetectedUrl | null {
 			return { url: generic[0], platform: 'Other' };
 		}
 	}
+
+	// Retry with https:// prepended for protocol-less URLs (e.g. "twitter.com/i/status/123")
+	const noProto = text.match(/(?:^|\s)((?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\/\S+)/);
+	if (noProto) {
+		return detectMediaUrl(`https://${noProto[1]}`);
+	}
+
 	return null;
 }

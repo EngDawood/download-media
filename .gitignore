@@ -51,6 +51,7 @@ build/Release
 # Dependency directories
 
 node_modules/
+package-lock.json
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
@@ -175,3 +176,9 @@ chat.md
 mirror-scrapers-archive.ts
 reports/*
 src/_deploy-id.ts
+
+repors/*
+.claude/settings.local.json
+example.md
+.claude/plans/Reports-Logging-Reliability.md
+.claude/.settings.json

@@ -10,7 +10,7 @@ export interface FormatSettings {
 
 // Admin conversation state for multi-step flows
 export interface AdminState {
-	action: 'downloading_media' | 'awaiting_broadcast';
+	action: 'downloading_media' | 'awaiting_broadcast' | 'awaiting_story_username';
 	context?: {
 		downloadUrl?: string;
 		downloadPlatform?: string;
@@ -31,6 +31,8 @@ export interface AdminState {
 export interface TelegramMediaMessage {
 	type: 'photo' | 'video' | 'audio' | 'document' | 'mediagroup' | 'text';
 	url?: string;
+	buffer?: Uint8Array;  // in-memory binary (used instead of url for document uploads)
+	filename?: string;
 	thumbnailUrl?: string;
 	caption: string;
 	media?: Array<{

@@ -3,7 +3,7 @@ import type { Bot } from 'grammy';
 import type { TelegramMediaMessage, FormatSettings } from '../../../types/telegram';
 
 const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB Telegram bot upload limit
-const MEDIA_CAPTION_LIMIT = 1024; // Telegram caption limit for photo/video/audio/mediagroup
+export const MEDIA_CAPTION_LIMIT = 1024; // Telegram caption limit for photo/video/audio/mediagroup
 
 function isTelegramUrlError(err: unknown): boolean {
 	return (
@@ -15,7 +15,7 @@ function isTelegramUrlError(err: unknown): boolean {
 }
 
 /** If caption fits, attach it to media. If too long, send media without caption then post caption as separate text. */
-async function sendWithCaption(
+export async function sendWithCaption(
 	send: (caption: string) => Promise<unknown>,
 	bot: Bot,
 	chatId: number,
@@ -67,8 +67,8 @@ export async function sendMediaToChannel(
 			await sendMediaGroupMessage(bot, chatId, message, disableNotification);
 			break;
 		default:
-			console.error(`[sendMedia] Unknown message type: ${(message as any).type}`);
-			throw new Error(`Unknown message type: ${(message as any).type}`);
+			console.error(`[sendMedia] Unknown message type: ${(message as { type: string }).type}`);
+			throw new Error(`Unknown message type: ${(message as { type: string }).type}`);
 	}
 }
 
@@ -161,10 +161,57 @@ async function sendDocumentMessage(
 	message: TelegramMediaMessage,
 	disableNotification: boolean,
 ): Promise<void> {
+	// Buffer-based document (e.g., GitHub folder zip built in-memory)
+	if (message.buffer) {
+		const file = new InputFile(message.buffer, message.filename || 'document');
+		await sendWithCaption(
+			(caption) => bot.api.sendDocument(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			bot, chatId, message.caption, disableNotification
+		);
+		return;
+	}
 	if (!message.url) throw new Error('Document URL is missing');
 	const url = message.url;
-	// Derive filename from URL path
-	const filename = url.split('/').pop()?.split('?')[0] || 'document';
+	// Derive filename from URL path; for GitHub archive downloads use repo-branch.zip
+	const parsedUrl = new URL(url);
+	let filename: string;
+	let forceDownload = false;
+	if (parsedUrl.hostname === 'codeload.github.com') {
+		// URL: https://codeload.github.com/{owner}/{repo}/zip/{ref}
+		// or:  https://codeload.github.com/{owner}/{repo}/zip/refs/heads/{branch}
+		const parts = parsedUrl.pathname.split('/').filter(Boolean);
+		const repo = parts[1] ?? 'repo';
+		const refParts = parts.slice(3); // after /zip/
+		const ref = refParts[0] === 'refs'
+			? refParts[refParts.length - 1]
+			: (refParts[0]?.slice(0, 7) ?? 'main');
+		filename = `${repo}-${ref}.zip`;
+		forceDownload = true;
+	} else if (parsedUrl.hostname === 'github.com' && parsedUrl.pathname.includes('/archive/')) {
+		// URL: https://github.com/{owner}/{repo}/archive/HEAD.zip
+		// or:  https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip
+		const parts = parsedUrl.pathname.split('/').filter(Boolean);
+		const repo = parts[1] ?? 'repo';
+		const archiveParts = parts.slice(3); // after /archive/
+		let ref: string;
+		if (archiveParts[0] === 'refs') {
+			ref = archiveParts[archiveParts.length - 1].replace(/\.zip$/, '');
+		} else {
+			ref = (archiveParts[0] ?? 'HEAD').replace(/\.zip$/, '');
+		}
+		filename = ref === 'HEAD' ? `${repo}.zip` : `${repo}-${ref}.zip`;
+		forceDownload = true;
+	} else {
+		filename = parsedUrl.pathname.split('/').pop()?.split('?')[0] || 'document';
+	}
+	if (forceDownload) {
+		const file = await downloadAsInputFile(url, filename);
+		await sendWithCaption(
+			(caption) => bot.api.sendDocument(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			bot, chatId, message.caption, disableNotification
+		);
+		return;
+	}
 	try {
 		await sendWithCaption(
 			(caption) => bot.api.sendDocument(chatId, url, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
@@ -197,8 +244,8 @@ async function sendMediaGroupMessage(
 			// Always try URL first; if Telegram rejects it, fall back to download+upload
 			let source: string | InputFile = item.media;
 			try {
-				// Validate by attempting a dummy resolve — actual rejection caught during sendMediaGroup
-				source = item.media;
+				// Attempt to use URL directly; fall back to download+upload if Telegram rejects it
+				await Promise.resolve(source);
 			} catch {
 				source = await downloadAsInputFile(item.media, `media.${ext}`);
 			}

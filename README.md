@@ -1,5 +1,10 @@
 # Download Media Bot
 
+[![Code Quality](https://github.com/EngDawood/download-media/actions/workflows/code-quality.yml/badge.svg)](https://github.com/EngDawood/download-media/actions/workflows/code-quality.yml)
+[![CodeQL](https://github.com/EngDawood/download-media/actions/workflows/codeql.yml/badge.svg)](https://github.com/EngDawood/download-media/actions/workflows/codeql.yml)
+[![Commit Validator](https://github.com/EngDawood/download-media/actions/workflows/commitlint.yml/badge.svg)](https://github.com/EngDawood/download-media/actions/workflows/commitlint.yml)
+[![Release](https://github.com/EngDawood/download-media/actions/workflows/release-please.yml/badge.svg)](https://github.com/EngDawood/download-media/actions/workflows/release-please.yml)
+
 A high-performance, multi-platform media downloader Telegram bot built with **Hono**, **grammY**, and **Cloudflare Workers**. This bot allows users to download videos, photos, and audio from popular social media platforms directly within Telegram.
 
 ## 🚀 Features
@@ -17,7 +22,7 @@ A high-performance, multi-platform media downloader Telegram bot built with **Ho
 - **Fast & Reliable**: Powered by Cloudflare's global network for low-latency responses.
 - **Quality Options**: Integrated quality picker for platforms like YouTube and Facebook.
 - **Auto-Setup**: Automated webhook and bot configuration on deployment.
-- **Analytics**: Built-in download statistics tracking via Cloudflare Analytics Engine.
+- **Analytics**: Built-in download statistics and per-user tracking via Cloudflare KV.
 - **Multi-language Support**: Automatically detects and uses the user's language.
 
 ## 🛠️ Tech Stack
@@ -32,7 +37,7 @@ A high-performance, multi-platform media downloader Telegram bot built with **Ho
 
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up) with Workers enabled.
 - A Telegram bot token (obtained from [@BotFather](https://t.me/BotFather)).
-- [Node.js](https://nodejs.org/) and `npm` installed locally.
+- [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) installed locally.
 
 ## ⚙️ Configuration
 
@@ -51,13 +56,13 @@ Set these using `wrangler secret put`:
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/yourusername/download-media-bot.git
-    cd download-media-bot
+    git clone https://github.com/EngDawood/download-media.git
+    cd download-media
     ```
 
 2.  **Install dependencies**:
     ```bash
-    npm install
+    pnpm install
     ```
 
 3.  **Configure `wrangler.jsonc`**:
@@ -65,13 +70,13 @@ Set these using `wrangler secret put`:
 
 4.  **Set Secrets**:
     ```bash
-    npx wrangler secret put TELEGRAM_BOT_TOKEN
-    npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+    pnpm exec wrangler secret put TELEGRAM_BOT_TOKEN
+    pnpm exec wrangler secret put TELEGRAM_WEBHOOK_SECRET
     ```
 
 5.  **Deploy to Cloudflare**:
     ```bash
-    npm run deploy
+    pnpm deploy
     ```
 
 6.  **Setup Webhook**:
@@ -87,14 +92,15 @@ Set these using `wrangler secret put`:
 
 ### Admin Commands
 
-- **/setchannel**: Set the required subscription channel for users.
+- **/stats**: View download statistics and per-user usage.
+- **/cancel**: Cancel the current pending download.
 
 ## 💻 Local Development
 
 Run the bot locally for testing:
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ## 🧪 Testing
@@ -102,7 +108,7 @@ npm run dev
 Run the test suite using Vitest:
 
 ```bash
-npm test
+pnpm test
 ```
 
 ## 📜 License

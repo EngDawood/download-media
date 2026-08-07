@@ -1,7 +1,7 @@
 import { en, type TranslationKey, type Translations } from './en';
 import { ar } from './ar';
 import type { Context } from 'grammy';
-import { CACHE_PREFIX_USER_LANG } from '../constants';
+import { getUserLang } from '../utils/db';
 
 export type Locale = 'en' | 'ar';
 export const SUPPORTED_LOCALES: Locale[] = ['en', 'ar'];
@@ -26,14 +26,14 @@ export function t(
 }
 
 /**
- * Resolve locale for a user: KV preference > Telegram language_code > default.
+ * Resolve locale for a user: D1 preference > Telegram language_code > default.
  */
 export async function resolveLocale(
-	kv: KVNamespace,
+	db: D1Database,
 	userId: number,
 	telegramLangCode?: string,
 ): Promise<Locale> {
-	const stored = await kv.get(`${CACHE_PREFIX_USER_LANG}${userId}`);
+	const stored = await getUserLang(db, userId);
 	if (stored && SUPPORTED_LOCALES.includes(stored as Locale)) {
 		return stored as Locale;
 	}
@@ -46,7 +46,7 @@ export async function resolveLocale(
 
 /** Read locale from context (set by middleware). */
 export function getLocale(ctx: Context): Locale {
-	return (ctx as any).locale ?? DEFAULT_LOCALE;
+	return (ctx as Context & { locale?: Locale }).locale ?? DEFAULT_LOCALE;
 }
 
 /** Get the display name for a locale. */

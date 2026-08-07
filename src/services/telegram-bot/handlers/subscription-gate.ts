@@ -1,53 +1,51 @@
 import { Bot, Context } from 'grammy';
-import { getCached, setCached } from '../../../utils/cache';
-import { CACHE_PREFIX_USAGE_COUNT, KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE } from '../../../constants';
+import { KV_KEY_REQUIRED_CHANNEL, KV_KEY_FREE_USES, FREE_USES_BEFORE_GATE } from '../../../constants';
+import { getConfig } from '../../../utils/db';
+import { getUsageCount, setUsageCount } from '../storage/session-store';
 import { trackEvent } from '../../../utils/analytics';
+import { incrementGateBlocked } from '../../../utils/stats-d1';
 import { t, getLocale } from '../../../i18n';
 
-const USAGE_TTL = 60 * 60 * 24 * 90; // 90 days
+const USAGE_TTL = 60 * 60 * 24 * 90; // 90 days (used in setUsageCount)
 const MEMBER_STATUSES = ['member', 'administrator', 'creator'];
 
-/**
- * Check if a non-admin user is gated by channel subscription.
- * Increments their usage counter and returns true if they are blocked.
- */
 export async function checkSubscriptionGate(
 	ctx: Context,
-	kv: KVNamespace,
+	db: D1Database,
 	bot: Bot,
 	analytics?: AnalyticsEngineDataset,
 	platform?: string,
 ): Promise<boolean> {
-	const channelUsername = await kv.get(KV_KEY_REQUIRED_CHANNEL);
-	if (!channelUsername) return false; // Gate disabled — no channel configured
+	const [channelUsername, freeUsesStr] = await Promise.all([
+		getConfig(db, KV_KEY_REQUIRED_CHANNEL),
+		getConfig(db, KV_KEY_FREE_USES),
+	]);
 
+	if (!channelUsername) return false;
+
+	const freeUsesLimit = freeUsesStr ? parseInt(freeUsesStr, 10) : FREE_USES_BEFORE_GATE;
 	const userId = ctx.from!.id;
 
-	// Increment usage counter
-	const usageKey = `${CACHE_PREFIX_USAGE_COUNT}${userId}`;
-	const usageStr = await getCached(kv, usageKey);
-	const usage = usageStr ? parseInt(usageStr, 10) : 0;
+	const usage = await getUsageCount(db, userId);
 	const newUsage = usage + 1;
-	await setCached(kv, usageKey, String(newUsage), USAGE_TTL);
+	await setUsageCount(db, userId, newUsage);
 
-	// Allow within free tier
-	if (newUsage <= FREE_USES_BEFORE_GATE) return false;
+	if (newUsage <= freeUsesLimit) return false;
 
-	// Check channel membership
 	try {
 		const member = await bot.api.getChatMember(channelUsername, userId);
 		if (MEMBER_STATUSES.includes(member.status)) return false;
 	} catch (e) {
 		console.warn('[GATE] getChatMember failed, allowing:', e);
-		return false; // Graceful fail-open
+		return false;
 	}
 
-	// User is not subscribed — track and show gate message
 	trackEvent(analytics, { userId, platform: platform ?? 'unknown', userType: 'guest', action: 'gate_blocked' });
+	incrementGateBlocked(db).catch(() => {});
 	const locale = getLocale(ctx);
 	const channelName = channelUsername.replace('@', '');
 	await ctx.reply(
-		t(locale, 'gate.blocked', { freeUses: FREE_USES_BEFORE_GATE, channelName }),
+		t(locale, 'gate.blocked', { freeUses: freeUsesLimit, channelName }),
 		{
 			parse_mode: 'MarkdownV2',
 			reply_markup: {
@@ -58,5 +56,5 @@ export async function checkSubscriptionGate(
 			},
 		},
 	);
-	return true; // Blocked
+	return true;
 }
