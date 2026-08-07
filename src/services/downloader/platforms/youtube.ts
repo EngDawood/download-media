@@ -21,7 +21,7 @@ const MAX_SENDABLE_BYTES = 45 * 1024 * 1024;
 function pickSendableVideo(videos: MediaItem[]): MediaItem {
 	const sized = videos.filter((v): v is MediaItem & { filesize: number } => typeof v.filesize === 'number' && v.filesize > 0);
 	if (!sized.length) return videos[0];
-	const fitting = sized.filter(v => v.filesize <= MAX_SENDABLE_BYTES);
+	const fitting = sized.filter((v) => v.filesize <= MAX_SENDABLE_BYTES);
 	if (fitting.length) return fitting.reduce((best, v) => (v.filesize > best.filesize ? v : best));
 	return sized.reduce((smallest, v) => (v.filesize < smallest.filesize ? v : smallest));
 }
@@ -35,11 +35,21 @@ export class YouTubeProvider implements IDownloaderProvider {
 			const res = await btchFetch('youtube', url, true, YOUTUBE_TIMEOUT_MS);
 			const caption = buildCaption(res.title);
 			const thumbnail = res.thumbnail;
-			if (mode === 'audio' && isUrl(res.mp3)) return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption, title: res.title, thumbnail };
+			if (mode === 'audio' && isUrl(res.mp3))
+				return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption, title: res.title, thumbnail };
 			if (isUrl(res.mp4)) {
-				return { status: 'success', media: [{ type: 'video', url: res.mp4 }], caption, title: res.title, thumbnail, mp3Url: isUrl(res.mp3) ? res.mp3 : undefined };
+				return {
+					status: 'success',
+					media: [{ type: 'video', url: res.mp4 }],
+					caption,
+					title: res.title,
+					thumbnail,
+					mp3Url: isUrl(res.mp3) ? res.mp3 : undefined,
+				};
 			}
-		} catch (e) { if (isTimeoutError(e)) timedOut = true; /* fall through to AIO */ }
+		} catch (e) {
+			if (isTimeoutError(e)) timedOut = true; /* fall through to AIO */
+		}
 
 		try {
 			const aio = await btchFetch('aio', url, true, YOUTUBE_TIMEOUT_MS);
@@ -55,7 +65,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 				const videos: MediaItem[] = parseLinksSection(data.links.video, 'video');
 				if (videos.length) {
 					if (mode !== 'auto' && mode !== 'audio') {
-						const match = videos.find(v => v.quality?.includes(mode));
+						const match = videos.find((v) => v.quality?.includes(mode));
 						if (match) return { status: 'success', media: [match], caption, title: data.title, thumbnail, mp3Url };
 					}
 					return { status: 'success', media: [pickSendableVideo(videos)], caption, title: data.title, thumbnail, mp3Url };
@@ -66,12 +76,27 @@ export class YouTubeProvider implements IDownloaderProvider {
 			const flatCaption = buildCaption(flatTitle);
 			const flatThumb = aio.thumbnail || data?.thumbnail;
 			if (isUrl(aio.mp4)) {
-				return { status: 'success', media: [{ type: 'video', url: aio.mp4 }], caption: flatCaption, title: flatTitle, thumbnail: flatThumb, mp3Url: isUrl(aio.mp3) ? aio.mp3 : undefined };
+				return {
+					status: 'success',
+					media: [{ type: 'video', url: aio.mp4 }],
+					caption: flatCaption,
+					title: flatTitle,
+					thumbnail: flatThumb,
+					mp3Url: isUrl(aio.mp3) ? aio.mp3 : undefined,
+				};
 			}
 			if (isUrl(aio.mp3)) {
-				return { status: 'success', media: [{ type: 'audio', url: aio.mp3 }], caption: flatCaption, title: flatTitle, thumbnail: flatThumb };
+				return {
+					status: 'success',
+					media: [{ type: 'audio', url: aio.mp3 }],
+					caption: flatCaption,
+					title: flatTitle,
+					thumbnail: flatThumb,
+				};
 			}
-		} catch (e) { if (isTimeoutError(e)) timedOut = true; /* all failed */ }
+		} catch (e) {
+			if (isTimeoutError(e)) timedOut = true; /* all failed */
+		}
 
 		if (timedOut) {
 			return { status: 'error', error: 'YouTube is still processing this video', retryable: true };

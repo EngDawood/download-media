@@ -20,7 +20,20 @@ export async function downloadAndSendMedia(
 	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
-	options?: { db?: D1Database; adminId?: number; guestMode?: boolean; analytics?: AnalyticsEngineDataset; userId?: number; mediaType?: 'video' | 'audio' | 'photo' | 'document'; mediaTitle?: string; firstName?: string; username?: string; locale?: Locale; originalUrl?: string; telegraphToken?: string },
+	options?: {
+		db?: D1Database;
+		adminId?: number;
+		guestMode?: boolean;
+		analytics?: AnalyticsEngineDataset;
+		userId?: number;
+		mediaType?: 'video' | 'audio' | 'photo' | 'document';
+		mediaTitle?: string;
+		firstName?: string;
+		username?: string;
+		locale?: Locale;
+		originalUrl?: string;
+		telegraphToken?: string;
+	},
 ): Promise<void> {
 	const userType = options?.guestMode ? 'guest' : 'admin';
 	const userId = options?.userId ?? 0;
@@ -116,10 +129,12 @@ export async function downloadAndSendMedia(
 					reply_markup: keyboard,
 				});
 			} catch {
-				await bot.api.sendMessage(chatId, fullText, {
-					parse_mode: 'HTML',
-					reply_markup: keyboard,
-				}).catch(() => {});
+				await bot.api
+					.sendMessage(chatId, fullText, {
+						parse_mode: 'HTML',
+						reply_markup: keyboard,
+					})
+					.catch(() => {});
 			}
 		}
 	};
@@ -168,13 +183,13 @@ export async function downloadAndSendMedia(
 			let caption = result.caption || '';
 			if (platform === 'Instagram') {
 				const footer = options?.db
-					? (await getConfig(options.db, KV_KEY_INSTAGRAM_FOOTER)) ?? DEFAULT_INSTAGRAM_FOOTER
+					? ((await getConfig(options.db, KV_KEY_INSTAGRAM_FOOTER)) ?? DEFAULT_INSTAGRAM_FOOTER)
 					: DEFAULT_INSTAGRAM_FOOTER;
 				caption = caption ? `${caption}\n\n${footer}` : footer;
 			}
 			const totalFileSizeBytes = result.media.reduce((sum, m) => sum + (m.filesize ?? 0), 0);
 			const sizeInfo = result.media
-				.map(m => {
+				.map((m) => {
 					const parts: string[] = [];
 					if (m.quality) parts.push(m.quality);
 					if (m.filesize) parts.push(formatFileSize(m.filesize));
@@ -185,7 +200,7 @@ export async function downloadAndSendMedia(
 			const doneText = sizeInfo ? t(locale, 'download.done_info', { info: sizeInfo }) : t(locale, 'download.done');
 
 			if (result.media.length > 1) {
-				const groupableItems = result.media.filter(m => m.type === 'photo' || m.type === 'video');
+				const groupableItems = result.media.filter((m) => m.type === 'photo' || m.type === 'video');
 
 				if (groupableItems.length > 1) {
 					for (let i = 0; i < groupableItems.length; i += 4) {
@@ -291,7 +306,11 @@ export async function downloadAndSendMedia(
 					reply_markup: keyboard,
 				});
 			}
-			try { await bot.api.deleteMessage(chatId, statusMessageId!); } catch { /* ignore */ }
+			try {
+				await bot.api.deleteMessage(chatId, statusMessageId!);
+			} catch {
+				/* ignore */
+			}
 			return;
 		}
 

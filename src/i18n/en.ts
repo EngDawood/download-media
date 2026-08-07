@@ -93,14 +93,16 @@ export const en = {
 	'download.done': '✅ Done.',
 	'download.done_info': 'Done. ({info})',
 	'download.sent_album': 'Sent {count} items as album.',
-	'download.failed': "❌ Download failed. The link may be private, deleted, or unsupported.\n<code>{url}</code>\n<i>Error: {error}</i>",
-	'download.processing_retry': "⏳ YouTube is still processing this video — this can take a moment the first time.\n<code>{url}</code>\n<i>Tap Retry in a few seconds.</i>",
-	'download.no_media': "😕 No media found. The post may be private or deleted.\n{url}",
-	'download.error': "⚠️ Something went wrong. Please try again in a moment.\n{url}",
+	'download.failed': '❌ Download failed. The link may be private, deleted, or unsupported.\n<code>{url}</code>\n<i>Error: {error}</i>',
+	'download.processing_retry':
+		'⏳ YouTube is still processing this video — this can take a moment the first time.\n<code>{url}</code>\n<i>Tap Retry in a few seconds.</i>',
+	'download.no_media': '😕 No media found. The post may be private or deleted.\n{url}',
+	'download.error': '⚠️ Something went wrong. Please try again in a moment.\n{url}',
 	'download.too_large': '😔 File too large for Telegram (50MB limit). Use the link below to download it directly.',
-	'download.too_large_name': '😔 Sorry {firstName}, this file exceeds Telegram\'s 50MB limit. Use the link below to download it directly.',
+	'download.too_large_name': "😔 Sorry {firstName}, this file exceeds Telegram's 50MB limit. Use the link below to download it directly.",
 	'download.too_large_limit': '😔 File too large for Telegram (50MB limit). Use the link below to download it directly.',
-	'download.too_large_limit_name': '😔 Sorry {firstName}, this file exceeds Telegram\'s 50MB limit. Use the link below to download it directly.',
+	'download.too_large_limit_name':
+		"😔 Sorry {firstName}, this file exceeds Telegram's 50MB limit. Use the link below to download it directly.",
 	'download.copy_url_hint': 'Copy the URL below, then send the link to @urluploadxbot',
 	'download.btn_urluploadxbot': '🤖 Send to @urluploadxbot',
 	'download.btn_browser': '🌐 Open in Browser',
@@ -109,10 +111,11 @@ export const en = {
 	'download.btn_report_admin': '📬 Report Issue',
 	'download.contact_admin': 'Need help? Join our support channel @dawo5d or contact the admin @Daw5d.',
 	'download.report_sent': '✅ Your report has been sent to the admin.',
-	'download.admin_error_report': '🚨 <b>Failed Download Report</b>\n\n👤 User: {user}\n📱 Platform: {platform}\n🔗 URL: <code>{url}</code>\n❌ Error: <code>{error}</code>',
+	'download.admin_error_report':
+		'🚨 <b>Failed Download Report</b>\n\n👤 User: {user}\n📱 Platform: {platform}\n🔗 URL: <code>{url}</code>\n❌ Error: <code>{error}</code>',
 
 	// --- callbacks ---
-	'callback.session_expired': "⏱ Session expired. Please send the link again to start fresh.",
+	'callback.session_expired': '⏱ Session expired. Please send the link again to start fresh.',
 	'callback.cancelled': 'Cancelled.',
 
 	// --- subscription gate ---
@@ -138,10 +141,9 @@ export const en = {
 
 	// --- admin commands ---
 	'setchannel.usage': 'Usage: /setchannel @channelname',
-	'setchannel.bot_info_fail': '⚠️ Couldn\'t fetch bot details. Please try again.',
+	'setchannel.bot_info_fail': "⚠️ Couldn't fetch bot details. Please try again.",
 	'setchannel.not_admin':
-		"⚠️ I'm in *{channel}* but I'm not an administrator there\\.\n\n" +
-		'Please promote me to admin in the channel, then try again\\.',
+		"⚠️ I'm in *{channel}* but I'm not an administrator there\\.\n\n" + 'Please promote me to admin in the channel, then try again\\.',
 	'setchannel.not_found':
 		"❌ Could not find channel *{channel}* or I don't have access\\.\n\n" +
 		'Make sure:\n' +
@@ -227,22 +229,23 @@ export const en = {
 	'unblock.not_found': '⚠️ User <code>{userId}</code> was not in the blocklist.',
 
 	// --- blocked user message ---
-	'input.blocked': '🚫 You\'ve been blocked from using this bot.',
+	'input.blocked': "🚫 You've been blocked from using this bot.",
 	'allowlist.header': '✅ <b>Whitelisted Domains</b>',
 	'allowlist.empty': 'No domains are whitelisted yet.',
 	'allowlist.removed': '🗑 <b>{hostname}</b> removed from allowlist.',
 	'allowlist.not_found': '⚠️ Domain not found in allowlist.',
-'input.blocked_domain': '🚫 This link isn\'t allowed. If you think this is a mistake, tap the button below.',
+	'input.blocked_domain': "🚫 This link isn't allowed. If you think this is a mistake, tap the button below.",
 	'input.blocked_domain_btn': '✋ Report Safe Content',
 	'report.sent': '✅ Your report has been sent to the admin.',
-	'report.admin_notify': '🚨 <b>Domain report</b>\n\nUser <b>{user}</b> (ID: <code>{userId}</code>) says this URL was wrongly blocked:\n<code>{url}</code>',
+	'report.admin_notify':
+		'🚨 <b>Domain report</b>\n\nUser <b>{user}</b> (ID: <code>{userId}</code>) says this URL was wrongly blocked:\n<code>{url}</code>',
 
 	// --- /broadcast command ---
 	'broadcast.prompt': '📣 Type the message you want to broadcast to all users.\n\nUse /cancel to abort.',
 	'broadcast.preview': '📣 <b>Broadcast Preview:</b>\n\n{message}\n\n<i>Send this to all users?</i>',
 	'broadcast.btn_confirm': '✅ Send',
 	'broadcast.btn_cancel': '❌ Cancel',
-	'broadcast.sending': '📤 Sending to all users...', 
+	'broadcast.sending': '📤 Sending to all users...',
 	'broadcast.done': '✅ Broadcast sent to <b>{sent}</b> users. <b>{failed}</b> failed.',
 	'broadcast.no_users': '⚠️ No users to broadcast to yet.',
 	'broadcast.cancelled': '❌ Broadcast cancelled.',
@@ -268,8 +271,9 @@ export const en = {
 	'stats.platform_errors_header': '❌ <b>Errors by Platform:</b>',
 
 	// --- /story command ---
-	'story.prompt': '📸 Send me an Instagram username or story link.\n\nExamples:\n<code>dawo5d</code>\n<code>@dawo5d</code>\n<code>instagram.com/stories/dawo5d/</code>',
-	'story.invalid': '⚠️ Couldn\'t find an Instagram username in that. Send a username like <code>dawo5d</code> or a story link.',
+	'story.prompt':
+		'📸 Send me an Instagram username or story link.\n\nExamples:\n<code>dawo5d</code>\n<code>@dawo5d</code>\n<code>instagram.com/stories/dawo5d/</code>',
+	'story.invalid': "⚠️ Couldn't find an Instagram username in that. Send a username like <code>dawo5d</code> or a story link.",
 
 	// --- /footer command ---
 	'footer.current': '🔖 <b>Instagram footer:</b>\n<code>{text}</code>',

@@ -11,18 +11,21 @@ export class ThreadsProvider implements IDownloaderProvider {
 		try {
 			const aioResult = await tryAIO(url, mode);
 			if (aioResult?.media) {
-				const videos = aioResult.media.filter(m => m.type === 'video');
+				const videos = aioResult.media.filter((m) => m.type === 'video');
 				if (videos.length > 1) return { ...aioResult, media: [videos[0]] };
 				return aioResult;
 			}
-		} catch { /* fall through */ }
+		} catch {
+			/* fall through */
+		}
 
 		const res = await btchFetch('threads', url, true);
 		const hasVideo = res.type === 'video' && isUrl(res.video);
 		const hasImage = (res.type === 'image' || res.type === 'mixed') && isUrl(res.image);
 		const cap = buildCaption(res.title);
 
-		if (mode === 'audio' && hasVideo) return { status: 'success', media: [{ type: 'audio', url: res.video }], caption: cap, title: res.title };
+		if (mode === 'audio' && hasVideo)
+			return { status: 'success', media: [{ type: 'audio', url: res.video }], caption: cap, title: res.title };
 
 		if (res.type === 'mixed') {
 			const media: MediaItem[] = [];

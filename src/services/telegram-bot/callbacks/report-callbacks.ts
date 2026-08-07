@@ -2,14 +2,7 @@ import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { t, getLocale } from '../../../i18n';
 import { downloadAndSendMedia } from '../handlers/download-and-send';
-import {
-	isReportSent,
-	setReportSent,
-	getReportData,
-	deleteReportData,
-	setReportPending,
-	getReportPending,
-} from '../storage/session-store';
+import { isReportSent, setReportSent, getReportData, deleteReportData, setReportPending, getReportPending } from '../storage/session-store';
 
 export function registerReportCallbacks(bot: Bot, db: D1Database, adminId: number, telegraphToken?: string): void {
 	bot.callbackQuery('report:issue', async (ctx) => {
@@ -32,13 +25,24 @@ export function registerReportCallbacks(bot: Bot, db: D1Database, adminId: numbe
 			return;
 		}
 
-		const { url, platform, error, firstName, username, userId: reporterId } = reportData as {
-			url: string; platform: string; error: string;
-			firstName: string; username?: string; userId?: number;
+		const {
+			url,
+			platform,
+			error,
+			firstName,
+			username,
+			userId: reporterId,
+		} = reportData as {
+			url: string;
+			platform: string;
+			error: string;
+			firstName: string;
+			username?: string;
+			userId?: number;
 		};
 
 		const resolvedId = reporterId ?? userId;
-		const userLink = `<a href="tg://user?id=${resolvedId}">${username ? `@${username}` : (firstName || `ID:${resolvedId}`)}</a>`;
+		const userLink = `<a href="tg://user?id=${resolvedId}">${username ? `@${username}` : firstName || `ID:${resolvedId}`}</a>`;
 		const report = t('en', 'download.admin_error_report', { user: userLink, platform, url, error });
 
 		setReportPending(db, userId, { url, platform, chatId: userId }).catch(() => {});

@@ -1,7 +1,0 @@
-.mcp.json
-.claude/*
-CLAUDE.md
-\*.tgz
-node_modules/
-
-package-lock.json

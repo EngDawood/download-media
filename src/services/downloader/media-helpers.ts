@@ -15,7 +15,9 @@ export function detectTypeFromJwtUrl(url: string): 'photo' | 'video' {
 			const hint = payload.filename || payload.url || '';
 			if (/\.(jpg|jpeg|png|webp|heic|gif)/i.test(hint)) return 'photo';
 		}
-	} catch { /* ignore decode errors */ }
+	} catch {
+		/* ignore decode errors */
+	}
 	return 'video';
 }
 
@@ -51,8 +53,16 @@ export function formatFileSize(bytes: number | undefined | null): string {
  * tiktokio.com obfuscates parts of the base64 token by replacing common characters with numeric strings.
  */
 const DECODE_MAP: Record<string, string> = {
-	'000': 'h', '001': 'i', '002': 'j', '003': 'k', '004': 'l',
-	'005': 'm', '006': 'n', '007': 'o', '008': 'p', '009': 'q',
+	'000': 'h',
+	'001': 'i',
+	'002': 'j',
+	'003': 'k',
+	'004': 'l',
+	'005': 'm',
+	'006': 'n',
+	'007': 'o',
+	'008': 'p',
+	'009': 'q',
 };
 
 /**

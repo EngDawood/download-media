@@ -11,11 +11,13 @@ export class PinterestProvider implements IDownloaderProvider {
 		try {
 			const aioResult = await tryAIO(url);
 			if (aioResult?.media) {
-				const videos = aioResult.media.filter(m => m.type === 'video');
+				const videos = aioResult.media.filter((m) => m.type === 'video');
 				if (videos.length > 1) return { ...aioResult, media: [videos[0]] };
 				return aioResult;
 			}
-		} catch { /* fall through */ }
+		} catch {
+			/* fall through */
+		}
 
 		const res = await btchFetch('pinterest', url, true);
 		if (res.result) {

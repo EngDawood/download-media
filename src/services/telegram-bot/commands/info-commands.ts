@@ -3,11 +3,7 @@ import { clearAdminState, getAdminState, setAdminState } from '../storage/admin-
 import { deleteSession } from '../../../utils/db';
 import { getBlockedUrl, deleteBlockedUrl } from '../storage/session-store';
 import { downloadAndSendMedia } from '../handlers/download-and-send';
-import {
-	KV_KEY_REQUIRED_CHANNEL,
-	FREE_USES_BEFORE_GATE,
-	KV_KEY_INSTAGRAM_FOOTER,
-} from '../../../constants';
+import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, KV_KEY_INSTAGRAM_FOOTER } from '../../../constants';
 import { getConfig, setConfig, deleteConfig, setUserLang } from '../../../utils/db';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
 import {
@@ -102,7 +98,12 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		await ctx.reply(t(locale, 'cancel.done'));
 	});
 
-	function buildStatsText(report: StatsReport, locale: Locale, channelSubscribers?: number | null, channelUsername?: string | null): string {
+	function buildStatsText(
+		report: StatsReport,
+		locale: Locale,
+		channelSubscribers?: number | null,
+		channelUsername?: string | null,
+	): string {
 		const g = report.global;
 		const rate = g.totalLinks > 0 ? Math.round((g.totalSuccess / g.totalLinks) * 100) : 0;
 
@@ -116,13 +117,18 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			t(locale, 'stats.success', { count: String(g.totalSuccess), rate: String(rate) }),
 			t(locale, 'stats.errors', { count: String(g.totalErrors) }),
 			'',
-			t(locale, 'stats.today', { links: String(report.today.links), success: String(report.today.success), errors: String(report.today.errors ?? 0) }),
+			t(locale, 'stats.today', {
+				links: String(report.today.links),
+				success: String(report.today.success),
+				errors: String(report.today.errors ?? 0),
+			}),
 		];
 
 		if (channelUsername) {
-			const gateLine = channelSubscribers != null
-				? t(locale, 'stats.channel_subscribers', { channel: channelUsername, count: String(channelSubscribers) })
-				: `📢 ${channelUsername}`;
+			const gateLine =
+				channelSubscribers != null
+					? t(locale, 'stats.channel_subscribers', { channel: channelUsername, count: String(channelSubscribers) })
+					: `📢 ${channelUsername}`;
 			lines.push('', gateLine);
 			if ((g.totalGateBlocked ?? 0) > 0) {
 				lines.push(t(locale, 'stats.gate_header'));
@@ -133,7 +139,9 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			}
 		}
 
-		const sortedPlatforms = Object.entries(g.platforms).sort((a, b) => b[1] - a[1]).slice(0, 7);
+		const sortedPlatforms = Object.entries(g.platforms)
+			.sort((a, b) => b[1] - a[1])
+			.slice(0, 7);
 		if (sortedPlatforms.length > 0) {
 			const maxCount = sortedPlatforms[0][1];
 			lines.push('', t(locale, 'stats.platforms_header'));
@@ -182,10 +190,17 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 
 		let channelSubscribers: number | null = null;
 		if (channelUsername) {
-			try { channelSubscribers = await bot.api.getChatMemberCount(channelUsername); } catch (_e) { /* ignored */ }
+			try {
+				channelSubscribers = await bot.api.getChatMemberCount(channelUsername);
+			} catch (_e) {
+				/* ignored */
+			}
 		}
 
-		await ctx.reply(buildStatsText(report, locale, channelSubscribers, channelUsername), { parse_mode: 'HTML', reply_markup: buildStatsKeyboard(locale) });
+		await ctx.reply(buildStatsText(report, locale, channelSubscribers, channelUsername), {
+			parse_mode: 'HTML',
+			reply_markup: buildStatsKeyboard(locale),
+		});
 	});
 
 	bot.callbackQuery('stats:daily', async (ctx) => {
@@ -198,7 +213,8 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 
 		const lines: string[] = [t(locale, 'stats.daily_header'), ''];
 		let hasData = false;
-		let totalLinks = 0, totalSuccess = 0;
+		let totalLinks = 0,
+			totalSuccess = 0;
 		for (let i = 0; i < daily.length; i++) {
 			const entry = daily[i];
 			let label: string;
@@ -214,7 +230,14 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 				hasData = true;
 				totalLinks += entry.links;
 				totalSuccess += entry.success;
-				lines.push(t(locale, 'stats.daily_row', { label, links: String(entry.links), success: String(entry.success), errors: String(entry.errors ?? 0) }));
+				lines.push(
+					t(locale, 'stats.daily_row', {
+						label,
+						links: String(entry.links),
+						success: String(entry.success),
+						errors: String(entry.errors ?? 0),
+					}),
+				);
 			}
 		}
 		if (!hasData) {
@@ -223,14 +246,30 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		}
 
 		const summaryRate = totalLinks > 0 ? Math.round((totalSuccess / totalLinks) * 100) : 0;
-		lines.push('', t(locale, 'stats.daily_summary', { links: String(totalLinks), success: String(totalSuccess), rate: String(summaryRate) }));
+		lines.push(
+			'',
+			t(locale, 'stats.daily_summary', { links: String(totalLinks), success: String(totalSuccess), rate: String(summaryRate) }),
+		);
 
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
 		await ctx.answerCallbackQuery();
 		await ctx.editMessageText(lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
 	});
 
-	function renderHistoryEntry(entry: { url: string; platform: string; userId: number; username?: string; firstName: string; timestamp: number; success: boolean; durationMs?: number; fileSizeBytes?: number }, showDate = false): string[] {
+	function renderHistoryEntry(
+		entry: {
+			url: string;
+			platform: string;
+			userId: number;
+			username?: string;
+			firstName: string;
+			timestamp: number;
+			success: boolean;
+			durationMs?: number;
+			fileSizeBytes?: number;
+		},
+		showDate = false,
+	): string[] {
 		const time = new Date(entry.timestamp).toLocaleString('en-GB', {
 			timeZone: 'UTC',
 			...(showDate ? { dateStyle: 'short' } : {}),
@@ -243,10 +282,7 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		if (entry.fileSizeBytes) extra.push(fmtBytes(entry.fileSizeBytes));
 		const extraStr = extra.length > 0 ? ` · ${extra.join(' ')}` : '';
 		const shortUrl = entry.url.replace(/^https?:\/\//, '').slice(0, 50);
-		return [
-			`${status} <b>${userDisplay}</b> ${entry.platform}${extraStr}`,
-			`   <code>${shortUrl}</code> · ${time}`,
-		];
+		return [`${status} <b>${userDisplay}</b> ${entry.platform}${extraStr}`, `   <code>${shortUrl}</code> · ${time}`];
 	}
 
 	bot.callbackQuery('stats:today_history', async (ctx) => {
@@ -410,14 +446,19 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		];
 
 		if ((report.today.gateBlocked ?? 0) > 0 || (report.today.gateVerified ?? 0) > 0) {
-			lines.push('', t(locale, 'stats.gate_today', { blocked: String(report.today.gateBlocked ?? 0), verified: String(report.today.gateVerified ?? 0) }));
+			lines.push(
+				'',
+				t(locale, 'stats.gate_today', { blocked: String(report.today.gateBlocked ?? 0), verified: String(report.today.gateVerified ?? 0) }),
+			);
 		}
 
 		if (channelUsername) {
 			try {
 				const subs = await bot.api.getChatMemberCount(channelUsername);
 				lines.push(t(locale, 'stats.channel_subscribers', { channel: channelUsername, count: String(subs) }));
-			} catch (_e) { /* ignored */ }
+			} catch (_e) {
+				/* ignored */
+			}
 		}
 
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
@@ -440,15 +481,30 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		}
 
 		// Query all user stats for activity bucketing
-		const userRows = await db
-			.prepare(`SELECT user_id, first_name, username, count, failures, platforms, last_seen FROM user_stats`)
-			.all<{ user_id: number; first_name: string; username: string | null; count: number; failures: number; platforms: string; last_seen: number }>();
+		const userRows = await db.prepare(`SELECT user_id, first_name, username, count, failures, platforms, last_seen FROM user_stats`).all<{
+			user_id: number;
+			first_name: string;
+			username: string | null;
+			count: number;
+			failures: number;
+			platforms: string;
+			last_seen: number;
+		}>();
 
 		const now = Date.now();
 		const ms7d = 7 * 24 * 3600 * 1000;
 		const ms30d = 30 * 24 * 3600 * 1000;
-		let active7 = 0, active30 = 0, inactive = 0;
-		const userDetails: Array<{ userId: number; firstName: string; username?: string; count: number; failures: number; topPlatform: string }> = [];
+		let active7 = 0,
+			active30 = 0,
+			inactive = 0;
+		const userDetails: Array<{
+			userId: number;
+			firstName: string;
+			username?: string;
+			count: number;
+			failures: number;
+			topPlatform: string;
+		}> = [];
 
 		for (const r of userRows.results) {
 			const age = now - r.last_seen;
@@ -456,7 +512,14 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			else if (age <= ms30d) active30++;
 			else inactive++;
 			const topPlatform = Object.entries<number>(JSON.parse(r.platforms || '{}')).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-			userDetails.push({ userId: r.user_id, firstName: r.first_name, username: r.username ?? undefined, count: r.count, failures: r.failures, topPlatform });
+			userDetails.push({
+				userId: r.user_id,
+				firstName: r.first_name,
+				username: r.username ?? undefined,
+				count: r.count,
+				failures: r.failures,
+				topPlatform,
+			});
 		}
 
 		userDetails.sort((a, b) => b.count - a.count);
@@ -476,13 +539,15 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		for (let i = 0; i < powerUsers.length; i++) {
 			const u = powerUsers[i];
 			const userDisplay = u.username ? `@${u.username}` : u.firstName;
-			lines.push(t(locale, 'stats.users_power_row', {
-				rank: String(i + 1),
-				userDisplay,
-				count: String(u.count),
-				failures: String(u.failures),
-				topPlatform: u.topPlatform,
-			}));
+			lines.push(
+				t(locale, 'stats.users_power_row', {
+					rank: String(i + 1),
+					userDisplay,
+					count: String(u.count),
+					failures: String(u.failures),
+					topPlatform: u.topPlatform,
+				}),
+			);
 		}
 
 		const keyboard = new InlineKeyboard().text(t(locale, 'stats.btn_back'), 'stats:back');
@@ -520,10 +585,7 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			return;
 		}
 
-		const userRow = await db
-			.prepare(`SELECT first_name FROM user_stats WHERE user_id = ?`)
-			.bind(userId)
-			.first<{ first_name: string }>();
+		const userRow = await db.prepare(`SELECT first_name FROM user_stats WHERE user_id = ?`).bind(userId).first<{ first_name: string }>();
 		const firstName = userRow?.first_name ?? 'Unknown';
 
 		await blockUser(db, userId, { firstName });
@@ -596,7 +658,9 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		const reportedUserId = parseInt(ctx.match[1], 10);
 		await deleteBlockedUrl(db, reportedUserId);
 		await ctx.answerCallbackQuery({ text: '✅ Accepted — user can retry the link.' });
-		await ctx.editMessageText(`${ctx.callbackQuery?.message?.text ?? ''}\n\n✅ <b>Accepted (one-time)</b> by admin.`, { parse_mode: 'HTML' });
+		await ctx.editMessageText(`${ctx.callbackQuery?.message?.text ?? ''}\n\n✅ <b>Accepted (one-time)</b> by admin.`, {
+			parse_mode: 'HTML',
+		});
 	});
 
 	bot.callbackQuery(/^report:whitelist:(\d+)$/, async (ctx) => {
@@ -826,10 +890,7 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 
 		const storyUrl = `https://www.instagram.com/stories/${username}/`;
 		const userLink = `<a href="https://www.instagram.com/${username}/">@${username}</a>`;
-		const statusMsg = await ctx.reply(
-			t(locale, 'download.status_stories', { userLink }),
-			{ parse_mode: 'HTML' },
-		);
+		const statusMsg = await ctx.reply(t(locale, 'download.status_stories', { userLink }), { parse_mode: 'HTML' });
 		await downloadAndSendMedia(bot, ctx.chat!.id, storyUrl, 'Instagram', 'auto', statusMsg.message_id, false, {
 			db,
 			adminId: isAdmin ? adminId : undefined,
@@ -876,7 +937,7 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 
 		const filter = ctx.message?.text?.split(' ')[1]?.toLowerCase();
 		let entries = await getFailedDownloads(db, 50);
-		if (filter) entries = entries.filter(e => e.platform.toLowerCase().includes(filter));
+		if (filter) entries = entries.filter((e) => e.platform.toLowerCase().includes(filter));
 		const top = entries.slice(0, 10);
 
 		if (top.length === 0) {

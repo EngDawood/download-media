@@ -33,7 +33,7 @@ export interface AdminState {
 export interface TelegramMediaMessage {
 	type: 'photo' | 'video' | 'audio' | 'document' | 'mediagroup' | 'text';
 	url?: string;
-	buffer?: Uint8Array;  // in-memory binary (used instead of url for document uploads)
+	buffer?: Uint8Array; // in-memory binary (used instead of url for document uploads)
 	filename?: string;
 	thumbnailUrl?: string;
 	/** Track title — shown by Telegram as the audio name instead of the raw filename. */

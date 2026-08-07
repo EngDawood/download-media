@@ -11,14 +11,16 @@ export class FacebookProvider implements IDownloaderProvider {
 		try {
 			const aioResult = await tryAIO(url);
 			if (aioResult?.media?.length) {
-				const videos = aioResult.media.filter(m => m.type === 'video');
+				const videos = aioResult.media.filter((m) => m.type === 'video');
 				if (videos.length > 1) {
 					const selected = mode === 'sd' ? videos[videos.length - 1] : videos[0];
 					return { ...aioResult, media: [selected] };
 				}
 				return aioResult;
 			}
-		} catch { /* fall through */ }
+		} catch {
+			/* fall through */
+		}
 
 		const res = await btchFetch('fbdown', url, true);
 		const videoUrl = isUrl(res.HD) ? res.HD : isUrl(res.Normal_video) ? res.Normal_video : null;
@@ -41,6 +43,8 @@ export class FacebookProvider implements IDownloaderProvider {
 				return `${q}${s}`;
 			};
 			return { hdLabel: buildLabel(entries[0], 'HD'), sdLabel: buildLabel(entries[entries.length - 1], 'SD') };
-		} catch { return null; }
+		} catch {
+			return null;
+		}
 	}
 }

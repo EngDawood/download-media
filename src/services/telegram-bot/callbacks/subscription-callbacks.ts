@@ -22,10 +22,7 @@ export function registerSubscriptionCallbacks(bot: Bot, db: D1Database): void {
 			if (MEMBER_STATUSES.includes(member.status)) {
 				incrementGateVerified(db).catch(() => {});
 				const channelName = channelUsername.replace('@', '');
-				await ctx.editMessageText(
-					t(locale, 'gate.subscribed', { channel: channelUsername, channelName }),
-					{ parse_mode: 'MarkdownV2' },
-				);
+				await ctx.editMessageText(t(locale, 'gate.subscribed', { channel: channelUsername, channelName }), { parse_mode: 'MarkdownV2' });
 				await ctx.answerCallbackQuery({ text: t(locale, 'gate.welcome_alert') });
 			} else {
 				incrementGateStillBlocked(db).catch(() => {});

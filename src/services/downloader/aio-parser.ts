@@ -8,7 +8,7 @@ export function parseAioGallery(items: any[]): MediaItem[] {
 	return items
 		.map((item: any) => {
 			const src = item.resources?.[0]?.src ?? item.urls?.url ?? null;
-			return isUrl(src) ? { type: detectMediaType(src), url: src } as MediaItem : null;
+			return isUrl(src) ? ({ type: detectMediaType(src), url: src } as MediaItem) : null;
 		})
 		.filter((item): item is MediaItem => item !== null);
 }

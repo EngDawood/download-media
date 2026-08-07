@@ -23,7 +23,9 @@ export class SpotifyProvider implements IDownloaderProvider {
 					};
 				}
 			}
-		} catch { /* fall through to AIO */ }
+		} catch {
+			/* fall through to AIO */
+		}
 		const aioResult = await tryAIO(url, 'audio');
 		if (aioResult?.media) return aioResult;
 		return { status: 'error', error: 'No Spotify audio found' };

@@ -15,11 +15,7 @@ const locales: Record<Locale, Translations> = { en, ar };
  * {varName} in the template is replaced with params.varName.
  * Falls back: requested locale → English → raw key.
  */
-export function t(
-	locale: Locale,
-	key: TranslationKey,
-	params?: Record<string, string | number>,
-): string {
+export function t(locale: Locale, key: TranslationKey, params?: Record<string, string | number>): string {
 	const template = locales[locale]?.[key] ?? locales[DEFAULT_LOCALE][key] ?? key;
 	if (!params) return template;
 	return template.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`));
@@ -28,11 +24,7 @@ export function t(
 /**
  * Resolve locale for a user: D1 preference > Telegram language_code > default.
  */
-export async function resolveLocale(
-	db: D1Database,
-	userId: number,
-	telegramLangCode?: string,
-): Promise<Locale> {
+export async function resolveLocale(db: D1Database, userId: number, telegramLangCode?: string): Promise<Locale> {
 	const stored = await getUserLang(db, userId);
 	if (stored && SUPPORTED_LOCALES.includes(stored as Locale)) {
 		return stored as Locale;

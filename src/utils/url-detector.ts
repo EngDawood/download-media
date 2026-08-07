@@ -67,7 +67,9 @@ function normalizeYouTube(url: string): string {
 		// Standard or mobile watch URL — strip all params except v=
 		const videoId = u.searchParams.get('v');
 		if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
-	} catch { /* fall through */ }
+	} catch {
+		/* fall through */
+	}
 	return url;
 }
 
@@ -83,7 +85,9 @@ function normalizeInstagram(url: string): string {
 			}
 			return `https://www.instagram.com/${parts[0]}/${parts[1]}/`;
 		}
-	} catch { /* fall through */ }
+	} catch {
+		/* fall through */
+	}
 	return url;
 }
 
@@ -96,7 +100,9 @@ function normalizeTikTok(url: string): string {
 		}
 		// All others (www / m) → www, path only, strip _t, _r, is_from_webapp, etc.
 		return `https://www.tiktok.com${u.pathname}`;
-	} catch { /* fall through */ }
+	} catch {
+		/* fall through */
+	}
 	return url;
 }
 
@@ -109,13 +115,13 @@ function normalizeFacebook(url: string): string {
 		// watch/?v= URLs need the v param preserved
 		if (u.pathname.startsWith('/watch')) {
 			const v = u.searchParams.get('v');
-			return v
-				? `https://www.facebook.com/watch/?v=${v}`
-				: `https://www.facebook.com/watch/`;
+			return v ? `https://www.facebook.com/watch/?v=${v}` : `https://www.facebook.com/watch/`;
 		}
 		// All other paths (reel, share/r, share/v, username/videos) — path only
 		return `https://www.facebook.com${u.pathname}`;
-	} catch { /* fall through */ }
+	} catch {
+		/* fall through */
+	}
 	return url;
 }
 
@@ -142,7 +148,9 @@ function normalizeGitHub(url: string): string {
 		}
 		// /owner/repo — default branch via HEAD redirect
 		return `https://github.com/${owner}/${repo}/archive/HEAD.zip`;
-	} catch { /* fall through */ }
+	} catch {
+		/* fall through */
+	}
 	return url;
 }
 
@@ -153,7 +161,9 @@ function normalizeTwitter(url: string): string {
 		// Keep only the path (strips UTM and other tracking params)
 		const host = u.hostname.replace('x.com', 'twitter.com').replace(/^www\./, '');
 		return `https://${host}${u.pathname}`;
-	} catch { /* fall through */ }
+	} catch {
+		/* fall through */
+	}
 	return url;
 }
 
@@ -163,13 +173,20 @@ function normalizeTwitter(url: string): string {
  */
 function normalizeUrl(url: string, platform: string): string {
 	switch (platform) {
-		case 'YouTube':   return normalizeYouTube(url);
-		case 'Instagram': return normalizeInstagram(url);
-		case 'TikTok':    return normalizeTikTok(url);
-		case 'Facebook':  return normalizeFacebook(url);
-		case 'Twitter':   return normalizeTwitter(url);
-		case 'GitHub':    return normalizeGitHub(url);
-		default:          return url;
+		case 'YouTube':
+			return normalizeYouTube(url);
+		case 'Instagram':
+			return normalizeInstagram(url);
+		case 'TikTok':
+			return normalizeTikTok(url);
+		case 'Facebook':
+			return normalizeFacebook(url);
+		case 'Twitter':
+			return normalizeTwitter(url);
+		case 'GitHub':
+			return normalizeGitHub(url);
+		default:
+			return url;
 	}
 }
 
@@ -238,7 +255,7 @@ const GENERIC_URL_PATTERN = /https?:\/\/\S+/i;
 export function getDirectFileMediaType(url: string): 'video' | 'audio' | 'photo' | 'document' | null {
 	try {
 		const u = new URL(url);
-		
+
 		// Ensure the path actually has a file name with an extension
 		const filename = u.pathname.split('/').pop();
 		if (!filename || !filename.includes('.')) return null;

@@ -16,10 +16,7 @@ export async function checkSubscriptionGate(
 	analytics?: AnalyticsEngineDataset,
 	platform?: string,
 ): Promise<boolean> {
-	const [channelUsername, freeUsesStr] = await Promise.all([
-		getConfig(db, KV_KEY_REQUIRED_CHANNEL),
-		getConfig(db, KV_KEY_FREE_USES),
-	]);
+	const [channelUsername, freeUsesStr] = await Promise.all([getConfig(db, KV_KEY_REQUIRED_CHANNEL), getConfig(db, KV_KEY_FREE_USES)]);
 
 	if (!channelUsername) return false;
 
@@ -44,17 +41,16 @@ export async function checkSubscriptionGate(
 	incrementGateBlocked(db).catch(() => {});
 	const locale = getLocale(ctx);
 	const channelName = channelUsername.replace('@', '');
-	await ctx.reply(
-		t(locale, 'gate.blocked', { freeUses: freeUsesLimit, channelName }),
-		{
-			parse_mode: 'MarkdownV2',
-			reply_markup: {
-				inline_keyboard: [[
+	await ctx.reply(t(locale, 'gate.blocked', { freeUses: freeUsesLimit, channelName }), {
+		parse_mode: 'MarkdownV2',
+		reply_markup: {
+			inline_keyboard: [
+				[
 					{ text: t(locale, 'gate.btn_join'), url: `https://t.me/${channelName}` },
 					{ text: t(locale, 'gate.btn_verify'), callback_data: 'subscription:verify' },
-				]],
-			},
+				],
+			],
 		},
-	);
+	});
 	return true;
 }

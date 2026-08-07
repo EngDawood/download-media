@@ -57,10 +57,7 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'footer', description: 'تعيين ذيل تعليق Instagram' },
 ];
 
-const SUPPORTED_PLATFORMS = [
-	'TikTok', 'Instagram', 'X / Twitter', 'YouTube',
-	'Facebook', 'Threads', 'SoundCloud', 'Spotify', 'Pinterest',
-];
+const SUPPORTED_PLATFORMS = ['TikTok', 'Instagram', 'X / Twitter', 'YouTube', 'Facebook', 'Threads', 'SoundCloud', 'Spotify', 'Pinterest'];
 
 /**
  * Core setup logic — registers bot commands and sends deploy notification.
@@ -94,7 +91,7 @@ export async function runSetup(env: Env, sendNotification: boolean = true): Prom
 		`⚙️ Worker: <code>download-media-bot</code>`,
 		``,
 		`📦 Platforms (${SUPPORTED_PLATFORMS.length}):`,
-		SUPPORTED_PLATFORMS.map(p => `  • ${p}`).join('\n'),
+		SUPPORTED_PLATFORMS.map((p) => `  • ${p}`).join('\n'),
 		``,
 		`✅ Commands & webhook ready`,
 	].join('\n');
