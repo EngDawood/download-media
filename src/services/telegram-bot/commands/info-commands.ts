@@ -857,10 +857,8 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 
 		const PLATFORM_ALIASES: Record<string, string> = { ig: 'instagram', instagram: 'instagram' };
 		const parts = raw.split(/\s+/);
-		let platform = 'instagram';
 		let inputArg = raw;
 		if (parts.length >= 2 && PLATFORM_ALIASES[parts[0].toLowerCase()]) {
-			platform = PLATFORM_ALIASES[parts[0].toLowerCase()];
 			inputArg = parts.slice(1).join(' ');
 		}
 

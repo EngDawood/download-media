@@ -6,7 +6,6 @@ import { trackEvent } from '../../../utils/analytics';
 import { incrementGateBlocked } from '../../../utils/stats-d1';
 import { t, getLocale } from '../../../i18n';
 
-const USAGE_TTL = 60 * 60 * 24 * 90; // 90 days (used in setUsageCount)
 const MEMBER_STATUSES = ['member', 'administrator', 'creator'];
 
 export async function checkSubscriptionGate(

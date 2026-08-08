@@ -4,7 +4,7 @@ import { getAdminState, setAdminState, clearAdminState } from '../storage/admin-
 import { setBlockedUrl } from '../storage/session-store';
 import { detectMediaUrl, isBlockedDomain, getDirectFileMediaType } from '../../../utils/url-detector';
 import { downloadAndSendMedia } from './download-and-send';
-import { fetchFacebookInfo, fetchTikTokInfo } from '../../media-downloader';
+import { fetchFacebookInfo } from '../../media-downloader';
 import { checkSubscriptionGate } from './subscription-gate';
 import { incrementLinkStats, isUserBlocked, isDomainAllowlisted } from '../../../utils/stats-d1';
 import { t, getLocale } from '../../../i18n';

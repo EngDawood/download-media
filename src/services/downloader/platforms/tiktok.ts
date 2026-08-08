@@ -1,7 +1,7 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
-import { buildCaption, isUrl, detectMediaType, decodeTiktokDirectUrl } from '../media-helpers';
+import { buildCaption, isUrl, decodeTiktokDirectUrl } from '../media-helpers';
 
 export class TikTokProvider implements IDownloaderProvider {
 	readonly platforms = ['tiktok.com'];

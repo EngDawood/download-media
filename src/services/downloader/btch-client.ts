@@ -15,8 +15,10 @@ const BTCH_HEADERS = {
 
 /** Returns true when a btch API response indicates a rate limit or maintenance state. */
 export function isBtchLimitError(data: any): boolean {
-	const msg = (data.msg || data.message || '').toLowerCase();
-	return data.code === -1 || msg.includes('limit') || msg.includes('maintenance');
+	// `mess` is what the AIO endpoint uses for throttling ({"status":"ok","mess":"Too many requests..."});
+	// without it that body looks like a success with no payload.
+	const msg = (data.msg || data.message || data.mess || '').toLowerCase();
+	return data.code === -1 || msg.includes('limit') || msg.includes('maintenance') || msg.includes('too many requests');
 }
 
 /** Returns true when an error came from an aborted/timed-out fetch (cold extraction taking too long). */

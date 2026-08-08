@@ -7,6 +7,7 @@ import {
 	decodeTiktokDirectUrl,
 	isUrl,
 } from '../src/services/media-downloader';
+import { mediaIdentity, dedupeByIdentity } from '../src/services/downloader/media-helpers';
 
 // ─── isUrl ───────────────────────────────────────────────────────────────────
 
@@ -158,5 +159,58 @@ describe('decodeTiktokDirectUrl', () => {
 		// Valid base64 but decoded text is not a URL
 		const token = btoa('not-a-url-at-all-xxxx').replace(/=/g, '') + 'O0O0O';
 		expect(decodeTiktokDirectUrl(`https://tiktokio.com/dl?token=${token}`)).toBeNull();
+	});
+});
+
+// ─── mediaIdentity / dedupeByIdentity ────────────────────────────────────────
+
+describe('mediaIdentity', () => {
+	function rapidCdn(payload: object, sig: string): string {
+		const encoded = btoa(JSON.stringify(payload))
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+			.replace(/=+$/, '');
+		return `https://d.rapidcdn.app/v2?token=header.${encoded}.${sig}`;
+	}
+
+	it('keys rapidcdn URLs on the decoded filename, ignoring the token', () => {
+		const a = rapidCdn({ filename: 'snapsave-app_395.jpg', iat: 1 }, 'sigA');
+		const b = rapidCdn({ filename: 'snapsave-app_395.jpg', iat: 2 }, 'sigB');
+		expect(a).not.toBe(b);
+		expect(mediaIdentity(a)).toBe(mediaIdentity(b));
+	});
+
+	it('keeps distinct files distinct', () => {
+		const a = rapidCdn({ filename: 'one.jpg' }, 'sigA');
+		const b = rapidCdn({ filename: 'two.jpg' }, 'sigB');
+		expect(mediaIdentity(a)).not.toBe(mediaIdentity(b));
+	});
+
+	it('strips the query string for plain CDN URLs', () => {
+		expect(mediaIdentity('https://cdn.example.com/a.jpg?sig=1&exp=2')).toBe('https://cdn.example.com/a.jpg');
+	});
+
+	it('falls back to the raw URL when the token cannot be decoded', () => {
+		expect(mediaIdentity('https://d.rapidcdn.app/v2?token=broken')).toBe('https://d.rapidcdn.app/v2');
+	});
+});
+
+describe('dedupeByIdentity', () => {
+	it('collapses igdl carousel duplicates while preserving order', () => {
+		const mk = (name: string, sig: string) => {
+			const encoded = btoa(JSON.stringify({ filename: name })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+			return { type: 'photo' as const, url: `https://d.rapidcdn.app/v2?token=h.${encoded}.${sig}` };
+		};
+		// Same three slides repeated with fresh signatures, as igdl returns them
+		const items = ['a.jpg', 'b.jpg', 'c.jpg'].flatMap((n) => [mk(n, 's1'), mk(n, 's2'), mk(n, 's3')]);
+		expect(items).toHaveLength(9);
+
+		const result = dedupeByIdentity(items);
+		expect(result).toHaveLength(3);
+		expect(result.map((r) => mediaIdentity(r.url))).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+	});
+
+	it('returns an empty array unchanged', () => {
+		expect(dedupeByIdentity([])).toEqual([]);
 	});
 });

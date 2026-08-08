@@ -2,7 +2,7 @@ import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
 import { tryAIO } from '../aio-parser';
-import { buildCaption, isUrl, detectMediaType } from '../media-helpers';
+import { buildCaption, isUrl } from '../media-helpers';
 
 export class PinterestProvider implements IDownloaderProvider {
 	readonly platforms = ['pinterest.com', 'pin.it'];

@@ -1,4 +1,5 @@
-import { env, createExecutionContext, waitOnExecutionContext, SELF } from 'cloudflare:test';
+import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
+import { env, exports as workerExports } from 'cloudflare:workers';
 import { describe, it, expect } from 'vitest';
 import worker from '../src';
 
@@ -14,7 +15,7 @@ describe('Download Media Bot', () => {
 
 		it('responds with ok: true (integration style)', async () => {
 			const request = new Request('http://example.com/health');
-			const response = await SELF.fetch(request);
+			const response = await workerExports.default.fetch(request);
 			expect(await response.json()).toEqual({ ok: true });
 		});
 	});

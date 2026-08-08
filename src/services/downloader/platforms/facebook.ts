@@ -1,5 +1,5 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
-import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
+import type { DownloaderMode, DownloaderResult } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
 import { tryAIO } from '../aio-parser';
 import { buildCaption, isUrl, formatFileSize } from '../media-helpers';

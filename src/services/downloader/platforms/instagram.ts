@@ -3,8 +3,14 @@ import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
 import { parseAioGallery, parseLinksSection } from '../aio-parser';
-import { buildCaption, isUrl, detectMediaType } from '../media-helpers';
+import { buildCaption, isUrl, detectMediaType, dedupeByIdentity } from '../media-helpers';
 import { RSSHUB_SERVERS } from '../../../constants';
+
+// Instagram carousels top out at 20 slides; anything beyond that is upstream noise
+// and would turn into a flood of sendMediaGroup calls.
+const MAX_POST_ITEMS = 20;
+
+const capItems = (media: MediaItem[]): MediaItem[] => media.slice(0, MAX_POST_ITEMS);
 
 // ─── RSSHub Stories (primary for /stories/ URLs) ────────────────────────────
 
@@ -132,9 +138,13 @@ export class InstagramProvider implements IDownloaderProvider {
 				aioCaption = buildCaption(data.title);
 				const media: MediaItem[] = [];
 				if (data.gallery?.items?.length > 0) media.push(...parseAioGallery(data.gallery.items));
-				if (media.length === 0 && data.links) media.push(...parseLinksSection(data.links.video, 'video'));
+				if (media.length === 0 && data.links) {
+					media.push(...parseLinksSection(data.links.video, 'video'));
+					// Image-only posts expose no video links — without this they fall through to igdl
+					if (media.length === 0) media.push(...parseLinksSection(data.links.photo ?? data.links.image, 'photo'));
+				}
 				if (media.length > 0) {
-					return { status: 'success', media, caption: aioCaption, thumbnail: data.thumbnail };
+					return { status: 'success', media: capItems(dedupeByIdentity(media)), caption: aioCaption, thumbnail: data.thumbnail };
 				}
 			}
 		} catch {
@@ -144,9 +154,12 @@ export class InstagramProvider implements IDownloaderProvider {
 		const res = await btchFetch('igdl', url, true);
 		const items = Array.isArray(res) ? res : Array.isArray(res.result) ? res.result : null;
 		if (items?.length > 0 && isUrl(items[0]?.url)) {
+			// igdl repeats every carousel slide once per slide (12 images → 144 entries),
+			// and each copy carries a distinct rapidcdn token, so dedupe on the decoded target.
+			const media = items.filter((i: any) => isUrl(i.url)).map((i: any) => ({ type: detectMediaType(i.url), url: i.url }) as MediaItem);
 			return {
 				status: 'success',
-				media: items.filter((i: any) => isUrl(i.url)).map((i: any) => ({ type: detectMediaType(i.url), url: i.url })),
+				media: capItems(dedupeByIdentity(media)),
 				caption: aioCaption,
 				thumbnail: items[0]?.thumbnail,
 			};

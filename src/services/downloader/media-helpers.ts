@@ -3,22 +3,54 @@ export function isUrl(val: unknown): val is string {
 	return typeof val === 'string' && val.startsWith('http');
 }
 
+/** Decode the JWT payload embedded in a rapidcdn.app proxy URL. Returns null if absent/undecodable. */
+function decodeRapidCdnPayload(url: string): any | null {
+	try {
+		const token = new URL(url).searchParams.get('token');
+		if (!token) return null;
+		let b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+		while (b64.length % 4 !== 0) b64 += '=';
+		return JSON.parse(atob(b64));
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Detect photo vs video from a rapidcdn.app JWT URL by decoding the payload.
  */
 export function detectTypeFromJwtUrl(url: string): 'photo' | 'video' {
-	try {
-		const token = new URL(url).searchParams.get('token');
-		if (token) {
-			const payloadB64 = token.split('.')[1];
-			const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
-			const hint = payload.filename || payload.url || '';
-			if (/\.(jpg|jpeg|png|webp|heic|gif)/i.test(hint)) return 'photo';
-		}
-	} catch {
-		/* ignore decode errors */
+	const payload = decodeRapidCdnPayload(url);
+	const hint = payload?.filename || payload?.url || '';
+	return /\.(jpg|jpeg|png|webp|heic|gif)/i.test(hint) ? 'photo' : 'video';
+}
+
+/**
+ * Stable identity for a media URL, used to de-duplicate results.
+ *
+ * rapidcdn.app proxy links wrap the real CDN URL in a JWT that is re-signed per
+ * request, so the same file can appear under many different tokens. Key on the
+ * decoded target instead of the proxy URL; for everything else drop the query
+ * string, which carries expiry/signature noise.
+ */
+export function mediaIdentity(url: string): string {
+	if (url.includes('rapidcdn.app')) {
+		const payload = decodeRapidCdnPayload(url);
+		const inner = payload?.filename || payload?.url;
+		if (typeof inner === 'string' && inner) return inner.split('?')[0];
 	}
-	return 'video';
+	return url.split('?')[0];
+}
+
+/** Drop items that resolve to the same underlying file, keeping the first occurrence. */
+export function dedupeByIdentity<T extends { url: string }>(items: T[]): T[] {
+	const seen = new Set<string>();
+	return items.filter((item) => {
+		const key = mediaIdentity(item.url);
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
 }
 
 export function detectMediaType(url: string): 'photo' | 'video' | 'document' {

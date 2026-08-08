@@ -12,6 +12,10 @@ describe('isBtchLimitError()', () => {
 		expect(isBtchLimitError({ code: 200, message: 'Server is undergoing maintenance' })).toBe(true);
 	});
 
+	it('returns true for the AIO throttle body, which uses `mess`', () => {
+		expect(isBtchLimitError({ status: 'ok', mess: 'Too many requests. Please try again later.' })).toBe(true);
+	});
+
 	it('returns false for normal successful data', () => {
 		expect(isBtchLimitError({ code: 0, msg: 'Success' })).toBe(false);
 		expect(isBtchLimitError({ code: 200, message: 'OK' })).toBe(false);

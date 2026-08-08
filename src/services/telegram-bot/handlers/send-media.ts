@@ -163,6 +163,7 @@ async function sendVideoMessage(bot: Bot, chatId: number, message: TelegramMedia
  */
 export function audioFilename(title?: string): string {
 	const base = (title ?? '')
+		// eslint-disable-next-line no-control-regex -- stripping control chars is the point of this sanitizer
 		.replace(/[\\/:*?"<>|\x00-\x1f]/g, '')
 		.replace(/\s+/g, ' ')
 		.trim()
