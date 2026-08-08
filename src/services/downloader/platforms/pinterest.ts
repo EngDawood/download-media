@@ -19,7 +19,7 @@ export class PinterestProvider implements IDownloaderProvider {
 			/* fall through */
 		}
 
-		const res = await btchFetch('pinterest', url, true);
+		const res = await btchFetch('pinterest', url);
 		if (res.result) {
 			const item = Array.isArray(res.result) ? res.result[0] : res.result;
 			const isVideo = item?.is_video && isUrl(item?.video_url);
@@ -34,6 +34,6 @@ export class PinterestProvider implements IDownloaderProvider {
 				};
 			}
 		}
-		return { status: 'error', error: 'No Pinterest media found' };
+		return { status: 'error', error: 'No Pinterest media found', failureKind: 'gone' };
 	}
 }

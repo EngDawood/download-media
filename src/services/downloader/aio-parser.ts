@@ -1,6 +1,7 @@
 import { log } from '../../utils/logger';
 import type { MediaItem, DownloaderResult } from '../../types/downloader';
 import { btchFetch } from './btch-client';
+import { classifyError, type FailureKind } from './failure';
 import { isUrl, detectMediaType, buildCaption } from './media-helpers';
 
 /** Extracts MediaItems from a btch AIO gallery response (carousels, slideshows). */
@@ -33,8 +34,11 @@ export function parseLinksSection(links: unknown, type: MediaItem['type']): Medi
 /**
  * Try AIO endpoint first — returns richer data (caption, author, gallery, quality options).
  * Returns null if AIO fails or has no media, so caller can fall back to platform-specific endpoint.
+ *
+ * Because the failure is swallowed to allow that fallback, the reason would otherwise be lost.
+ * Callers that end up reporting an error can pass `failures` to collect it.
  */
-export async function tryAIO(url: string, mode: string = 'auto'): Promise<DownloaderResult | null> {
+export async function tryAIO(url: string, mode: string = 'auto', failures?: FailureKind[]): Promise<DownloaderResult | null> {
 	try {
 		const res = await btchFetch('aio', url);
 		const data = res.data;
@@ -71,6 +75,7 @@ export async function tryAIO(url: string, mode: string = 'auto'): Promise<Downlo
 			return { status: 'success', media, caption, title: data.title, thumbnail };
 		}
 	} catch (e) {
+		failures?.push(classifyError(e));
 		log('warn', 'downloader:AIO', 'tryAIO failed', { error: (e as Error).message });
 	}
 	return null;

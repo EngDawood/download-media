@@ -3,6 +3,7 @@ import type { DownloaderMode, MediaItem, DownloaderResult } from '../types/downl
 import { ProviderRegistry } from './downloader/provider-registry';
 import { tryAIO } from './downloader/aio-parser';
 import { btchFetch } from './downloader/btch-client';
+import { classifyError, mostPermanent, type FailureKind } from './downloader/failure';
 import { buildCaption, isUrl, formatFileSize } from './downloader/media-helpers';
 import { TikTokProvider } from './downloader/platforms/tiktok';
 import { InstagramProvider } from './downloader/platforms/instagram';
@@ -65,7 +66,7 @@ export async function downloadMedia(
 		const userError = /btch |all servers failed|AggregateError/i.test(raw)
 			? 'Download service temporarily unavailable. Please try again or use the Retry button.'
 			: raw;
-		return { status: 'error', error: userError };
+		return { status: 'error', error: userError, failureKind: classifyError(err) };
 	}
 }
 
@@ -90,7 +91,8 @@ export async function fetchFacebookInfo(url: string): Promise<{ hdLabel: string;
 // ─── AIO catch-all (platforms not matched by registry) ───────────────────────
 
 async function downloadAIO(url: string, mode: string): Promise<DownloaderResult> {
-	const result = await tryAIO(url, mode);
+	const failures: FailureKind[] = [];
+	const result = await tryAIO(url, mode, failures);
 	if (result) return result;
 	try {
 		const res = await btchFetch('aio', url);
@@ -98,7 +100,14 @@ async function downloadAIO(url: string, mode: string): Promise<DownloaderResult>
 		if (mode === 'audio' && isUrl(res.mp3)) return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption };
 		if (isUrl(res.mp4)) return { status: 'success', media: [{ type: 'video', url: res.mp4 }], caption };
 	} catch (e) {
+		failures.push(classifyError(e));
 		log('warn', 'downloader:AIO', 'flat-field fallback failed', { error: (e as Error).message });
 	}
-	return { status: 'error', error: 'Unsupported platform or no media found' };
+	// No provider claimed this URL and the generic extractor found nothing — `unsupported`
+	// unless a backend gave us a more specific reason.
+	return {
+		status: 'error',
+		error: 'Unsupported platform or no media found',
+		failureKind: failures.length ? mostPermanent(failures) : 'unsupported',
+	};
 }

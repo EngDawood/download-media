@@ -19,7 +19,7 @@ export class ThreadsProvider implements IDownloaderProvider {
 			/* fall through */
 		}
 
-		const res = await btchFetch('threads', url, true);
+		const res = await btchFetch('threads', url);
 		const hasVideo = res.type === 'video' && isUrl(res.video);
 		const hasImage = (res.type === 'image' || res.type === 'mixed') && isUrl(res.image);
 		const cap = buildCaption(res.title);
@@ -36,6 +36,6 @@ export class ThreadsProvider implements IDownloaderProvider {
 		if (hasVideo) return { status: 'success', media: [{ type: 'video', url: res.video }], caption: cap };
 		if (hasImage) return { status: 'success', media: [{ type: 'photo', url: res.image }], caption: cap };
 		if (isUrl(res.download)) return { status: 'success', media: [{ type: 'video', url: res.download }], caption: cap };
-		return { status: 'error', error: 'No Threads media found' };
+		return { status: 'error', error: 'No Threads media found', failureKind: 'gone' };
 	}
 }

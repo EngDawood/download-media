@@ -3,6 +3,8 @@
  * Consumed by media-downloader.ts and the Telegram bot handlers.
  */
 
+import type { FailureKind } from '../services/downloader/failure';
+
 export type DownloaderMode = 'auto' | 'audio' | 'hd' | 'sd';
 
 export interface MediaItem {
@@ -25,4 +27,9 @@ export interface DownloaderResult {
 	error?: string;
 	/** True when the error is transient (e.g. backend still extracting) and retrying is likely to succeed. */
 	retryable?: boolean;
+	/**
+	 * Why the download failed. Set on every `status: 'error'` result so callers can decide
+	 * whether retrying can possibly help, instead of guessing from the message text.
+	 */
+	failureKind?: FailureKind;
 }

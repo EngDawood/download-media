@@ -2,6 +2,7 @@ import { log } from '../../../utils/logger';
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
+import { classifyError, mostPermanent, type FailureKind } from '../failure';
 import { parseAioGallery, parseLinksSection } from '../aio-parser';
 import { buildCaption, isUrl, detectMediaType, dedupeByIdentity } from '../media-helpers';
 import { RSSHUB_SERVERS } from '../../../constants';
@@ -102,11 +103,14 @@ async function fetchStoriesFromServer(server: string, username: string): Promise
 	return { status: 'success', media, caption: `<a href="https://www.instagram.com/${username}/">@${username}</a> • Stories`, thumbnail };
 }
 
-async function tryViaRSSHub(username: string): Promise<DownloaderResult | null> {
+async function tryViaRSSHub(username: string, failures: FailureKind[]): Promise<DownloaderResult | null> {
 	try {
 		// Race all servers in parallel — return first success, max wait = 10s
 		return await Promise.any(RSSHUB_SERVERS.map((server) => fetchStoriesFromServer(server, username)));
-	} catch {
+	} catch (e) {
+		// 11 servers racing means the AggregateError is the only record of why they failed;
+		// keep the classification before it is discarded.
+		failures.push(classifyError(e));
 		log('warn', 'instagram', 'All RSSHub servers failed for stories', { username });
 		return null;
 	}
@@ -118,21 +122,24 @@ export class InstagramProvider implements IDownloaderProvider {
 	readonly platforms = ['instagram.com'];
 
 	async download(url: string, _mode: DownloaderMode): Promise<DownloaderResult> {
+		const failures: FailureKind[] = [];
+
 		// Stories: use RSSHub as primary method (returns all current stories for the user)
 		const username = extractStoryUsername(url);
 		if (username) {
-			const result = await tryViaRSSHub(username);
+			const result = await tryViaRSSHub(username, failures);
 			if (result) return result;
 			return {
 				status: 'error',
 				error: 'Could not fetch stories. The account may be private, have no active stories, or be unknown to the service.',
+				failureKind: mostPermanent(failures),
 			};
 		}
 
 		// Non-story posts: btch AIO → btch igdl
 		let aioCaption = '';
 		try {
-			const res = await btchFetch('aio', url, true);
+			const res = await btchFetch('aio', url);
 			const data = res.data;
 			if (data) {
 				aioCaption = buildCaption(data.title);
@@ -147,11 +154,11 @@ export class InstagramProvider implements IDownloaderProvider {
 					return { status: 'success', media: capItems(dedupeByIdentity(media)), caption: aioCaption, thumbnail: data.thumbnail };
 				}
 			}
-		} catch {
-			/* fall through to igdl */
+		} catch (e) {
+			failures.push(classifyError(e)); /* fall through to igdl */
 		}
 
-		const res = await btchFetch('igdl', url, true);
+		const res = await btchFetch('igdl', url);
 		const items = Array.isArray(res) ? res : Array.isArray(res.result) ? res.result : null;
 		if (items?.length > 0 && isUrl(items[0]?.url)) {
 			// igdl repeats every carousel slide once per slide (12 images → 144 entries),
@@ -164,6 +171,6 @@ export class InstagramProvider implements IDownloaderProvider {
 				thumbnail: items[0]?.thumbnail,
 			};
 		}
-		return { status: 'error', error: 'No Instagram media found' };
+		return { status: 'error', error: 'No Instagram media found', failureKind: mostPermanent(failures) };
 	}
 }

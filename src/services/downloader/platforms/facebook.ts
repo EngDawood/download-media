@@ -22,12 +22,12 @@ export class FacebookProvider implements IDownloaderProvider {
 			/* fall through */
 		}
 
-		const res = await btchFetch('fbdown', url, true);
+		const res = await btchFetch('fbdown', url);
 		const videoUrl = isUrl(res.HD) ? res.HD : isUrl(res.Normal_video) ? res.Normal_video : null;
 		if (videoUrl) {
 			return { status: 'success', media: [{ type: 'video', url: videoUrl }], caption: buildCaption(res.title) };
 		}
-		return { status: 'error', error: 'No Facebook media found' };
+		return { status: 'error', error: 'No Facebook media found', failureKind: 'gone' };
 	}
 
 	async fetchInfo(url: string): Promise<{ hdLabel: string; sdLabel: string } | null> {

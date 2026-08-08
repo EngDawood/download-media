@@ -1,6 +1,7 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
-import { btchFetch, isTimeoutError } from '../btch-client';
+import { btchFetch } from '../btch-client';
+import { classifyError, isRetryable, mostPermanent, type FailureKind } from '../failure';
 import { parseLinksSection } from '../aio-parser';
 import { buildCaption, isUrl } from '../media-helpers';
 
@@ -30,9 +31,9 @@ export class YouTubeProvider implements IDownloaderProvider {
 	readonly platforms = ['youtube.com', 'youtu.be', 'music.youtube.com'];
 
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
-		let timedOut = false;
+		const failures: FailureKind[] = [];
 		try {
-			const res = await btchFetch('youtube', url, true, YOUTUBE_TIMEOUT_MS);
+			const res = await btchFetch('youtube', url, YOUTUBE_TIMEOUT_MS);
 			const caption = buildCaption(res.title);
 			const thumbnail = res.thumbnail;
 			if (mode === 'audio' && isUrl(res.mp3))
@@ -48,11 +49,11 @@ export class YouTubeProvider implements IDownloaderProvider {
 				};
 			}
 		} catch (e) {
-			if (isTimeoutError(e)) timedOut = true; /* fall through to AIO */
+			failures.push(classifyError(e)); /* fall through to AIO */
 		}
 
 		try {
-			const aio = await btchFetch('aio', url, true, YOUTUBE_TIMEOUT_MS);
+			const aio = await btchFetch('aio', url, YOUTUBE_TIMEOUT_MS);
 			const data = aio.data;
 			if (data?.links) {
 				const caption = buildCaption(data.title);
@@ -95,12 +96,15 @@ export class YouTubeProvider implements IDownloaderProvider {
 				};
 			}
 		} catch (e) {
-			if (isTimeoutError(e)) timedOut = true; /* all failed */
+			failures.push(classifyError(e)); /* all failed */
 		}
 
-		if (timedOut) {
-			return { status: 'error', error: 'YouTube is still processing this video', retryable: true };
+		// Most-permanent-wins: if one attempt got a definitive "not found" and the other
+		// merely timed out, this is a dead link, not a slow extraction.
+		const kind = mostPermanent(failures);
+		if (isRetryable(kind)) {
+			return { status: 'error', error: 'YouTube is still processing this video', retryable: true, failureKind: kind };
 		}
-		return { status: 'error', error: 'No YouTube media found' };
+		return { status: 'error', error: 'No YouTube media found', failureKind: kind };
 	}
 }

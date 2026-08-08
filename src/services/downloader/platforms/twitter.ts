@@ -2,6 +2,7 @@ import { log } from '../../../utils/logger';
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
+import { classifyError, mostPermanent, type FailureKind } from '../failure';
 import { tryAIO } from '../aio-parser';
 import { buildCaption, isUrl, detectMediaType } from '../media-helpers';
 import { publishArticleToTelegraph, publishThreadToTelegraph } from '../telegraph-publisher';
@@ -106,7 +107,7 @@ async function collectThread(startTweet: any): Promise<any[]> {
  * Handles: media tweets, article tweets, thread tweets, text-only tweets.
  * Docs: docs/FxEmbed-API.md
  */
-async function tryViaFxTwitter(url: string, accessToken: string): Promise<DownloaderResult | null> {
+async function tryViaFxTwitter(url: string, accessToken: string, failures: FailureKind[]): Promise<DownloaderResult | null> {
 	const id = extractTweetId(url);
 	if (!id) return null;
 	try {
@@ -115,8 +116,9 @@ async function tryViaFxTwitter(url: string, accessToken: string): Promise<Downlo
 			signal: AbortSignal.timeout(10_000),
 		});
 
-		if (res.status === 401) return { status: 'error', error: 'This tweet is from a private account and cannot be downloaded.' };
-		if (res.status === 404) return { status: 'error', error: 'This tweet no longer exists or has been deleted.' };
+		if (res.status === 401)
+			return { status: 'error', error: 'This tweet is from a private account and cannot be downloaded.', failureKind: 'gone' };
+		if (res.status === 404) return { status: 'error', error: 'This tweet no longer exists or has been deleted.', failureKind: 'gone' };
 		if (!res.ok) {
 			log('warn', 'downloader:Twitter', 'fxtwitter non-OK response', { status: res.status });
 			return null;
@@ -220,6 +222,7 @@ async function tryViaFxTwitter(url: string, accessToken: string): Promise<Downlo
 			};
 		}
 	} catch (e) {
+		failures.push(classifyError(e));
 		log('warn', 'downloader:Twitter', 'fxtwitter failed', { error: (e as Error).message });
 	}
 	return null;
@@ -227,21 +230,22 @@ async function tryViaFxTwitter(url: string, accessToken: string): Promise<Downlo
 
 // ─── btch fallbacks ───────────────────────────────────────────────────────────
 
-async function tryViaAIO(url: string): Promise<DownloaderResult | null> {
+async function tryViaAIO(url: string, failures: FailureKind[]): Promise<DownloaderResult | null> {
 	try {
-		const result = await tryAIO(url);
+		const result = await tryAIO(url, 'auto', failures);
 		if (!result?.media?.length) return null;
 		const videos = result.media.filter((m) => m.type === 'video');
 		return videos.length > 0 ? { ...result, media: [videos[0]] } : result;
 	} catch (e) {
+		failures.push(classifyError(e));
 		log('warn', 'downloader:Twitter', 'btch AIO failed', { error: (e as Error).message });
 	}
 	return null;
 }
 
-async function tryViaBtch(url: string): Promise<DownloaderResult | null> {
+async function tryViaBtch(url: string, failures: FailureKind[]): Promise<DownloaderResult | null> {
 	try {
-		const res = await btchFetch('twitter', url, true);
+		const res = await btchFetch('twitter', url);
 		const caption = buildCaption(res.title);
 		const thumb = isUrl(res.thumbnail) ? res.thumbnail : undefined;
 		const media: MediaItem[] = [];
@@ -265,6 +269,7 @@ async function tryViaBtch(url: string): Promise<DownloaderResult | null> {
 		if (!media.length && isUrl(res.image)) media.push({ type: 'photo', url: res.image });
 		if (media.length) return { status: 'success', media: [media[0]], caption, thumbnail: thumb };
 	} catch (e) {
+		failures.push(classifyError(e));
 		log('warn', 'downloader:Twitter', 'btch twitter endpoint failed', { error: (e as Error).message });
 	}
 	return null;
@@ -288,10 +293,17 @@ export class TwitterProvider implements IDownloaderProvider {
 	 *   3. btch twitter-specific endpoint
 	 */
 	async download(url: string, _mode: DownloaderMode): Promise<DownloaderResult> {
+		// All three strategies swallow their errors to allow the next one to run, so the
+		// reason for the overall failure only survives if they deposit it here.
+		const failures: FailureKind[] = [];
 		return (
-			(await tryViaFxTwitter(url, this.accessToken)) ??
-			(await tryViaAIO(url)) ??
-			(await tryViaBtch(url)) ?? { status: 'error', error: 'No Twitter media found' }
+			(await tryViaFxTwitter(url, this.accessToken, failures)) ??
+			(await tryViaAIO(url, failures)) ??
+			(await tryViaBtch(url, failures)) ?? {
+				status: 'error',
+				error: 'No Twitter media found',
+				failureKind: mostPermanent(failures),
+			}
 		);
 	}
 }

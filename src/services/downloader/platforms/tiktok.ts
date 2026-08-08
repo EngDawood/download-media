@@ -8,7 +8,7 @@ export class TikTokProvider implements IDownloaderProvider {
 
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
 		try {
-			const res = await btchFetch('tiktok', url, true);
+			const res = await btchFetch('tiktok', url);
 			const data = res.data;
 			if (data) {
 				const caption = buildCaption(data.title);
@@ -35,7 +35,7 @@ export class TikTokProvider implements IDownloaderProvider {
 			/* fall through to ttdl */
 		}
 
-		const res = await btchFetch('ttdl', url, true);
+		const res = await btchFetch('ttdl', url);
 		const caption = buildCaption(res.title);
 		const thumb = isUrl(res.cover) ? res.cover : isUrl(res.thumbnail) ? res.thumbnail : undefined;
 		const audio = Array.isArray(res.audio) && isUrl(res.audio[0]) ? decodeTiktokDirectUrl(res.audio[0]) || res.audio[0] : undefined;
@@ -45,7 +45,7 @@ export class TikTokProvider implements IDownloaderProvider {
 			const video = decodeTiktokDirectUrl(res.video[0]) || res.video[0];
 			return { status: 'success', media: [{ type: 'video', url: video }], caption, thumbnail: thumb, mp3Url: audio };
 		}
-		return { status: 'error', error: 'No TikTok media found' };
+		return { status: 'error', error: 'No TikTok media found', failureKind: 'gone' };
 	}
 
 	async fetchInfo(url: string): Promise<{ caption: string; isImagePost: boolean; audioAvailable: boolean } | null> {

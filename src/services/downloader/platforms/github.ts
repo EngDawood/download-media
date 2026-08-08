@@ -1,5 +1,6 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult } from '../../../types/downloader';
+import { DownloadError, classifyError, kindFromStatus } from '../failure';
 
 const GITHUB_API = 'https://api.github.com';
 const API_HEADERS = {
@@ -14,19 +15,23 @@ export class GitHubProvider implements IDownloaderProvider {
 
 	async download(url: string, _mode: DownloaderMode): Promise<DownloaderResult> {
 		const parsed = parseGitHubUrl(url);
-		if (!parsed) return { status: 'error', error: 'Invalid GitHub folder URL' };
+		if (!parsed) return { status: 'error', error: 'Invalid GitHub folder URL', failureKind: 'unsupported' };
 
 		const { owner, repo, ref, folderPath } = parsed;
 
 		try {
 			const counter = [MAX_FILES] as [number];
 			const files = await listFiles(owner, repo, folderPath, ref, counter);
-			if (files.length === 0) return { status: 'error', error: 'Folder is empty or not found' };
+			if (files.length === 0) return { status: 'error', error: 'Folder is empty or not found', failureKind: 'gone' };
 
 			const fileData = await downloadFiles(files);
 			const totalSize = fileData.reduce((s, f) => s + f.data.length, 0);
 			if (totalSize > MAX_TOTAL_SIZE) {
-				return { status: 'error', error: `Folder too large (${(totalSize / 1024 / 1024).toFixed(1)} MB > 45 MB limit)` };
+				return {
+					status: 'error',
+					error: `Folder too large (${(totalSize / 1024 / 1024).toFixed(1)} MB > 45 MB limit)`,
+					failureKind: 'gone',
+				};
 			}
 
 			// Strip the folder prefix so zip paths are relative to the folder root
@@ -54,7 +59,7 @@ export class GitHubProvider implements IDownloaderProvider {
 				caption: `📁 <code>${owner}/${repo}/${folderPath}</code>\n${files.length} file${files.length !== 1 ? 's' : ''}${truncatedNote}`,
 			};
 		} catch (err: unknown) {
-			return { status: 'error', error: (err as Error).message || 'Failed to download folder' };
+			return { status: 'error', error: (err as Error).message || 'Failed to download folder', failureKind: classifyError(err) };
 		}
 	}
 }
@@ -94,8 +99,8 @@ async function listFiles(owner: string, repo: string, path: string, ref: string,
 	if (counter[0] <= 0) return [];
 	const url = `${GITHUB_API}/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`;
 	const resp = await fetch(url, { headers: API_HEADERS, signal: AbortSignal.timeout(10_000) });
-	if (resp.status === 404) throw new Error(`Path not found: ${path}`);
-	if (!resp.ok) throw new Error(`GitHub API error ${resp.status}`);
+	if (resp.status === 404) throw new DownloadError(`Path not found: ${path}`, 'gone');
+	if (!resp.ok) throw new DownloadError(`GitHub API error ${resp.status}`, kindFromStatus(resp.status));
 	const items = (await resp.json()) as Array<{ type: string; path: string; download_url: string | null }>;
 
 	const files: GitHubFile[] = [];
@@ -119,7 +124,7 @@ async function downloadFiles(files: GitHubFile[]): Promise<{ name: string; data:
 				headers: { 'User-Agent': API_HEADERS['User-Agent'] },
 				signal: AbortSignal.timeout(20_000),
 			});
-			if (!resp.ok) throw new Error(`Failed to download ${f.path}: ${resp.status}`);
+			if (!resp.ok) throw new DownloadError(`Failed to download ${f.path}: ${resp.status}`, kindFromStatus(resp.status));
 			return { name: f.path, data: new Uint8Array(await resp.arrayBuffer()) };
 		}),
 	);

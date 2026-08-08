@@ -1,4 +1,5 @@
 import { log } from '../../utils/logger';
+import { DownloadError, classifyError, kindFromStatus, mostPermanent } from './failure';
 
 const BTCH_SERVERS = [
 	'https://backend2.tioo.eu.org',
@@ -21,20 +22,12 @@ export function isBtchLimitError(data: any): boolean {
 	return data.code === -1 || msg.includes('limit') || msg.includes('maintenance') || msg.includes('too many requests');
 }
 
-/** Returns true when an error came from an aborted/timed-out fetch (cold extraction taking too long). */
-export function isTimeoutError(err: any): boolean {
-	if (err?.isTimeout) return true;
-	const name = err?.name || '';
-	const msg = (err?.message || '').toLowerCase();
-	return name === 'TimeoutError' || name === 'AbortError' || msg.includes('aborted') || msg.includes('timeout');
-}
-
 /**
  * Fetch from btch API, racing all backends in parallel.
- * Returns the first successful response; throws if all fail.
- * A thrown error caused by all backends timing out carries `.isTimeout = true`.
+ * Returns the first successful response; throws a `DownloadError` if all fail, carrying
+ * the classification of whichever failure was most permanent across the four servers.
  */
-export async function btchFetch(endpoint: string, url: string, _retryOn4xx = false, timeoutMs = 8_000): Promise<any> {
+export async function btchFetch(endpoint: string, url: string, timeoutMs = 8_000): Promise<any> {
 	const fetchFromServer = async (server: string): Promise<any> => {
 		const res = await fetch(`${server}/api/downloader/${endpoint}?url=${encodeURIComponent(url)}`, {
 			headers: BTCH_HEADERS,
@@ -42,26 +35,28 @@ export async function btchFetch(endpoint: string, url: string, _retryOn4xx = fal
 		});
 		if (!res.ok) {
 			log('warn', `btch:${endpoint}`, `${res.status}`, { server });
-			throw new Error(`btch ${endpoint} returned ${res.status}`);
+			throw new DownloadError(`btch ${endpoint} returned ${res.status}`, kindFromStatus(res.status));
 		}
 		const data: any = await res.json();
-		if (typeof data === 'string') throw new Error(`btch ${endpoint}: ${data}`);
+		if (typeof data === 'string') throw new DownloadError(`btch ${endpoint}: ${data}`, 'gone');
 		if (isBtchLimitError(data)) {
 			log('warn', `btch:${endpoint}`, 'limit/maintenance', { server, msg: data.msg });
-			throw new Error(`btch ${endpoint}: ${data.msg || 'limit reached'}`);
+			throw new DownloadError(`btch ${endpoint}: ${data.msg || 'limit reached'}`, 'rate_limited');
 		}
-		if (data.error) throw new Error(`btch ${endpoint}: ${data.error}`);
+		if (data.error) throw new DownloadError(`btch ${endpoint}: ${data.error}`, 'gone');
 		return data;
 	};
 
 	try {
 		return await Promise.any(BTCH_SERVERS.map(fetchFromServer));
 	} catch (err) {
-		if (err instanceof AggregateError) {
-			const chosen = err.errors[err.errors.length - 1] ?? new Error(`btch ${endpoint}: all servers failed`);
-			if (err.errors.some(isTimeoutError)) (chosen as any).isTimeout = true;
-			throw chosen;
-		}
-		throw err;
+		if (!(err instanceof AggregateError)) throw err;
+		const kinds = err.errors.map(classifyError);
+		const kind = mostPermanent(kinds);
+		// Report a message belonging to the winning category. Picking an arbitrary error
+		// (this used to take the last one) routinely described a different failure than
+		// the one we were about to act on.
+		const representative = err.errors[kinds.indexOf(kind)] as Error | undefined;
+		throw new DownloadError(representative?.message ?? `btch ${endpoint}: all servers failed`, kind);
 	}
 }
