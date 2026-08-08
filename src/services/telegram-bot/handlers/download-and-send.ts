@@ -69,7 +69,7 @@ export async function downloadAndSendMedia(
 			clearAdminState(options.db, options.adminId).catch(() => {});
 		}
 		await Promise.all([
-			incrementErrorStats(options.db, { userId: userId || undefined, firstName: options?.firstName, username: options?.username }),
+			incrementErrorStats(options.db, { userId: userId || undefined, firstName: options?.firstName, username: options?.username, platform }),
 			userId
 				? addDownloadHistory(options.db, {
 						url,

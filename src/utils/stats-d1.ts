@@ -192,7 +192,7 @@ export async function incrementSuccessStats(
 
 export async function incrementErrorStats(
 	db: D1Database,
-	opts?: { userId?: number; firstName?: string; username?: string },
+	opts?: { userId?: number; firstName?: string; username?: string; platform?: string },
 ): Promise<void> {
 	const now = Date.now();
 	const todayDate = getTodayDate();
@@ -200,6 +200,14 @@ export async function incrementErrorStats(
 
 	const stmts: D1PreparedStatement[] = [
 		db.prepare(`UPDATE global_stats SET total_errors = total_errors + 1 WHERE id = 1`),
+		// Mirrors the scope='global' success counter, so failure rate per platform is all-time
+		// rather than limited to the rolling failed_downloads window.
+		db
+			.prepare(
+				`INSERT INTO platform_counts (scope, platform, count) VALUES ('error', ?, 1)
+			 ON CONFLICT(scope, platform) DO UPDATE SET count = count + 1`,
+			)
+			.bind(canonicalPlatform(opts?.platform ?? '')),
 		db
 			.prepare(
 				`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
@@ -320,6 +328,69 @@ export async function getStatsReport(db: D1Database): Promise<StatsReport> {
 			gateVerified: (todayRow?.gate_verified as number) ?? 0,
 		},
 	};
+}
+
+export interface PlatformBreakdownRow {
+	platform: string;
+	success: number;
+	errors: number;
+	attempts: number;
+	failRate: number;
+	topReason?: string;
+	topReasonCount?: number;
+	reasons: Array<{ reason: string; count: number }>;
+}
+
+/**
+ * Per-platform success/failure split, ordered worst-first.
+ * Counts are all-time (platform_counts); error reasons come from the rolling failed_downloads window.
+ */
+export async function getPlatformBreakdown(db: D1Database): Promise<PlatformBreakdownRow[]> {
+	const [countResult, reasonResult] = await Promise.all([
+		db.prepare(`SELECT scope, platform, count FROM platform_counts WHERE scope IN ('global', 'error')`).all<{
+			scope: string;
+			platform: string;
+			count: number;
+		}>(),
+		db
+			.prepare(`SELECT platform, error_reason, COUNT(*) AS n FROM failed_downloads GROUP BY platform, error_reason ORDER BY n DESC`)
+			.all<{ platform: string; error_reason: string; n: number }>(),
+	]);
+
+	const rows = new Map<string, PlatformBreakdownRow>();
+	const rowFor = (name: string): PlatformBreakdownRow => {
+		let row = rows.get(name);
+		if (!row) {
+			row = { platform: name, success: 0, errors: 0, attempts: 0, failRate: 0, reasons: [] };
+			rows.set(name, row);
+		}
+		return row;
+	};
+
+	for (const c of countResult.results) {
+		const row = rowFor(canonicalPlatform(c.platform));
+		if (c.scope === 'error') row.errors += c.count;
+		else row.success += c.count;
+	}
+
+	// Already ordered by frequency, so the first reason seen for a platform is its most common.
+	for (const r of reasonResult.results) {
+		const row = rows.get(canonicalPlatform(r.platform));
+		if (!row) continue;
+		row.reasons.push({ reason: r.error_reason, count: r.n });
+		if (!row.topReason) {
+			row.topReason = r.error_reason;
+			row.topReasonCount = r.n;
+		}
+	}
+
+	const breakdown = [...rows.values()].filter((r) => r.success > 0 || r.errors > 0);
+	for (const row of breakdown) {
+		row.attempts = row.success + row.errors;
+		row.failRate = row.attempts > 0 ? Math.round((row.errors / row.attempts) * 100) : 0;
+	}
+
+	return breakdown.sort((a, b) => b.errors - a.errors || b.failRate - a.failRate);
 }
 
 export async function getDailyStats(

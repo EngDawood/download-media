@@ -263,6 +263,9 @@ export const ar: Translations = {
 
 	// --- stats platform errors ---
 	'stats.platform_errors_header': '❌ <b>الأخطاء حسب المنصة:</b>',
+	'stats.failed_platform_row': '  {platform} {bar} <b>{errors}</b> فشل من {attempts} ({rate}%)',
+	'stats.failed_reason_row': '     ↳ {reason} ({count})',
+	'stats.failed_recent_header': '📋 <b>أحدث حالات الفشل:</b>',
 
 	// --- /story command ---
 	'story.prompt':

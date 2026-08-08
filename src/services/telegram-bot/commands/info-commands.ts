@@ -20,6 +20,7 @@ import {
 	getDailyStats,
 	getTodayDownloadHistory,
 	canonicalPlatform,
+	getPlatformBreakdown,
 } from '../../../utils/stats-d1';
 import type { StatsReport } from '../../../utils/stats-d1';
 
@@ -32,6 +33,11 @@ function fmtBytes(bytes: number): string {
 function fmtDuration(ms: number): string {
 	if (ms <= 0) return '';
 	return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** Error reasons and URLs come from upstream APIs and can contain markup that breaks parse_mode: 'HTML'. */
+function escapeHtml(text: string): string {
+	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function miniBar(value: number, max: number, width = 8): string {
@@ -359,20 +365,44 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			return;
 		}
 		const locale = getLocale(ctx);
-		const failed = await getFailedDownloads(db, 15);
+		const [failed, breakdown] = await Promise.all([getFailedDownloads(db, 10), getPlatformBreakdown(db)]);
+		const failingPlatforms = breakdown.filter((p) => p.errors > 0);
 
-		if (failed.length === 0) {
+		if (failed.length === 0 && failingPlatforms.length === 0) {
 			await ctx.answerCallbackQuery({ text: t(locale, 'stats.no_failed') });
 			return;
 		}
 
 		const lines: string[] = [t(locale, 'stats.failed_header'), ''];
+
+		if (failingPlatforms.length > 0) {
+			lines.push(t(locale, 'stats.platform_errors_header'));
+			for (const p of failingPlatforms.slice(0, 8)) {
+				lines.push(
+					t(locale, 'stats.failed_platform_row', {
+						platform: p.platform,
+						errors: String(p.errors),
+						attempts: String(p.attempts),
+						rate: String(p.failRate),
+						bar: miniBar(p.errors, failingPlatforms[0].errors),
+					}),
+				);
+				for (const r of p.reasons.slice(0, 2)) {
+					// Upstream error strings can be very long; the whole message must stay under Telegram's 4096 limit.
+					const reason = r.reason.length > 60 ? `${r.reason.slice(0, 60)}…` : r.reason;
+					lines.push(t(locale, 'stats.failed_reason_row', { reason: escapeHtml(reason), count: String(r.count) }));
+				}
+			}
+			lines.push('');
+		}
+
+		if (failed.length > 0) lines.push(t(locale, 'stats.failed_recent_header'), '');
 		for (const entry of failed) {
 			const date = new Date(entry.timestamp).toLocaleString('en-GB', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short' });
 			const userDisplay = entry.username ? `@${entry.username}` : entry.firstName;
-			lines.push(`❌ <b>${userDisplay}</b> (${entry.platform})`);
-			lines.push(`   <i>${entry.errorReason}</i>`);
-			lines.push(`   <code>${entry.url}</code>`);
+			lines.push(`❌ <b>${escapeHtml(userDisplay)}</b> (${escapeHtml(entry.platform)})`);
+			lines.push(`   <i>${escapeHtml(entry.errorReason)}</i>`);
+			lines.push(`   <code>${escapeHtml(entry.url)}</code>`);
 			lines.push(`   ${date}`);
 			lines.push('');
 		}

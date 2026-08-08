@@ -267,6 +267,9 @@ export const en = {
 
 	// --- stats platform errors ---
 	'stats.platform_errors_header': '❌ <b>Errors by Platform:</b>',
+	'stats.failed_platform_row': '  {platform} {bar} <b>{errors}</b> failed of {attempts} ({rate}%)',
+	'stats.failed_reason_row': '     ↳ {reason} ({count})',
+	'stats.failed_recent_header': '📋 <b>Recent failures:</b>',
 
 	// --- /story command ---
 	'story.prompt':
