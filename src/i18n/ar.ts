@@ -166,8 +166,6 @@ export const ar: Translations = {
 	'stats.users': '👥 مستخدمون نشطون: <b>{count}</b>',
 	'stats.today': '📅 اليوم: <b>{links}</b> روابط · <b>{success}</b> ✅ · <b>{errors}</b> ❌',
 	'stats.platforms_header': '📱 <b>أهم المنصات:</b>',
-	'stats.top_users_header': '👤 <b>أكثر المستخدمين تحميلاً:</b>',
-	'stats.user_row': '{rank}. {userDisplay} — {count}',
 	'stats.no_data': 'لا توجد إحصائيات بعد. أرسل بعض الروابط لبدء التتبع.',
 	'stats.admin_only': '🔒 هذا الأمر للمشرف فقط.',
 	'stats.gate_header': '🚪 <b>بوابة الاشتراك:</b>',

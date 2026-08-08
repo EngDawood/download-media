@@ -170,8 +170,6 @@ export const en = {
 	'stats.users': '👥 Unique downloaders: <b>{count}</b>',
 	'stats.today': '📅 Today: <b>{links}</b> links · <b>{success}</b> ✅ · <b>{errors}</b> ❌',
 	'stats.platforms_header': '📱 <b>Top Platforms:</b>',
-	'stats.top_users_header': '👤 <b>Top Downloaders:</b>',
-	'stats.user_row': '{rank}. {userDisplay} — {count}',
 	'stats.no_data': 'No statistics yet. Send some links to start tracking.',
 	'stats.admin_only': '🔒 This command is for admins only.',
 	'stats.gate_header': '🚪 <b>Subscription Gate:</b>',

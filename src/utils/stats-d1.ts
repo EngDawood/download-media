@@ -1,4 +1,38 @@
 import { DOWNLOAD_HISTORY_LIMIT, FAILED_DOWNLOAD_LIMIT } from '../constants';
+import { log } from './logger';
+
+/** Platforms the bot officially supports. Anything else is bucketed as "Other" on read. */
+const KNOWN_PLATFORMS = [
+	'YouTube',
+	'Instagram',
+	'TikTok',
+	'Twitter',
+	'Facebook',
+	'Threads',
+	'SoundCloud',
+	'Spotify',
+	'Pinterest',
+	'GitHub',
+] as const;
+
+const PLATFORM_BY_LOWER = new Map(KNOWN_PLATFORMS.map((p) => [p.toLowerCase(), p as string]));
+
+/** Canonical casing for a platform name; unsupported/legacy hostnames collapse into "Other". */
+export function canonicalPlatform(platform: string): string {
+	return PLATFORM_BY_LOWER.get(platform.trim().toLowerCase()) ?? 'Other';
+}
+
+/**
+ * Runs stats writes without letting a failure break the caller, but never silently.
+ * Stats used to swallow every error, which hid a 44-day outage of the success counters.
+ */
+async function runStatsWrite(tag: string, work: Promise<unknown>): Promise<void> {
+	try {
+		await work;
+	} catch (e) {
+		log('error', 'stats-d1', `stats write failed: ${tag}`, { error: (e as Error)?.message });
+	}
+}
 
 export interface UserStats {
 	count: number;
@@ -41,7 +75,6 @@ export interface StatsReport {
 		totalUniqueUsers: number;
 		totalStartUsers: number;
 		platforms: Record<string, number>;
-		topUsers: Array<{ userId: number; firstName: string; username?: string; count: number }>;
 		totalGateBlocked: number;
 		totalGateVerified: number;
 		totalGateStillBlocked: number;
@@ -65,28 +98,28 @@ export async function incrementLinkStats(db: D1Database, opts: { userId: number;
 	const todayDate = getTodayDate();
 	const expiresAt = now + DAY_TTL_MS;
 
-	const existing = await db.prepare(`SELECT 1 FROM user_stats WHERE user_id = ?`).bind(opts.userId).first();
-	const isNew = !existing;
-
-	await db.batch([
-		db
-			.prepare(
-				`INSERT INTO user_stats (user_id, first_name, count, failures, platforms, last_seen, first_seen)
+	// `total_unique_users` is no longer maintained here — it undercounted anyone who ran /start
+	// before their first download (that already created the user_stats row). It is derived on read.
+	await runStatsWrite(
+		'link',
+		db.batch([
+			db
+				.prepare(
+					`INSERT INTO user_stats (user_id, first_name, count, failures, platforms, last_seen, first_seen)
 			 VALUES (?, ?, 0, 0, '{}', ?, ?)
 			 ON CONFLICT(user_id) DO UPDATE SET first_name = excluded.first_name`,
-			)
-			.bind(opts.userId, opts.firstName, now, now),
-		db.prepare(
-			`UPDATE global_stats SET total_links = total_links + 1${isNew ? ', total_unique_users = total_unique_users + 1' : ''} WHERE id = 1`,
-		),
-		db
-			.prepare(
-				`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
+				)
+				.bind(opts.userId, opts.firstName, now, now),
+			db.prepare(`UPDATE global_stats SET total_links = total_links + 1 WHERE id = 1`),
+			db
+				.prepare(
+					`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
 			 VALUES (?, 1, 0, 0, 0, 0, ?)
 			 ON CONFLICT(date) DO UPDATE SET links = links + 1`,
-			)
-			.bind(todayDate, expiresAt),
-	]);
+				)
+				.bind(todayDate, expiresAt),
+		]),
+	);
 }
 
 export async function incrementSuccessStats(
@@ -94,52 +127,67 @@ export async function incrementSuccessStats(
 	opts: { userId: number; firstName: string; platform: string; username?: string },
 ): Promise<void> {
 	const now = Date.now();
-	const hour = new Date().getUTCHours();
+	// Interpolated as an integer literal, never bound: D1 binds JS numbers as REAL, so
+	// `'$[' || ? || ']'` produced the invalid path '$[19.0]' and rolled back the whole batch.
+	const hour = Math.min(23, Math.max(0, Math.trunc(new Date().getUTCHours())));
+	const platform = canonicalPlatform(opts.platform);
 	const todayDate = getTodayDate();
 	const expiresAt = now + DAY_TTL_MS;
 
-	// All updates are atomic SQL — no read-modify-write, safe under concurrency.
-	await db.batch([
-		db
-			.prepare(
-				`INSERT INTO user_stats (user_id, first_name, username, count, failures, platforms, last_seen, first_seen)
-			 VALUES (?, ?, ?, 1, 0, json_object(?, 1), ?, ?)
+	// Headline counters first — plain integer arithmetic, nothing that can fail on odd data.
+	await runStatsWrite(
+		'success:counters',
+		db.batch([
+			db
+				.prepare(
+					`INSERT INTO user_stats (user_id, first_name, username, count, failures, platforms, last_seen, first_seen)
+			 VALUES (?, ?, ?, 1, 0, '{}', ?, ?)
 			 ON CONFLICT(user_id) DO UPDATE SET
 			   count = count + 1,
 			   first_name = excluded.first_name,
 			   username = COALESCE(excluded.username, username),
-			   platforms = json_set(
-			     platforms, '$.' || ?,
-			     COALESCE(CAST(json_extract(platforms, '$.' || ?) AS INTEGER), 0) + 1
-			   ),
 			   last_seen = excluded.last_seen`,
-			)
-			.bind(opts.userId, opts.firstName, opts.username ?? null, opts.platform, now, now, opts.platform, opts.platform),
-		db
-			.prepare(
-				`INSERT INTO platform_counts (scope, platform, count) VALUES ('global', ?, 1)
-			 ON CONFLICT(scope, platform) DO UPDATE SET count = count + 1`,
-			)
-			.bind(opts.platform),
-		db
-			.prepare(
-				`UPDATE global_stats SET
-			   total_success = total_success + 1,
-			   hourly_distribution = json_set(
-			     hourly_distribution, '$[' || ? || ']',
-			     CAST(json_extract(hourly_distribution, '$[' || ? || ']') AS INTEGER) + 1
-			   )
-			 WHERE id = 1`,
-			)
-			.bind(hour, hour),
-		db
-			.prepare(
-				`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
+				)
+				.bind(opts.userId, opts.firstName, opts.username ?? null, now, now),
+			db.prepare(`UPDATE global_stats SET total_success = total_success + 1 WHERE id = 1`),
+			db
+				.prepare(
+					`INSERT INTO daily_stats (date, links, success, errors, gate_blocked, gate_verified, expires_at)
 			 VALUES (?, 0, 1, 0, 0, 0, ?)
 			 ON CONFLICT(date) DO UPDATE SET success = success + 1`,
-			)
-			.bind(todayDate, expiresAt),
-	]);
+				)
+				.bind(todayDate, expiresAt),
+		]),
+	);
+
+	// Breakdowns in a separate batch so a JSON failure here can no longer take the counters with it.
+	// `platform` is canonicalised to a fixed ASCII set, so '$.' || platform is always a valid path.
+	await runStatsWrite(
+		'success:breakdowns',
+		db.batch([
+			db
+				.prepare(
+					`INSERT INTO platform_counts (scope, platform, count) VALUES ('global', ?, 1)
+			 ON CONFLICT(scope, platform) DO UPDATE SET count = count + 1`,
+				)
+				.bind(platform),
+			db
+				.prepare(
+					`UPDATE user_stats SET platforms = json_set(
+			     CASE WHEN json_valid(platforms) THEN platforms ELSE '{}' END, '$.' || ?,
+			     COALESCE(CAST(json_extract(CASE WHEN json_valid(platforms) THEN platforms ELSE '{}' END, '$.' || ?) AS INTEGER), 0) + 1
+			   ) WHERE user_id = ?`,
+				)
+				.bind(platform, platform, opts.userId),
+			db.prepare(
+				`UPDATE global_stats SET hourly_distribution = json_set(
+			     CASE WHEN json_valid(hourly_distribution) THEN hourly_distribution ELSE '[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]' END,
+			     '$[${hour}]',
+			     COALESCE(CAST(json_extract(CASE WHEN json_valid(hourly_distribution) THEN hourly_distribution ELSE '[]' END, '$[${hour}]') AS INTEGER), 0) + 1
+			   ) WHERE id = 1`,
+			),
+		]),
+	);
 }
 
 export async function incrementErrorStats(
@@ -177,7 +225,7 @@ export async function incrementErrorStats(
 		);
 	}
 
-	await db.batch(stmts);
+	await runStatsWrite('error', db.batch(stmts));
 }
 
 export async function incrementGateBlocked(db: D1Database): Promise<void> {
@@ -232,42 +280,33 @@ export async function incrementStartUsers(db: D1Database, userId: number): Promi
 export async function getStatsReport(db: D1Database): Promise<StatsReport> {
 	const todayDate = getTodayDate();
 
-	const [globalRow, todayRow, topUsersResult, platformResult] = await Promise.all([
+	const [globalRow, todayRow, downloaderRow, platformResult] = await Promise.all([
 		db.prepare(`SELECT * FROM global_stats WHERE id = 1`).first<Record<string, unknown>>(),
 		db.prepare(`SELECT * FROM daily_stats WHERE date = ?`).bind(todayDate).first<Record<string, unknown>>(),
-		db.prepare(`SELECT user_id, first_name, username, count FROM user_stats ORDER BY count DESC LIMIT 10`).all<{
-			user_id: number;
-			first_name: string;
-			username: string | null;
-			count: number;
-		}>(),
+		// Derived, not counted: the old total_unique_users counter missed every user who ran
+		// /start before their first download.
+		db.prepare(`SELECT COUNT(*) AS n FROM user_stats WHERE count > 0`).first<{ n: number }>(),
 		db.prepare(`SELECT platform, count FROM platform_counts WHERE scope = 'global'`).all<{
 			platform: string;
 			count: number;
 		}>(),
 	]);
 
+	// Merge case variants (GitHub/Github) and fold legacy hostname rows (Cmu, Umass…) into "Other".
 	const platforms: Record<string, number> = {};
 	for (const row of platformResult.results) {
-		platforms[row.platform] = row.count;
+		const name = canonicalPlatform(row.platform);
+		platforms[name] = (platforms[name] ?? 0) + row.count;
 	}
-
-	const topUsers = topUsersResult.results.map((r) => ({
-		userId: r.user_id,
-		firstName: r.first_name,
-		username: r.username ?? undefined,
-		count: r.count,
-	}));
 
 	return {
 		global: {
 			totalLinks: (globalRow?.total_links as number) ?? 0,
 			totalSuccess: (globalRow?.total_success as number) ?? 0,
 			totalErrors: (globalRow?.total_errors as number) ?? 0,
-			totalUniqueUsers: (globalRow?.total_unique_users as number) ?? 0,
+			totalUniqueUsers: downloaderRow?.n ?? 0,
 			totalStartUsers: (globalRow?.total_start_users as number) ?? 0,
 			platforms,
-			topUsers,
 			totalGateBlocked: (globalRow?.total_gate_blocked as number) ?? 0,
 			totalGateVerified: (globalRow?.total_gate_verified as number) ?? 0,
 			totalGateStillBlocked: (globalRow?.total_gate_still_blocked as number) ?? 0,
@@ -331,7 +370,7 @@ function mapHistoryRow(r: Record<string, unknown>): DownloadHistoryEntry {
 
 export async function addDownloadHistory(db: D1Database, entry: Omit<DownloadHistoryEntry, 'timestamp'>): Promise<void> {
 	const now = Date.now();
-	await db.batch([
+	const batch = db.batch([
 		db
 			.prepare(
 				`INSERT INTO download_history (url, platform, user_id, username, first_name, timestamp, success, duration_ms, file_size_bytes)
@@ -352,6 +391,7 @@ export async function addDownloadHistory(db: D1Database, entry: Omit<DownloadHis
 			`DELETE FROM download_history WHERE id NOT IN (SELECT id FROM download_history ORDER BY timestamp DESC LIMIT ${DOWNLOAD_HISTORY_LIMIT})`,
 		),
 	]);
+	await runStatsWrite('history', batch);
 }
 
 export async function getDownloadHistory(db: D1Database, limit = 20): Promise<DownloadHistoryEntry[]> {
@@ -374,7 +414,7 @@ export async function getTodayDownloadHistory(db: D1Database, limit = 50): Promi
 
 export async function addFailedDownload(db: D1Database, entry: Omit<FailedDownloadEntry, 'timestamp'>): Promise<void> {
 	const now = Date.now();
-	await db.batch([
+	const batch = db.batch([
 		db
 			.prepare(
 				`INSERT INTO failed_downloads (url, platform, error_reason, timestamp, user_id, first_name, username, mode)
@@ -385,6 +425,7 @@ export async function addFailedDownload(db: D1Database, entry: Omit<FailedDownlo
 			`DELETE FROM failed_downloads WHERE id NOT IN (SELECT id FROM failed_downloads ORDER BY timestamp DESC LIMIT ${FAILED_DOWNLOAD_LIMIT})`,
 		),
 	]);
+	await runStatsWrite('failed', batch);
 }
 
 export async function getFailedDownloads(db: D1Database, limit = 20): Promise<FailedDownloadEntry[]> {

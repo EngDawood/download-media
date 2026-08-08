@@ -19,6 +19,7 @@ import {
 	incrementStartUsers,
 	getDailyStats,
 	getTodayDownloadHistory,
+	canonicalPlatform,
 } from '../../../utils/stats-d1';
 import type { StatsReport } from '../../../utils/stats-d1';
 
@@ -105,7 +106,10 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		channelUsername?: string | null,
 	): string {
 		const g = report.global;
-		const rate = g.totalLinks > 0 ? Math.round((g.totalSuccess / g.totalLinks) * 100) : 0;
+		// Rate is success vs. completed downloads. Links submitted also counts retries, blocked
+		// domains and gated attempts, so it is reported as a raw number only.
+		const attempts = g.totalSuccess + g.totalErrors;
+		const rate = attempts > 0 ? Math.round((g.totalSuccess / attempts) * 100) : 0;
 
 		const lines: string[] = [
 			t(locale, 'stats.header'),
@@ -150,14 +154,7 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			}
 		}
 
-		if (g.topUsers.length > 0) {
-			lines.push('', t(locale, 'stats.top_users_header'));
-			for (let i = 0; i < Math.min(g.topUsers.length, 5); i++) {
-				const u = g.topUsers[i];
-				const userDisplay = u.username ? `@${u.username}` : u.firstName;
-				lines.push(t(locale, 'stats.user_row', { rank: String(i + 1), userDisplay, count: String(u.count) }));
-			}
-		}
+		// Per-user breakdown lives behind the 👥 Users button, not on the summary screen.
 		return lines.join('\n');
 	}
 
@@ -472,13 +469,6 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			return;
 		}
 		const locale = getLocale(ctx);
-		const report = await getStatsReport(db);
-		const topUsers = report.global.topUsers ?? [];
-
-		if (topUsers.length === 0) {
-			await ctx.answerCallbackQuery({ text: t(locale, 'stats.users_no_data') });
-			return;
-		}
 
 		// Query all user stats for activity bucketing
 		const userRows = await db.prepare(`SELECT user_id, first_name, username, count, failures, platforms, last_seen FROM user_stats`).all<{
@@ -490,6 +480,11 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			platforms: string;
 			last_seen: number;
 		}>();
+
+		if (userRows.results.length === 0) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'stats.users_no_data') });
+			return;
+		}
 
 		const now = Date.now();
 		const ms7d = 7 * 24 * 3600 * 1000;
@@ -511,7 +506,8 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			if (age <= ms7d) active7++;
 			else if (age <= ms30d) active30++;
 			else inactive++;
-			const topPlatform = Object.entries<number>(JSON.parse(r.platforms || '{}')).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+			const topPlatformRaw = Object.entries<number>(JSON.parse(r.platforms || '{}')).sort((a, b) => b[1] - a[1])[0]?.[0];
+			const topPlatform = topPlatformRaw ? canonicalPlatform(topPlatformRaw) : '';
 			userDetails.push({
 				userId: r.user_id,
 				firstName: r.first_name,
