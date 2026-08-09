@@ -17,8 +17,11 @@ type Annotation = { bold?: boolean; italic?: boolean; href?: string };
  * positionally therefore resolves to the wrong entity (element 0 may have key "4"),
  * silently attaching the wrong URL to a link or dropping an image entirely.
  * Plain-object maps are accepted too, since Draft.js itself emits that shape.
+ *
+ * Exported so `telegraph-publisher.ts` renders from the same normalized lookup —
+ * the two renderers consume identical source data and must not drift apart.
  */
-function buildEntityLookup(entityMap: unknown): Record<string, any> {
+export function buildEntityLookup(entityMap: unknown): Record<string, any> {
 	const lookup: Record<string, any> = {};
 	if (!entityMap) return lookup;
 

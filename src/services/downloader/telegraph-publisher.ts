@@ -1,4 +1,5 @@
 import { log } from '../../utils/logger';
+import { buildEntityLookup } from './article-text';
 
 // ─── Telegraph node types ─────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ function buildInlineChildren(
 		}
 	}
 	for (const r of entityRanges ?? []) {
-		const entity = entityMap?.[String(r.key)]?.value ?? entityMap?.[String(r.key)];
+		const entity = entityMap?.[String(r.key)];
 		if (entity?.type === 'LINK' && entity?.data?.url) {
 			for (let i = r.offset; i < r.offset + r.length && i < chars.length; i++) {
 				chars[i].href = entity.data.url;
@@ -110,7 +111,7 @@ function blocksToTelegraph(blocks: any[], entityMap: Record<string, any>, mediaE
 		// Atomic blocks = inline media (images embedded in article body)
 		if (type === 'atomic') {
 			for (const r of entityRanges ?? []) {
-				const entity = entityMap?.[String(r.key)]?.value ?? entityMap?.[String(r.key)];
+				const entity = entityMap?.[String(r.key)];
 				if (entity?.type === 'MEDIA') {
 					for (const item of entity.data?.mediaItems ?? []) {
 						const imgUrl = mediaById[item.mediaId];
@@ -261,7 +262,10 @@ export async function publishArticleToTelegraph(
 ): Promise<string | null> {
 	try {
 		const title = article.title?.trim() || 'Twitter Article';
-		const entityMap = article.content?.entityMap ?? {};
+		// Must go through buildEntityLookup: FxTwitter sends entityMap as an array of
+		// { key, value } pairs, so indexing it positionally resolves the wrong entity
+		// and drops every inline image.
+		const entityMap = buildEntityLookup(article.content?.entityMap);
 		const blocks = article.content?.blocks ?? [];
 		const mediaEntities = article.media_entities ?? [];
 
