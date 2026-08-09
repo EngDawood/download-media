@@ -48,7 +48,9 @@ const TOOLS = [
 		description:
 			'Resolve a social media post URL into direct, downloadable media links (video, photo and/or audio). ' +
 			'Returns every item in the post — galleries and albums yield multiple items, so iterate the whole list. ' +
-			'Returns links only; fetch them yourself to get the bytes.',
+			'Returns links only; fetch them yourself to get the bytes. Long-form posts (X Articles and threads) also ' +
+			'return "fullText": the complete body as Markdown. Read that field — do not follow any telegra.ph link ' +
+			'in the caption, which is a truncated preview meant for Telegram.',
 		inputSchema: {
 			type: 'object' as const,
 			properties: {
@@ -154,6 +156,10 @@ function shapeResult(result: DownloaderResult, platform: string) {
 		media: items,
 		...(omittedBinaryItems ? { omittedBinaryItems } : {}),
 		...(result.caption ? { caption: result.caption } : {}),
+		// Long-form posts (X Articles, threads) carry their whole body here. The caption is a
+		// truncated Telegram preview pointing at a Telegraph page, which is no use to a client
+		// that can just read the text.
+		...(result.fullText ? { fullText: result.fullText } : {}),
 		...(result.thumbnail ? { thumbnail: result.thumbnail } : {}),
 		...(result.mp3Url ? { mp3Url: result.mp3Url } : {}),
 	};

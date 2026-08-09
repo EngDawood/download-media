@@ -6,6 +6,7 @@ import { classifyError, mostPermanent, type FailureKind } from '../failure';
 import { tryAIO } from '../aio-parser';
 import { buildCaption, isUrl, detectMediaType } from '../media-helpers';
 import { publishArticleToTelegraph, publishThreadToTelegraph } from '../telegraph-publisher';
+import { articleToMarkdown, threadToMarkdown } from '../article-text';
 
 // ─── FxTwitter (primary) ─────────────────────────────────────────────────────
 
@@ -18,8 +19,9 @@ function extractTweetId(url: string): string | null {
  * Handle tweet.article — publishes to Telegraph and returns cover image + link.
  */
 async function handleArticle(tweet: any, tweetUrl: string, accessToken: string): Promise<DownloaderResult | null> {
-	const article = tweet.article;
-	if (!article) return null;
+	if (!tweet.article) return null;
+	// media_entities lives on the article itself; the tweet-level field is a legacy fallback.
+	const article = { ...tweet.article, media_entities: tweet.article.media_entities ?? tweet.media_entities };
 
 	const title = article.title?.trim() || 'Twitter Article';
 	const preview = article.preview_text?.trim() || '';
@@ -28,7 +30,7 @@ async function handleArticle(tweet: any, tweetUrl: string, accessToken: string):
 
 	// Publish to Telegraph
 	const telegraphUrl = await publishArticleToTelegraph(
-		{ ...article, media_entities: tweet.media_entities },
+		article,
 		{ name: tweet.author?.name ?? 'Unknown', screenName: tweet.author?.screen_name ?? 'unknown' },
 		tweetUrl,
 		accessToken,
@@ -47,6 +49,7 @@ async function handleArticle(tweet: any, tweetUrl: string, accessToken: string):
 		media: coverUrl ? [{ type: 'photo', url: coverUrl }] : avatar ? [{ type: 'photo', url: avatar }] : [],
 		caption,
 		thumbnail,
+		fullText: articleToMarkdown(article),
 	};
 }
 
@@ -167,6 +170,7 @@ async function tryViaFxTwitter(url: string, accessToken: string, failures: Failu
 					media: (coverUrl ?? avatar) ? [{ type: 'photo', url: (coverUrl ?? avatar)! }] : [],
 					caption: captionLines.join('\n'),
 					thumbnail: coverUrl ?? avatar,
+					fullText: threadToMarkdown(threadTweets),
 				};
 			}
 			// Single tweet in chain — fall through to normal handling
