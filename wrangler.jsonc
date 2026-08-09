@@ -48,10 +48,20 @@
 			"database_name": "download-media-bot-db",
 			"database_id": "db10a769-b0ed-438c-9e72-43fd687fbed3"
 		}
+	],
+	// Custom Domain — Cloudflare creates the DNS record and issues the cert on deploy.
+	// A Custom Domain routes *every* path to this Worker, so dl.engdawood.com serves
+	// /mcp, /api/download, /telegram, /health and /setup alike. The workers.dev
+	// subdomain keeps working alongside it.
+	"routes": [
+		{
+			"pattern": "dl.engdawood.com",
+			"custom_domain": true
+		}
 	]
 	// Secrets (set via wrangler secret put):
 	// - TELEGRAM_BOT_TOKEN
 	// - TELEGRAM_WEBHOOK_SECRET
 	// - TELEGRAPH_ACCESS_TOKEN
-	// - PUBLIC_API_KEY  (enables POST /api/download; endpoint is disabled if unset)
+	// - PUBLIC_API_KEY  (enables POST /api/download and POST /mcp; both disabled if unset)
 }

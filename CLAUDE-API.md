@@ -194,16 +194,35 @@ Any other URL is attempted via the generic AIO fallback — it may or may not re
 The same pipeline is also exposed as an **MCP server** so AI agents can call it as a tool.
 
 - **Endpoint:** `POST /mcp` (Streamable HTTP transport, **stateless** — no sessions, no SSE stream)
-- **Auth:** same `PUBLIC_API_KEY`, sent as `X-API-Key` *or* `Authorization: Bearer <key>`
-- `GET`/`DELETE /mcp` return `405` by design; there is no stream to resume and no session to delete.
+- **Auth:** same `PUBLIC_API_KEY`, supplied **any** of three ways:
+  1. `X-API-Key: <key>` header
+  2. `Authorization: Bearer <key>` header
+  3. as the last path segment — `POST /mcp/<key>`
+- `GET`/`DELETE` return `405` by design; there is no stream to resume and no session to delete.
 - Disabled (`503`) whenever `PUBLIC_API_KEY` is unset, exactly like the REST route.
 
-**Connect from Claude Code:**
+### Why the path form exists
+
+claude.ai custom connectors only recently gained request-header auth, and it is a
+**gated beta** with known bugs where the configured header is dropped and the client falls
+back to an OAuth flow. The path form sidesteps that entirely: paste the URL and connect.
+
+It makes the URL a **capability URL** — the secret is the address. Treat it like a password:
+do not paste it into anything that logs full URLs, and rotate with `wrangler secret put` if
+it leaks. Header auth remains preferred wherever the client supports it.
+
+**Connect from Claude Code** (headers work fine here):
 
 ```bash
 claude mcp add --transport http download-media \
-  https://download-media-bot.engdawood.workers.dev/mcp \
+  https://dl.engdawood.com/mcp \
   --header "X-API-Key: $PUBLIC_API_KEY"
+```
+
+**Connect from claude.ai** — *Customize → Connectors → Add custom connector*, and paste:
+
+```
+https://dl.engdawood.com/mcp/<PUBLIC_API_KEY>
 ```
 
 **Tools:**
@@ -251,6 +270,9 @@ Rules when changing the API:
   auth, modes or content policy must land in both `api.ts` and `mcp.ts`.
 - **Never serialise `MediaItem.buffer`.** It is a `Uint8Array`; JSON-encoding it produces a huge
   object. `mcp.ts` strips it in `toPublicMedia`.
+- **The `/mcp/:token` route is auth, not a namespace.** Do not add real sub-routes under `/mcp/`;
+  the segment is compared against `PUBLIC_API_KEY` in `isAuthorized`. Any new path there would
+  become a way to reach the handler without the key.
 - **Update this file** whenever the request/response shape, status codes, or auth change.
 - After editing `wrangler.jsonc` bindings, run `pnpm cf-typegen` (secrets are added manually in `src/env.d.ts`).
 - This is a `CLAUDE-*.md` file: **exclude it from commits**, and never delete it.

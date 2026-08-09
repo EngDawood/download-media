@@ -16,11 +16,17 @@ app.get('/setup', handleSetup);
 // Public download API (key-protected) — lets external apps download without the bot
 app.post('/api/download', handleApiDownload);
 
-// MCP server (key-protected) — same pipeline, exposed to AI agents over Streamable HTTP
+// MCP server (key-protected) — same pipeline, exposed to AI agents over Streamable HTTP.
+// The /mcp/:token form carries the key in the URL for clients that cannot send
+// custom headers (claude.ai custom connectors); both forms are the same handler.
 app.post('/mcp', handleMcp);
 app.options('/mcp', handleMcpOptions);
 app.get('/mcp', handleMcpMethodNotAllowed);
 app.delete('/mcp', handleMcpMethodNotAllowed);
+app.post('/mcp/:token', handleMcp);
+app.options('/mcp/:token', handleMcpOptions);
+app.get('/mcp/:token', handleMcpMethodNotAllowed);
+app.delete('/mcp/:token', handleMcpMethodNotAllowed);
 
 // Dev-only manual testing dashboard and APIs
 app.get('/test', localOnlyGuard, handleGetDashboard);

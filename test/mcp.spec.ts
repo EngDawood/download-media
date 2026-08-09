@@ -40,16 +40,56 @@ describe('MCP endpoint', () => {
 			const res = await rpc({ jsonrpc: '2.0', id: 1, method: 'ping' }, { bearer: KEY });
 			expect(res.status).toBe(200);
 		});
+
+		// claude.ai custom connectors cannot reliably send headers, so the key may
+		// arrive as the last path segment instead.
+		it('accepts the key as a path segment', async () => {
+			const res = await app.fetch(
+				new Request(`https://worker/mcp/${KEY}`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+				}),
+				env,
+			);
+			expect(res.status).toBe(200);
+		});
+
+		it('rejects a wrong path token with 401', async () => {
+			const res = await app.fetch(
+				new Request('https://worker/mcp/not-the-key', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+				}),
+				env,
+			);
+			expect(res.status).toBe(401);
+		});
+
+		it('still fails closed on the path form when no key is configured', async () => {
+			const res = await app.fetch(
+				new Request('https://worker/mcp/anything', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+				}),
+				envNoKey,
+			);
+			expect(res.status).toBe(503);
+		});
 	});
 
 	describe('transport', () => {
 		it('returns 405 on GET and DELETE (stateless: no SSE stream, no session)', async () => {
-			for (const method of ['GET', 'DELETE']) {
-				const res = await app.fetch(
-					new Request('https://worker/mcp', { method, headers: { 'X-API-Key': KEY } }),
-					env,
-				);
-				expect(res.status).toBe(405);
+			for (const path of ['/mcp', `/mcp/${KEY}`]) {
+				for (const method of ['GET', 'DELETE']) {
+					const res = await app.fetch(
+						new Request(`https://worker${path}`, { method, headers: { 'X-API-Key': KEY } }),
+						env,
+					);
+					expect(res.status).toBe(405);
+				}
 			}
 		});
 

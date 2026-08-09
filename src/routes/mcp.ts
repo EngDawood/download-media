@@ -246,9 +246,18 @@ async function dispatchTool(name: string, args: Record<string, unknown>, env: En
 
 // ─── Request handling ────────────────────────────────────────────────────────
 
-/** Accepts the key as X-API-Key or as an Authorization bearer token. */
+/**
+ * Accepts the key three ways: `X-API-Key`, an `Authorization` bearer token, or as
+ * the last path segment (`POST /mcp/<key>`).
+ *
+ * The path form exists for clients that cannot attach custom headers — notably
+ * claude.ai custom connectors, where header auth is still a gated beta. It is the
+ * same secret, just carried in the URL, which makes the endpoint a capability URL:
+ * treat it as a password and avoid pasting it anywhere that logs full URLs.
+ */
 function isAuthorized(c: Context, apiKey: string): boolean {
 	if (c.req.header('X-API-Key') === apiKey) return true;
+	if (c.req.param('token') === apiKey) return true;
 	const auth = c.req.header('Authorization');
 	return auth === `Bearer ${apiKey}`;
 }
