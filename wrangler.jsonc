@@ -49,10 +49,13 @@
 			"database_id": "db10a769-b0ed-438c-9e72-43fd687fbed3"
 		}
 	],
+	// MUST stay true: adding `routes` below makes wrangler infer `workers_dev: false`,
+	// which kills download-media-bot.engdawood.workers.dev — the host the Telegram
+	// webhook is registered against. Removing this line takes the bot offline.
+	"workers_dev": true,
 	// Custom Domain — Cloudflare creates the DNS record and issues the cert on deploy.
 	// A Custom Domain routes *every* path to this Worker, so dl.engdawood.com serves
-	// /mcp, /api/download, /telegram, /health and /setup alike. The workers.dev
-	// subdomain keeps working alongside it.
+	// /mcp, /api/download, /telegram, /health and /setup alike.
 	"routes": [
 		{
 			"pattern": "dl.engdawood.com",
