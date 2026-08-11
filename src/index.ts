@@ -5,15 +5,21 @@ import { DEPLOY_ID } from './_deploy-id';
 import { localOnlyGuard, handleGetDashboard, handleGetTestUrls, handlePostTestUrls, handleTestDownload } from './routes/test-dashboard';
 import { handleApiDownload } from './routes/api';
 import { handleMcp, handleMcpMethodNotAllowed, handleMcpOptions } from './routes/mcp';
-import { handleDocs, handleHome } from './routes/site';
+import { handleDocs, handleDocsAr, handleHome, handleHomeAr, handleRobots, handleSitemap } from './routes/site';
 
 const DEPLOY_KV_KEY = 'deploy:id';
 
 const app = new Hono<{ Bindings: Env }>();
 
 // Public site — the Custom Domain routes every path here, so `/` needs an owner.
+// English at the root, Arabic under /ar; both are static, no-JS pages.
 app.get('/', handleHome);
 app.get('/docs', handleDocs);
+app.get('/ar', handleHomeAr);
+app.get('/ar/', handleHomeAr);
+app.get('/ar/docs', handleDocsAr);
+app.get('/robots.txt', handleRobots);
+app.get('/sitemap.xml', handleSitemap);
 
 app.get('/health', (c) => c.json({ ok: true }));
 app.get('/setup', handleSetup);

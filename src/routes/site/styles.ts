@@ -22,11 +22,10 @@ export const SITE_CSS = `
 	--line-strong: #d3cec2;
 	--accent: #1b5e4a;
 	--accent-soft: #e8f0ec;
-	--logo: 4a4741;
-	--logo-dark: a9a69b;
 	--r: 12px;
 	--r-sm: 8px;
 	--font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--font-ar: "Segoe UI", "Noto Sans Arabic", "Geeza Pro", "Dubai", Tahoma, system-ui, sans-serif;
 	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 	--ease: cubic-bezier(0.16, 1, 0.3, 1);
 	color-scheme: light dark;
@@ -60,6 +59,12 @@ body {
 }
 img { max-width: 100%; height: auto; }
 
+/* Arabic is a connected script: negative tracking damages it, and the taller
+   ascenders and descenders need more leading than the Latin settings give. */
+[lang="ar"] body { font-family: var(--font-ar); letter-spacing: 0; line-height: 1.8; }
+[lang="ar"] h1, [lang="ar"] h2, [lang="ar"] h3 { letter-spacing: 0; line-height: 1.35; }
+[lang="ar"] .hero h1 { line-height: 1.25; }
+
 a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 a:hover { text-decoration-thickness: 2px; }
 
@@ -82,7 +87,7 @@ p { margin: 0; }
 /* ── Skip link ───────────────────────────────────────────────────── */
 .skip {
 	position: absolute;
-	left: -9999px;
+	inset-inline-start: -9999px;
 	top: 0;
 	background: var(--ink);
 	color: var(--paper);
@@ -90,7 +95,11 @@ p { margin: 0; }
 	border-radius: var(--r-sm);
 	z-index: 20;
 }
-.skip:focus { left: 1rem; top: 1rem; }
+.skip:focus { inset-inline-start: 1rem; top: 1rem; }
+
+/* Vertical rhythm helpers, so markup carries no inline styles. */
+.stack-md { margin-top: 1rem; }
+.stack-lg { margin-top: 1.75rem; }
 
 /* ── Navigation: one line, 68px, never wraps ─────────────────────── */
 .nav {
@@ -100,6 +109,7 @@ p { margin: 0; }
 	height: 68px;
 	display: flex;
 	align-items: center;
+	background: var(--paper);
 	background: color-mix(in srgb, var(--paper) 88%, transparent);
 	backdrop-filter: saturate(180%) blur(12px);
 	-webkit-backdrop-filter: saturate(180%) blur(12px);
@@ -115,7 +125,7 @@ p { margin: 0; }
 	white-space: nowrap;
 }
 .nav__mark span { color: var(--accent); }
-.nav__links { display: flex; gap: 1.75rem; margin-left: auto; }
+.nav__links { display: flex; gap: 1.75rem; margin-inline-start: auto; }
 .nav__links a {
 	color: var(--ink-2);
 	text-decoration: none;
@@ -124,11 +134,25 @@ p { margin: 0; }
 	transition: color 0.2s var(--ease);
 }
 .nav__links a:hover, .nav__links a[aria-current="page"] { color: var(--ink); }
-.nav .btn { margin-left: 1.5rem; }
+
+/* Language switch. Full word on desktop, two characters on phones, so the nav
+   never wraps to a second line and the switch survives the mobile breakpoint. */
+.nav__lang {
+	margin-inline: 1.5rem 0.875rem;
+	color: var(--ink-2);
+	text-decoration: none;
+	font-size: 0.9375rem;
+	white-space: nowrap;
+	transition: color 0.2s var(--ease);
+}
+.nav__lang:hover { color: var(--ink); }
+.nav__lang--short { display: none; }
 
 @media (max-width: 720px) {
 	.nav__links { display: none; }
-	.nav .btn { margin-left: auto; }
+	.nav__lang { margin-inline-start: auto; }
+	.nav__lang--full { display: none; }
+	.nav__lang--short { display: inline; }
 }
 
 /* ── Buttons: ink fill or hairline ghost, controls radius ────────── */
@@ -177,6 +201,9 @@ p { margin: 0; }
 
 /* ── Platform logo wall: logos only, no labels ───────────────────── */
 .logos {
+	list-style: none;
+	margin: 0;
+	padding: 0;
 	display: grid;
 	grid-template-columns: repeat(5, minmax(0, 1fr));
 	gap: 1px;
@@ -206,6 +233,7 @@ p { margin: 0; }
 @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
 
 /* ── Code ────────────────────────────────────────────────────────── */
+/* Code is always left to right, including on the Arabic pages. */
 .code {
 	background: var(--sunken);
 	border: 1px solid var(--line);
@@ -213,6 +241,8 @@ p { margin: 0; }
 	padding: 1.125rem 1.25rem;
 	overflow-x: auto;
 	margin: 0;
+	direction: ltr;
+	text-align: left;
 }
 .code code {
 	font-family: var(--font-mono);
@@ -238,20 +268,28 @@ p code, li code, td code {
 	border: 1px solid var(--line);
 	border-radius: 4px;
 	padding: 0.1em 0.35em;
+	/* Keeps identifiers intact when they sit inside a right-to-left sentence. */
+	direction: ltr;
+	unicode-bidi: isolate;
 }
 
 /* ── Notes ───────────────────────────────────────────────────────── */
 .note {
-	border-left: 2px solid var(--accent);
+	border-inline-start: 2px solid var(--accent);
 	background: var(--accent-soft);
-	border-radius: 0 var(--r-sm) var(--r-sm) 0;
+	border-radius: var(--r-sm);
 	padding: 1rem 1.25rem;
 	color: var(--ink-2);
 	font-size: 0.9375rem;
 }
 .note strong { color: var(--ink); font-weight: 600; }
 
+.platforms__lead { margin-bottom: 1.75rem; }
+
 /* ── Docs layout ─────────────────────────────────────────────────── */
+.docs-page { padding-block: clamp(3rem, 6vw, 4.5rem); }
+.docs-page__head { margin-bottom: clamp(2.5rem, 5vw, 3.5rem); }
+.docs-page__head h1 { font-size: clamp(2.25rem, 5vw, 3.25rem); }
 .docs { display: grid; gap: clamp(2rem, 5vw, 4rem); grid-template-columns: 200px minmax(0, 1fr); align-items: start; }
 @media (max-width: 940px) { .docs { grid-template-columns: 1fr; } .toc { position: static; } }
 .toc { position: sticky; top: 92px; }
@@ -265,21 +303,28 @@ p code, li code, td code {
 .doc-section > * + * { margin-top: 1.125rem; }
 .doc-section h2 { font-size: clamp(1.5rem, 2.6vw, 1.875rem); }
 .doc-section p { color: var(--ink-2); max-width: 68ch; }
-.doc-section ul { margin: 0; padding-left: 1.1rem; color: var(--ink-2); max-width: 68ch; }
+.doc-section ul { margin: 0; padding-inline-start: 1.1rem; color: var(--ink-2); max-width: 68ch; }
 .doc-section li + li { margin-top: 0.5rem; }
 
 /* Reference tables: header rule plus light row rules, nothing decorative. */
 .table-scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9375rem; min-width: 480px; }
 th {
-	text-align: left;
+	text-align: start;
 	font-weight: 600;
 	color: var(--ink);
-	padding: 0 1rem 0.625rem 0;
+	padding: 0 0 0.625rem;
+	padding-inline-end: 1rem;
 	border-bottom: 1px solid var(--line-strong);
 	white-space: nowrap;
 }
-td { padding: 0.75rem 1rem 0.75rem 0; border-bottom: 1px solid var(--line); color: var(--ink-2); vertical-align: top; }
+td {
+	padding: 0.75rem 0;
+	padding-inline-end: 1rem;
+	border-bottom: 1px solid var(--line);
+	color: var(--ink-2);
+	vertical-align: top;
+}
 tr:last-child td { border-bottom: 0; }
 
 /* ── Footer ──────────────────────────────────────────────────────── */
