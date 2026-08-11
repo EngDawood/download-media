@@ -29,6 +29,12 @@ export interface DownloaderResult {
 	 * link instead. Surfaced only by the MCP route, where clients can take the whole text.
 	 */
 	fullText?: string;
+	/**
+	 * Same body as `fullText`, rendered as an HTML fragment (no `<html>`/`<body>` wrapper).
+	 * Set for X Articles only — threads have no HTML renderer. Text is escaped and
+	 * non-http(s) links are stripped, so it is safe to embed.
+	 */
+	fullHtml?: string;
 	mp3Url?: string;
 	error?: string;
 	/** True when the error is transient (e.g. backend still extracting) and retrying is likely to succeed. */

@@ -23,6 +23,16 @@ const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
 
 const VALID_MODES: DownloaderMode[] = ['auto', 'audio', 'hd', 'sd'];
 
+/**
+ * Which long-form body to return. Article bodies run to tens of thousands of characters,
+ * so sending every format on every call wastes a large slice of the client's context.
+ * Markdown is the default because it is what a model actually reads; HTML is opt-in and
+ * only useful when embedding the article somewhere.
+ */
+const BODY_FORMATS = ['markdown', 'html', 'both', 'none'] as const;
+type BodyFormat = (typeof BODY_FORMATS)[number];
+const DEFAULT_BODY_FORMAT: BodyFormat = 'markdown';
+
 const SUPPORTED_PLATFORMS = [
 	'TikTok',
 	'Instagram',
@@ -50,7 +60,9 @@ const TOOLS = [
 			'Returns every item in the post — galleries and albums yield multiple items, so iterate the whole list. ' +
 			'Returns links only; fetch them yourself to get the bytes. Long-form posts (X Articles and threads) also ' +
 			'return "fullText": the complete body as Markdown. Read that field — do not follow any telegra.ph link ' +
-			'in the caption, which is a truncated preview meant for Telegram.',
+			'in the caption, which is a truncated preview meant for Telegram. Article bodies are large, so pass ' +
+			'format="none" when you only need the media links, and format="html" or "both" only when you actually ' +
+			'need markup to embed.',
 		inputSchema: {
 			type: 'object' as const,
 			properties: {
@@ -64,6 +76,14 @@ const TOOLS = [
 					description:
 						'auto = best video/photo (default); audio = audio-only extraction (YouTube, TikTok, SoundCloud, Spotify); ' +
 						'hd / sd = quality hint for platforms exposing both (e.g. Facebook).',
+				},
+				format: {
+					type: 'string',
+					enum: BODY_FORMATS,
+					description:
+						'Which long-form body to include for X Articles and threads. markdown (default) = "fullText"; ' +
+						'html = "fullHtml" for embedding; both = both fields; none = omit them when you only want the ' +
+						'media links. Bodies can be tens of thousands of characters, so prefer none or markdown.',
 				},
 			},
 			required: ['url'],
@@ -149,17 +169,23 @@ function toPublicMedia(media: MediaItem[] = []) {
 	return { items, omittedBinaryItems: media.length - linkable.length };
 }
 
-function shapeResult(result: DownloaderResult, platform: string) {
+function shapeResult(result: DownloaderResult, platform: string, format: BodyFormat) {
 	const { items, omittedBinaryItems } = toPublicMedia(result.media);
+
+	// Long-form posts (X Articles, threads) carry their whole body here. The caption is a
+	// truncated Telegram preview pointing at a Telegraph page, which is no use to a client
+	// that can just read the text. Both bodies are gated on `format` so a caller that only
+	// wants media links does not pay for tens of thousands of characters it will discard.
+	const wantsMarkdown = format === 'markdown' || format === 'both';
+	const wantsHtml = format === 'html' || format === 'both';
+
 	return {
 		platform,
 		media: items,
 		...(omittedBinaryItems ? { omittedBinaryItems } : {}),
 		...(result.caption ? { caption: result.caption } : {}),
-		// Long-form posts (X Articles, threads) carry their whole body here. The caption is a
-		// truncated Telegram preview pointing at a Telegraph page, which is no use to a client
-		// that can just read the text.
-		...(result.fullText ? { fullText: result.fullText } : {}),
+		...(wantsMarkdown && result.fullText ? { fullText: result.fullText } : {}),
+		...(wantsHtml && result.fullHtml ? { fullHtml: result.fullHtml } : {}),
 		...(result.thumbnail ? { thumbnail: result.thumbnail } : {}),
 		...(result.mp3Url ? { mp3Url: result.mp3Url } : {}),
 	};
@@ -187,6 +213,9 @@ async function callDownloadMedia(args: Record<string, unknown>, env: Env) {
 	const { url, platform } = resolved.detected!;
 
 	const mode = (VALID_MODES as string[]).includes(String(args.mode)) ? (args.mode as DownloaderMode) : 'auto';
+	const format = (BODY_FORMATS as readonly string[]).includes(String(args.format))
+		? (args.format as BodyFormat)
+		: DEFAULT_BODY_FORMAT;
 
 	const result = await downloadMedia(url, mode, platform, env);
 	if (result.status !== 'success' || !result.media?.length) {
@@ -194,7 +223,7 @@ async function callDownloadMedia(args: Record<string, unknown>, env: Env) {
 		return toolError(`Download failed for ${platform}: ${result.error ?? 'no media found'}.${retry}`);
 	}
 
-	const shaped = shapeResult(result, platform);
+	const shaped = shapeResult(result, platform, format);
 	if (!shaped.media.length) {
 		return toolError(`${platform} returned media that has no downloadable link.`);
 	}

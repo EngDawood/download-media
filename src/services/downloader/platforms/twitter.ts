@@ -7,6 +7,7 @@ import { tryAIO } from '../aio-parser';
 import { buildCaption, isUrl, detectMediaType } from '../media-helpers';
 import { publishArticleToTelegraph, publishThreadToTelegraph } from '../telegraph-publisher';
 import { articleToMarkdown, threadToMarkdown } from '../article-text';
+import { articleToHtml } from '../article-html';
 
 // ─── FxTwitter (primary) ─────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ async function handleArticle(tweet: any, tweetUrl: string, accessToken: string):
 		caption,
 		thumbnail,
 		fullText: articleToMarkdown(article),
+		fullHtml: articleToHtml(article),
 	};
 }
 
