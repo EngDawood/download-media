@@ -5,12 +5,61 @@ import { sendMediaToChannel, sendWithCaption } from './send-media';
 import { setAdminState, clearAdminState } from '../storage/admin-state';
 import { setReportData } from '../storage/session-store';
 import type { TelegramMediaMessage } from '../../../types/telegram';
+import type { MediaItem } from '../../../types/downloader';
 import { trackEvent } from '../../../utils/analytics';
 import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats-d1';
 import { getConfig } from '../../../utils/db';
 import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
 import { KV_KEY_INSTAGRAM_FOOTER, DEFAULT_INSTAGRAM_FOOTER } from '../../../constants';
 import { log } from '../../../utils/logger';
+
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const TYPE_KEYS = {
+	video: 'download.type_video',
+	audio: 'download.type_audio',
+	photo: 'download.type_photo',
+	document: 'download.type_document',
+} as const;
+
+/** Best available filename for an item we could not upload: provider filename → title + extension → URL basename. */
+function fileNameFor(item: MediaItem | undefined, title: string | undefined, mediaUrl: string): string {
+	if (item?.filename) return item.filename;
+	const base = title?.trim();
+	if (base) {
+		const ext = item?.type === 'audio' ? 'mp3' : item?.type === 'photo' ? 'jpg' : 'mp4';
+		return `${base.slice(0, 64).trim()}.${ext}`;
+	}
+	try {
+		const last = new URL(mediaUrl).pathname.split('/').pop()?.split('?')[0];
+		if (last && last.includes('.')) return decodeURIComponent(last);
+	} catch {
+		/* not a parseable URL — fall through */
+	}
+	return '';
+}
+
+/**
+ * Name / size / type block shown above the copy-URL hint when a file is too big to upload,
+ * so the user knows what the link points at before pasting it into another bot.
+ * Providers often omit `filesize`, so fall back to the figure our uploader put in the error text
+ * (`File too large (123.4MB)`). Lines with nothing to show are dropped rather than left blank.
+ */
+function tooLargeFileInfo(
+	locale: Locale,
+	item: MediaItem | undefined,
+	title: string | undefined,
+	mediaUrl: string,
+	errorMessage: string,
+): string {
+	const name = fileNameFor(item, title, mediaUrl);
+	const size = formatFileSize(item?.filesize) || (errorMessage.match(/\(([\d.]+\s*[KMG]B)\)/i)?.[1] ?? '');
+	const lines: string[] = [];
+	if (name) lines.push(t(locale, 'download.file_name', { name: escapeHtml(name) }));
+	if (size) lines.push(t(locale, 'download.file_size', { size }));
+	if (item?.type) lines.push(t(locale, 'download.file_type', { type: t(locale, TYPE_KEYS[item.type]) }));
+	return lines.join('\n');
+}
 
 export async function downloadAndSendMedia(
 	bot: Bot,
@@ -285,7 +334,8 @@ export async function downloadAndSendMedia(
 			const keyboard = new InlineKeyboard()
 				.text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3')
 				.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot');
-			const photoCaption = `${caption}\n\n${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n🎬 Video:\n<code>${mp4Url}</code>`;
+			const fileInfo = tooLargeFileInfo(locale, result.media?.[0], result.title, mp4Url, (err as Error).message || '');
+			const photoCaption = `${caption}\n\n${sorry}\n\n${fileInfo ? `${fileInfo}\n\n` : ''}${t(locale, 'download.copy_url_hint')}\n\n🎬 Video:\n<code>${mp4Url}</code>`;
 
 			try {
 				await sendWithCaption(
@@ -324,13 +374,14 @@ export async function downloadAndSendMedia(
 					? t(locale, 'download.too_large_limit_name', { firstName: options.firstName })
 					: t(locale, 'download.too_large_limit');
 				const mediaUrl = result?.media?.[0]?.url || url;
+				const fileInfo = tooLargeFileInfo(locale, result?.media?.[0], result?.title, mediaUrl, errMsg);
 				const keyboard = new InlineKeyboard()
 					.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot')
 					.url(t(locale, 'download.btn_browser'), url);
 				await bot.api.editMessageText(
 					chatId,
 					statusMessageId!,
-					`${sorry}\n\n${t(locale, 'download.copy_url_hint')}\n\n<code>${mediaUrl}</code>`,
+					`${sorry}\n\n${fileInfo ? `${fileInfo}\n\n` : ''}${t(locale, 'download.copy_url_hint')}\n\n<code>${mediaUrl}</code>`,
 					{ parse_mode: 'HTML', reply_markup: keyboard },
 				);
 			} else {

@@ -103,6 +103,13 @@ export const en = {
 	'download.too_large_limit': '😔 File too large for Telegram (50MB limit). Use the link below to download it directly.',
 	'download.too_large_limit_name':
 		"😔 Sorry {firstName}, this file exceeds Telegram's 50MB limit. Use the link below to download it directly.",
+	'download.file_name': '📄 <b>Name:</b> {name}',
+	'download.file_size': '📦 <b>Size:</b> {size}',
+	'download.file_type': '🎞 <b>Type:</b> {type}',
+	'download.type_video': 'Video',
+	'download.type_audio': 'Audio',
+	'download.type_photo': 'Photo',
+	'download.type_document': 'Document',
 	'download.copy_url_hint': 'Copy the URL below, then send the link to @urluploadxbot',
 	'download.btn_urluploadxbot': '🤖 Send to @urluploadxbot',
 	'download.btn_browser': '🌐 Open in Browser',
