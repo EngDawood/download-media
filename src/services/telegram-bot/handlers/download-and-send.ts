@@ -335,7 +335,8 @@ export async function downloadAndSendMedia(
 				.text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3')
 				.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot');
 			const fileInfo = tooLargeFileInfo(locale, result.media?.[0], result.title, mp4Url, (err as Error).message || '');
-			const photoCaption = `${caption}\n\n${sorry}\n\n${fileInfo ? `${fileInfo}\n\n` : ''}${t(locale, 'download.copy_url_hint')}\n\n🎬 Video:\n<code>${mp4Url}</code>`;
+			const browserHint = t(locale, 'download.browser_hint', { url: escapeHtml(mp4Url) });
+			const photoCaption = `${caption}\n\n${sorry}\n\n${fileInfo ? `${fileInfo}\n\n` : ''}${t(locale, 'download.copy_url_hint')}\n\n🎬 Video:\n<code>${mp4Url}</code>\n\n${browserHint}`;
 
 			try {
 				await sendWithCaption(
@@ -381,7 +382,7 @@ export async function downloadAndSendMedia(
 				await bot.api.editMessageText(
 					chatId,
 					statusMessageId!,
-					`${sorry}\n\n${fileInfo ? `${fileInfo}\n\n` : ''}${t(locale, 'download.copy_url_hint')}\n\n<code>${mediaUrl}</code>`,
+					`${sorry}\n\n${fileInfo ? `${fileInfo}\n\n` : ''}${t(locale, 'download.copy_url_hint')}\n\n<code>${mediaUrl}</code>\n\n${t(locale, 'download.browser_hint', { url: escapeHtml(mediaUrl) })}`,
 					{ parse_mode: 'HTML', reply_markup: keyboard },
 				);
 			} else {

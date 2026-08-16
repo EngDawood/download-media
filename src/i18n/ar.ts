@@ -112,6 +112,7 @@ export const ar: Translations = {
 	'download.type_photo': 'صورة',
 	'download.type_document': 'ملف',
 	'download.copy_url_hint': 'انسخ الرابط أدناه، ثم أرسله إلى @urluploadxbot',
+	'download.browser_hint': 'أو <a href="{url}">اضغط هنا</a> لتحميله مباشرةً من المتصفح.',
 	'download.btn_urluploadxbot': '🤖 إرسال إلى @urluploadxbot',
 	'download.btn_browser': '🌐 فتح في المتصفح',
 	'download.btn_mp3': '🎵 استخراج الصوت',

@@ -111,6 +111,7 @@ export const en = {
 	'download.type_photo': 'Photo',
 	'download.type_document': 'Document',
 	'download.copy_url_hint': 'Copy the URL below, then send the link to @urluploadxbot',
+	'download.browser_hint': 'Or <a href="{url}">click here</a> to download it directly from your browser.',
 	'download.btn_urluploadxbot': '🤖 Send to @urluploadxbot',
 	'download.btn_browser': '🌐 Open in Browser',
 	'download.btn_mp3': '🎵 Extract Audio',
