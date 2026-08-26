@@ -195,6 +195,42 @@ function normalizeUrl(url: string, platform: string): string {
 // Normalization (above) handles converting them to canonical form.
 // ---------------------------------------------------------------------------
 
+/**
+ * Platforms with a dedicated extractor. The generic branch of detectMediaUrl
+ * derives its label from the hostname, so a URL whose platform is NOT in this
+ * set fell through — that is the trigger for HEAD-probing to see whether it
+ * is a direct media URL after all (googleusercontent, tiktokcdn, etc.).
+ */
+const KNOWN_PLATFORMS = new Set([
+	'YouTube',
+	'Instagram',
+	'TikTok',
+	'Douyin',
+	'Twitter',
+	'Facebook',
+	'Threads',
+	'SoundCloud',
+	'Spotify',
+	'Pinterest',
+	'GitHub',
+]);
+
+export function isGenericPlatform(platform: string): boolean {
+	return !KNOWN_PLATFORMS.has(platform);
+}
+
+/**
+ * Resolve a URL's media type: cheap extension check first, then a HEAD probe
+ * only when the URL didn't match any known platform (so we don't burn a
+ * round-trip on every YouTube/Instagram link).
+ */
+export async function resolveDirectMediaType(url: string, platform: string): Promise<DirectMediaType | null> {
+	const byExtension = getDirectFileMediaType(url);
+	if (byExtension) return byExtension;
+	if (isGenericPlatform(platform)) return probeDirectMediaType(url);
+	return null;
+}
+
 const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	// YouTube: www / m / music subdomains; watch, shorts, live, youtu.be
 	{
@@ -211,6 +247,12 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 		platform: 'TikTok',
 		pattern: /https?:\/\/(?:(?:www|vm|vt|m)\.)?tiktok\.com\/\S+/i,
 	},
+	// Douyin (Chinese TikTok, same ByteDance backend). Covers www / m / v (short share)
+	// and qishui.douyin.com (Soda Music audio shares).
+	{
+		platform: 'Douyin',
+		pattern: /https?:\/\/(?:(?:www|m|v|qishui)\.)?douyin\.com\/\S+|https?:\/\/(?:www\.)?iesdouyin\.com\/\S+/i,
+	},
 	// Twitter / X
 	{
 		platform: 'Twitter',
@@ -221,10 +263,10 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 		platform: 'Facebook',
 		pattern: /https?:\/\/(?:(?:www|m|web)\.)?facebook\.com\/(?:share\/[rv]\/|watch\/?|reel\/|\S+\/videos\/)\S*|https?:\/\/fb\.watch\/\S+/i,
 	},
-	// Threads
+	// Threads: /@user/post/{id} (canonical) or /share/{id} (short redirect link)
 	{
 		platform: 'Threads',
-		pattern: /https?:\/\/(?:www\.)?threads\.(?:net|com)\/@\S+\/post\/\S+/i,
+		pattern: /https?:\/\/(?:www\.)?threads\.(?:net|com)\/(?:@\S+\/post\/\S+|share\/\S+)/i,
 	},
 	// SoundCloud
 	{
@@ -251,6 +293,52 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 /** Generic URL pattern — catches any https:// URL not matched by specific platforms. */
 const GENERIC_URL_PATTERN = /https?:\/\/\S+/i;
 
+export type DirectMediaType = 'video' | 'audio' | 'photo' | 'document';
+
+/**
+ * Probe a URL's Content-Type via HEAD so we can catch direct-media URLs that
+ * carry no file extension in the path — googleusercontent video-downloads,
+ * signed CDN links, tiktokcdn video streams. Returns null on any failure so
+ * the caller falls through to the normal extraction pipeline.
+ *
+ * Kept fast (3s cap) and best-effort: many CDNs refuse HEAD, and that is fine —
+ * they will just go through the extractor as before.
+ */
+// Content-Types that are web pages, not downloadable files. Anything else with
+// a 2xx HEAD (including application/json, application/javascript, text/plain,
+// text/csv, text/markdown, application/zip, application/x-tar, font/*, etc.)
+// is treated as a downloadable document — matching the extension-based check,
+// which already returns 'document' for any unknown extension.
+const PAGE_CONTENT_TYPES = new Set(['text/html', 'application/xhtml+xml', '']);
+
+export async function probeDirectMediaType(url: string): Promise<DirectMediaType | null> {
+	try {
+		const res = await fetch(url, {
+			method: 'HEAD',
+			redirect: 'follow',
+			signal: AbortSignal.timeout(3_000),
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+		});
+		if (!res.ok) return null;
+		const contentType = (res.headers.get('content-type') || '').toLowerCase().split(';')[0].trim();
+		if (contentType.startsWith('video/')) return 'video';
+		if (contentType.startsWith('audio/')) return 'audio';
+		if (contentType.startsWith('image/')) return 'photo';
+		if (PAGE_CONTENT_TYPES.has(contentType)) return null;
+		// application/octet-stream is often what CDNs return for signed blobs — accept it
+		// as a document only when there is a body worth uploading. Every other non-page
+		// Content-Type (json, js, css, csv, pdf, zip, tar, fonts, office docs, …) is a
+		// downloadable file for our purposes.
+		if (contentType === 'application/octet-stream') {
+			const len = Number(res.headers.get('content-length') || 0);
+			return len > 0 ? 'document' : null;
+		}
+		return 'document';
+	} catch {
+		return null;
+	}
+}
+
 /** Detects if the URL points directly to a file based on its extension. */
 export function getDirectFileMediaType(url: string): 'video' | 'audio' | 'photo' | 'document' | null {
 	try {
@@ -263,13 +351,15 @@ export function getDirectFileMediaType(url: string): 'video' | 'audio' | 'photo'
 		const ext = filename.split('.').pop()?.toLowerCase();
 		if (!ext) return null;
 
-		if (['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext)) return 'video';
-		if (['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac'].includes(ext)) return 'audio';
-		if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'].includes(ext)) return 'photo';
+		if (['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v', '3gp'].includes(ext)) return 'video';
+		if (['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'opus', 'wma'].includes(ext)) return 'audio';
+		if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'tiff', 'tif', 'heic', 'heif', 'avif', 'ico'].includes(ext)) return 'photo';
 		if (['html', 'htm', 'php', 'asp', 'aspx', 'jsp'].includes(ext)) return null; // Not a downloadable media/file
 		if (ext.length > 15) return null; // Unlikely to be a valid file extension
 
-		// Default unknown types to 'document' so they are sent as files
+		// Default: any other extension (js, json, txt, csv, md, zip, pdf, docx, …) is
+		// treated as a downloadable file. Users who paste a direct link to one of
+		// these should get the file back, not a "no media found" error.
 		return 'document';
 	} catch {
 		return null;

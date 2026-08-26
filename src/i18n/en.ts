@@ -242,6 +242,8 @@ export const en = {
 	'allowlist.not_found': '⚠️ Domain not found in allowlist.',
 	'input.blocked_domain': "🚫 This link isn't allowed. If you think this is a mistake, tap the button below.",
 	'input.blocked_domain_btn': '✋ Report Safe Content',
+	'input.spotify_playlist_unsupported': "🎵 Spotify playlists and albums aren't supported — send a single track link instead.",
+	'input.instagram_audio_unsupported': "🎵 Instagram sound pages aren't supported — send a reel that uses this sound instead.",
 	'report.sent': '✅ Your report has been sent to the admin.',
 	'report.admin_notify':
 		'🚨 <b>Domain report</b>\n\nUser <b>{user}</b> (ID: <code>{userId}</code>) says this URL was wrongly blocked:\n<code>{url}</code>',

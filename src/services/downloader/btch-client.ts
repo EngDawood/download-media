@@ -26,8 +26,12 @@ export function isBtchLimitError(data: any): boolean {
  * Fetch from btch API, racing all backends in parallel.
  * Returns the first successful response; throws a `DownloadError` if all fail, carrying
  * the classification of whichever failure was most permanent across the four servers.
+ *
+ * Default 12s (was 8s): D1 stats showed a large timeout bucket for extractors that
+ * consistently return in 9–11s under load. Providers that need longer (YouTube 20s,
+ * Facebook share/ 15s) still pass their own value.
  */
-export async function btchFetch(endpoint: string, url: string, timeoutMs = 8_000): Promise<any> {
+export async function btchFetch(endpoint: string, url: string, timeoutMs = 12_000): Promise<any> {
 	const fetchFromServer = async (server: string): Promise<any> => {
 		const res = await fetch(`${server}/api/downloader/${endpoint}?url=${encodeURIComponent(url)}`, {
 			headers: BTCH_HEADERS,

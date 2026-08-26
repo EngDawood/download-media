@@ -15,6 +15,7 @@ import { SoundCloudProvider } from './downloader/platforms/soundcloud';
 import { SpotifyProvider } from './downloader/platforms/spotify';
 import { PinterestProvider } from './downloader/platforms/pinterest';
 import { GitHubProvider } from './downloader/platforms/github';
+import { DouyinProvider } from './downloader/platforms/douyin';
 
 export type { DownloaderMode, MediaItem, DownloaderResult };
 export { formatFileSize };
@@ -38,6 +39,7 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 		new SpotifyProvider(),
 		new PinterestProvider(),
 		new GitHubProvider(),
+		new DouyinProvider(),
 	]);
 }
 
@@ -55,6 +57,29 @@ export async function downloadMedia(
 	platform?: string,
 	env?: { TELEGRAPH_ACCESS_TOKEN?: string },
 ): Promise<DownloaderResult> {
+	// Auto-retry once on transient failures. Users routinely tapped the Retry
+	// button after a timeout and it worked; doing that automatically removes
+	// the extra click without any prompt-shaped noise on genuinely dead links.
+	// A `gone` classification means "this link is not extractable" — no point
+	// re-running the whole pipeline for that.
+	const first = await downloadOnce(url, mode, platform, env);
+	if (first.status !== 'error') return first;
+	if (first.failureKind !== 'timeout' && first.failureKind !== 'rate_limited') return first;
+
+	// Short breather so we don't slam btch immediately with the same call the
+	// fleet was already struggling on.
+	await new Promise((r) => setTimeout(r, 400));
+	log('warn', 'downloader', 'retry after transient failure', { kind: first.failureKind, url });
+	const second = await downloadOnce(url, mode, platform, env);
+	return second.status === 'error' ? second : second;
+}
+
+async function downloadOnce(
+	url: string,
+	mode: DownloaderMode,
+	platform: string | undefined,
+	env: { TELEGRAPH_ACCESS_TOKEN?: string } | undefined,
+): Promise<DownloaderResult> {
 	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '');
 	try {
 		const result = await registry.download(url, mode, platform);
@@ -62,11 +87,20 @@ export async function downloadMedia(
 		return await downloadAIO(url, mode);
 	} catch (err: any) {
 		log('error', 'downloader', 'Error', { error: err?.message });
-		const raw: string = err.message || 'Unknown error';
-		const userError = /btch |all servers failed|AggregateError/i.test(raw)
+		// Classify first — a raw AbortError from a timed-out fetch, an AggregateError
+		// from a raced btchFetch, or an unwrapped fetch failure all mean the extraction
+		// service failed, not that the user's link is bad. The old regex-on-message
+		// check missed the AbortError case, so users routinely saw "The operation was
+		// aborted due to timeout" verbatim.
+		const kind = classifyError(err);
+		const friendly =
+			kind === 'timeout' ||
+			kind === 'rate_limited' ||
+			/btch |all servers failed|AggregateError/i.test(err?.message || '');
+		const userError = friendly
 			? 'Download service temporarily unavailable. Please try again or use the Retry button.'
-			: raw;
-		return { status: 'error', error: userError, failureKind: classifyError(err) };
+			: err?.message || 'Unknown error';
+		return { status: 'error', error: userError, failureKind: kind };
 	}
 }
 

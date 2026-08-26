@@ -326,11 +326,25 @@ async function sendMediaGroupMessage(bot: Bot, chatId: number, message: Telegram
  */
 const MEDIA_FETCH_TIMEOUT_MS = 120_000;
 
-async function downloadAsInputFile(url: string, filename: string): Promise<InputFile> {
-	const resp = await fetch(url, {
+// Statuses worth retrying: transient CDN edge failures (Cloudflare 5xx like the
+// TikTok 530 in D1) and short-lived 403 that clears within a second (seen on
+// YouTube/twimg signed URLs when the first request hits a cold edge). A 404 is
+// permanent and a 4xx other than 403/408/429 means the URL itself is bad.
+const RETRYABLE_MEDIA_STATUSES = new Set([403, 408, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 530]);
+
+async function fetchMediaOnce(url: string): Promise<Response> {
+	return fetch(url, {
 		headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
 		signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
 	});
+}
+
+async function downloadAsInputFile(url: string, filename: string): Promise<InputFile> {
+	let resp = await fetchMediaOnce(url);
+	if (!resp.ok && RETRYABLE_MEDIA_STATUSES.has(resp.status)) {
+		await new Promise((r) => setTimeout(r, 700));
+		resp = await fetchMediaOnce(url);
+	}
 	if (!resp.ok) throw new Error(`Failed to download media: ${resp.status}`);
 
 	const contentLength = Number(resp.headers.get('content-length') || 0);

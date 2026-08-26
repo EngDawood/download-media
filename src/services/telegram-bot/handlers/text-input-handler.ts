@@ -2,7 +2,7 @@ import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { getAdminState, setAdminState, clearAdminState } from '../storage/admin-state';
 import { setBlockedUrl } from '../storage/session-store';
-import { detectMediaUrl, isBlockedDomain, getDirectFileMediaType } from '../../../utils/url-detector';
+import { detectMediaUrl, isBlockedDomain, resolveDirectMediaType } from '../../../utils/url-detector';
 import { downloadAndSendMedia } from './download-and-send';
 import { fetchFacebookInfo } from '../../media-downloader';
 import { checkSubscriptionGate } from './subscription-gate';
@@ -78,6 +78,18 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 			const username = ctx.from?.username;
 			const locale = getLocale(ctx);
 
+			// Short-circuit URL forms btch cannot extract. Left to the pipeline they would
+			// route to the platform provider, fail, and get logged as generic "no media found" —
+			// with an explicit reply the user knows what to send instead.
+			if (/spotify\.com\/(?:playlist|album)\//i.test(url)) {
+				await ctx.reply(t(locale, 'input.spotify_playlist_unsupported'));
+				return;
+			}
+			if (/instagram\.com\/reels?\/audio\//i.test(url)) {
+				await ctx.reply(t(locale, 'input.instagram_audio_unsupported'));
+				return;
+			}
+
 			if (!isAdmin && isBlockedDomain(url) && !(await isDomainAllowlisted(db, url))) {
 				if (userId) {
 					await setBlockedUrl(db, userId, url);
@@ -124,7 +136,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				const gateBlocked = await checkSubscriptionGate(ctx, db, bot, env.ANALYTICS, platform);
 				if (gateBlocked) return;
 
-				const directMediaType = getDirectFileMediaType(url);
+				const directMediaType = await resolveDirectMediaType(url, platform);
 				if (directMediaType) {
 					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, {
 						guestMode: true,
@@ -211,7 +223,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				return;
 			}
 
-			const directMediaType = getDirectFileMediaType(url);
+			const directMediaType = await resolveDirectMediaType(url, platform);
 			if (directMediaType) {
 				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, {
 					db,

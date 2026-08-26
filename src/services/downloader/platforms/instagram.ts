@@ -158,19 +158,30 @@ export class InstagramProvider implements IDownloaderProvider {
 			failures.push(classifyError(e)); /* fall through to igdl */
 		}
 
-		const res = await btchFetch('igdl', url);
-		const items = Array.isArray(res) ? res : Array.isArray(res.result) ? res.result : null;
-		if (items?.length > 0 && isUrl(items[0]?.url)) {
-			// igdl repeats every carousel slide once per slide (12 images → 144 entries),
-			// and each copy carries a distinct rapidcdn token, so dedupe on the decoded target.
-			const media = items.filter((i: any) => isUrl(i.url)).map((i: any) => ({ type: detectMediaType(i.url), url: i.url }) as MediaItem);
-			return {
-				status: 'success',
-				media: capItems(dedupeByIdentity(media)),
-				caption: aioCaption,
-				thumbnail: items[0]?.thumbnail,
-			};
+		try {
+			const res = await btchFetch('igdl', url);
+			const items = Array.isArray(res) ? res : Array.isArray(res.result) ? res.result : null;
+			if (items?.length > 0 && isUrl(items[0]?.url)) {
+				// igdl repeats every carousel slide once per slide (12 images → 144 entries),
+				// and each copy carries a distinct rapidcdn token, so dedupe on the decoded target.
+				const media = items.filter((i: any) => isUrl(i.url)).map((i: any) => ({ type: detectMediaType(i.url), url: i.url }) as MediaItem);
+				return {
+					status: 'success',
+					media: capItems(dedupeByIdentity(media)),
+					caption: aioCaption,
+					thumbnail: items[0]?.thumbnail,
+				};
+			}
+		} catch (e) {
+			// Without this catch, an igdl timeout throws a raw AbortError up through
+			// downloadMedia and users saw "The operation was aborted due to timeout".
+			failures.push(classifyError(e));
 		}
-		return { status: 'error', error: 'No Instagram media found', failureKind: mostPermanent(failures) };
+		const kind = mostPermanent(failures);
+		const message =
+			kind === 'timeout' || kind === 'rate_limited'
+				? 'Download service temporarily unavailable. Please try again or use the Retry button.'
+				: 'No Instagram media found';
+		return { status: 'error', error: message, failureKind: kind };
 	}
 }
