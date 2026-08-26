@@ -4,10 +4,32 @@ import { btchFetch } from '../btch-client';
 import { tryAIO } from '../aio-parser';
 import { buildCaption, isUrl } from '../media-helpers';
 
+/**
+ * Threads /share/{id} URLs are short redirect links that 302 to /@user/post/{id}.
+ * btch's threads endpoint refuses share links, so resolve to the canonical form first.
+ * Returns the original URL if resolution fails so the pipeline can try tryAIO anyway.
+ */
+async function resolveShareUrl(url: string): Promise<string> {
+	if (!/\/share\//.test(url)) return url;
+	try {
+		const res = await fetch(url, {
+			method: 'HEAD',
+			redirect: 'follow',
+			signal: AbortSignal.timeout(5_000),
+			headers: { 'User-Agent': 'Mozilla/5.0' },
+		});
+		if (res.url && /threads\.(?:net|com)\/@[^/]+\/post\//i.test(res.url)) return res.url;
+	} catch {
+		/* fall through — use original URL */
+	}
+	return url;
+}
+
 export class ThreadsProvider implements IDownloaderProvider {
 	readonly platforms = ['threads.net', 'threads.com'];
 
-	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
+	async download(inputUrl: string, mode: DownloaderMode): Promise<DownloaderResult> {
+		const url = await resolveShareUrl(inputUrl);
 		try {
 			const aioResult = await tryAIO(url, mode);
 			if (aioResult?.media) {

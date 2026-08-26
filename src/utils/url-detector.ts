@@ -221,10 +221,10 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 		platform: 'Facebook',
 		pattern: /https?:\/\/(?:(?:www|m|web)\.)?facebook\.com\/(?:share\/[rv]\/|watch\/?|reel\/|\S+\/videos\/)\S*|https?:\/\/fb\.watch\/\S+/i,
 	},
-	// Threads
+	// Threads: /@user/post/{id} (canonical) or /share/{id} (short redirect link)
 	{
 		platform: 'Threads',
-		pattern: /https?:\/\/(?:www\.)?threads\.(?:net|com)\/@\S+\/post\/\S+/i,
+		pattern: /https?:\/\/(?:www\.)?threads\.(?:net|com)\/(?:@\S+\/post\/\S+|share\/\S+)/i,
 	},
 	// SoundCloud
 	{

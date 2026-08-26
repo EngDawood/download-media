@@ -62,11 +62,20 @@ export async function downloadMedia(
 		return await downloadAIO(url, mode);
 	} catch (err: any) {
 		log('error', 'downloader', 'Error', { error: err?.message });
-		const raw: string = err.message || 'Unknown error';
-		const userError = /btch |all servers failed|AggregateError/i.test(raw)
+		// Classify first — a raw AbortError from a timed-out fetch, an AggregateError
+		// from a raced btchFetch, or an unwrapped fetch failure all mean the extraction
+		// service failed, not that the user's link is bad. The old regex-on-message
+		// check missed the AbortError case, so users routinely saw "The operation was
+		// aborted due to timeout" verbatim.
+		const kind = classifyError(err);
+		const friendly =
+			kind === 'timeout' ||
+			kind === 'rate_limited' ||
+			/btch |all servers failed|AggregateError/i.test(err?.message || '');
+		const userError = friendly
 			? 'Download service temporarily unavailable. Please try again or use the Retry button.'
-			: raw;
-		return { status: 'error', error: userError, failureKind: classifyError(err) };
+			: err?.message || 'Unknown error';
+		return { status: 'error', error: userError, failureKind: kind };
 	}
 }
 

@@ -38,9 +38,14 @@ export function parseLinksSection(links: unknown, type: MediaItem['type']): Medi
  * Because the failure is swallowed to allow that fallback, the reason would otherwise be lost.
  * Callers that end up reporting an error can pass `failures` to collect it.
  */
-export async function tryAIO(url: string, mode: string = 'auto', failures?: FailureKind[]): Promise<DownloaderResult | null> {
+export async function tryAIO(
+	url: string,
+	mode: string = 'auto',
+	failures?: FailureKind[],
+	timeoutMs?: number,
+): Promise<DownloaderResult | null> {
 	try {
-		const res = await btchFetch('aio', url);
+		const res = await btchFetch('aio', url, timeoutMs);
 		const data = res.data;
 		if (!data) return null;
 

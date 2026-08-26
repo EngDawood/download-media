@@ -78,6 +78,18 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 			const username = ctx.from?.username;
 			const locale = getLocale(ctx);
 
+			// Short-circuit URL forms btch cannot extract. Left to the pipeline they would
+			// route to the platform provider, fail, and get logged as generic "no media found" —
+			// with an explicit reply the user knows what to send instead.
+			if (/open\.spotify\.com\/playlist\//i.test(url) || /spotify\.com\/playlist\//i.test(url)) {
+				await ctx.reply(t(locale, 'input.spotify_playlist_unsupported'));
+				return;
+			}
+			if (/instagram\.com\/reels?\/audio\//i.test(url)) {
+				await ctx.reply(t(locale, 'input.instagram_audio_unsupported'));
+				return;
+			}
+
 			if (!isAdmin && isBlockedDomain(url) && !(await isDomainAllowlisted(db, url))) {
 				if (userId) {
 					await setBlockedUrl(db, userId, url);
