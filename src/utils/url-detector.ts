@@ -195,6 +195,42 @@ function normalizeUrl(url: string, platform: string): string {
 // Normalization (above) handles converting them to canonical form.
 // ---------------------------------------------------------------------------
 
+/**
+ * Platforms with a dedicated extractor. The generic branch of detectMediaUrl
+ * derives its label from the hostname, so a URL whose platform is NOT in this
+ * set fell through — that is the trigger for HEAD-probing to see whether it
+ * is a direct media URL after all (googleusercontent, tiktokcdn, etc.).
+ */
+const KNOWN_PLATFORMS = new Set([
+	'YouTube',
+	'Instagram',
+	'TikTok',
+	'Douyin',
+	'Twitter',
+	'Facebook',
+	'Threads',
+	'SoundCloud',
+	'Spotify',
+	'Pinterest',
+	'GitHub',
+]);
+
+export function isGenericPlatform(platform: string): boolean {
+	return !KNOWN_PLATFORMS.has(platform);
+}
+
+/**
+ * Resolve a URL's media type: cheap extension check first, then a HEAD probe
+ * only when the URL didn't match any known platform (so we don't burn a
+ * round-trip on every YouTube/Instagram link).
+ */
+export async function resolveDirectMediaType(url: string, platform: string): Promise<DirectMediaType | null> {
+	const byExtension = getDirectFileMediaType(url);
+	if (byExtension) return byExtension;
+	if (isGenericPlatform(platform)) return probeDirectMediaType(url);
+	return null;
+}
+
 const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	// YouTube: www / m / music subdomains; watch, shorts, live, youtu.be
 	{
@@ -210,6 +246,12 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	{
 		platform: 'TikTok',
 		pattern: /https?:\/\/(?:(?:www|vm|vt|m)\.)?tiktok\.com\/\S+/i,
+	},
+	// Douyin (Chinese TikTok, same ByteDance backend). Covers www / m / v (short share)
+	// and qishui.douyin.com (Soda Music audio shares).
+	{
+		platform: 'Douyin',
+		pattern: /https?:\/\/(?:(?:www|m|v|qishui)\.)?douyin\.com\/\S+|https?:\/\/(?:www\.)?iesdouyin\.com\/\S+/i,
 	},
 	// Twitter / X
 	{
@@ -250,6 +292,43 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 
 /** Generic URL pattern — catches any https:// URL not matched by specific platforms. */
 const GENERIC_URL_PATTERN = /https?:\/\/\S+/i;
+
+export type DirectMediaType = 'video' | 'audio' | 'photo' | 'document';
+
+/**
+ * Probe a URL's Content-Type via HEAD so we can catch direct-media URLs that
+ * carry no file extension in the path — googleusercontent video-downloads,
+ * signed CDN links, tiktokcdn video streams. Returns null on any failure so
+ * the caller falls through to the normal extraction pipeline.
+ *
+ * Kept fast (3s cap) and best-effort: many CDNs refuse HEAD, and that is fine —
+ * they will just go through the extractor as before.
+ */
+export async function probeDirectMediaType(url: string): Promise<DirectMediaType | null> {
+	try {
+		const res = await fetch(url, {
+			method: 'HEAD',
+			redirect: 'follow',
+			signal: AbortSignal.timeout(3_000),
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+		});
+		if (!res.ok) return null;
+		const contentType = (res.headers.get('content-type') || '').toLowerCase().split(';')[0].trim();
+		if (contentType.startsWith('video/')) return 'video';
+		if (contentType.startsWith('audio/')) return 'audio';
+		if (contentType.startsWith('image/')) return 'photo';
+		if (contentType === 'application/pdf' || contentType === 'application/zip') return 'document';
+		// application/octet-stream by itself is not enough — an unknown blob could be an
+		// HTML page mislabelled by a misconfigured server. Require size hints.
+		if (contentType === 'application/octet-stream') {
+			const len = Number(res.headers.get('content-length') || 0);
+			if (len > 100_000) return 'document';
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
 
 /** Detects if the URL points directly to a file based on its extension. */
 export function getDirectFileMediaType(url: string): 'video' | 'audio' | 'photo' | 'document' | null {

@@ -15,6 +15,7 @@ import { SoundCloudProvider } from './downloader/platforms/soundcloud';
 import { SpotifyProvider } from './downloader/platforms/spotify';
 import { PinterestProvider } from './downloader/platforms/pinterest';
 import { GitHubProvider } from './downloader/platforms/github';
+import { DouyinProvider } from './downloader/platforms/douyin';
 
 export type { DownloaderMode, MediaItem, DownloaderResult };
 export { formatFileSize };
@@ -38,6 +39,7 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 		new SpotifyProvider(),
 		new PinterestProvider(),
 		new GitHubProvider(),
+		new DouyinProvider(),
 	]);
 }
 

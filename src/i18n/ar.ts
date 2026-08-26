@@ -238,7 +238,7 @@ export const ar: Translations = {
 	'allowlist.not_found': '⚠️ النطاق غير موجود في القائمة البيضاء.',
 	'input.blocked_domain': '🚫 هذا الرابط غير مسموح به. إذا كنت تعتقد أن هذا خطأ، اضغط الزر أدناه.',
 	'input.blocked_domain_btn': '✋ الإبلاغ عن محتوى آمن',
-	'input.spotify_playlist_unsupported': '🎵 قوائم تشغيل سبوتيفاي غير مدعومة — أرسل رابط أغنية واحدة بدلاً من ذلك.',
+	'input.spotify_playlist_unsupported': '🎵 قوائم التشغيل والألبومات في سبوتيفاي غير مدعومة — أرسل رابط أغنية واحدة بدلاً من ذلك.',
 	'input.instagram_audio_unsupported': '🎵 صفحات الأصوات في إنستغرام غير مدعومة — أرسل ريلًا يستخدم هذا الصوت.',
 	'report.sent': '✅ تم إرسال بلاغك إلى المشرف.',
 	'report.admin_notify':
