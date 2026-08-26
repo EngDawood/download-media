@@ -304,6 +304,13 @@ export type DirectMediaType = 'video' | 'audio' | 'photo' | 'document';
  * Kept fast (3s cap) and best-effort: many CDNs refuse HEAD, and that is fine —
  * they will just go through the extractor as before.
  */
+// Content-Types that are web pages, not downloadable files. Anything else with
+// a 2xx HEAD (including application/json, application/javascript, text/plain,
+// text/csv, text/markdown, application/zip, application/x-tar, font/*, etc.)
+// is treated as a downloadable document — matching the extension-based check,
+// which already returns 'document' for any unknown extension.
+const PAGE_CONTENT_TYPES = new Set(['text/html', 'application/xhtml+xml', '']);
+
 export async function probeDirectMediaType(url: string): Promise<DirectMediaType | null> {
 	try {
 		const res = await fetch(url, {
@@ -317,14 +324,16 @@ export async function probeDirectMediaType(url: string): Promise<DirectMediaType
 		if (contentType.startsWith('video/')) return 'video';
 		if (contentType.startsWith('audio/')) return 'audio';
 		if (contentType.startsWith('image/')) return 'photo';
-		if (contentType === 'application/pdf' || contentType === 'application/zip') return 'document';
-		// application/octet-stream by itself is not enough — an unknown blob could be an
-		// HTML page mislabelled by a misconfigured server. Require size hints.
+		if (PAGE_CONTENT_TYPES.has(contentType)) return null;
+		// application/octet-stream is often what CDNs return for signed blobs — accept it
+		// as a document only when there is a body worth uploading. Every other non-page
+		// Content-Type (json, js, css, csv, pdf, zip, tar, fonts, office docs, …) is a
+		// downloadable file for our purposes.
 		if (contentType === 'application/octet-stream') {
 			const len = Number(res.headers.get('content-length') || 0);
-			if (len > 100_000) return 'document';
+			return len > 0 ? 'document' : null;
 		}
-		return null;
+		return 'document';
 	} catch {
 		return null;
 	}
@@ -342,13 +351,15 @@ export function getDirectFileMediaType(url: string): 'video' | 'audio' | 'photo'
 		const ext = filename.split('.').pop()?.toLowerCase();
 		if (!ext) return null;
 
-		if (['mp4', 'webm', 'mov', 'mkv', 'avi'].includes(ext)) return 'video';
-		if (['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac'].includes(ext)) return 'audio';
-		if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'].includes(ext)) return 'photo';
+		if (['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v', '3gp'].includes(ext)) return 'video';
+		if (['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'opus', 'wma'].includes(ext)) return 'audio';
+		if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'tiff', 'tif', 'heic', 'heif', 'avif', 'ico'].includes(ext)) return 'photo';
 		if (['html', 'htm', 'php', 'asp', 'aspx', 'jsp'].includes(ext)) return null; // Not a downloadable media/file
 		if (ext.length > 15) return null; // Unlikely to be a valid file extension
 
-		// Default unknown types to 'document' so they are sent as files
+		// Default: any other extension (js, json, txt, csv, md, zip, pdf, docx, …) is
+		// treated as a downloadable file. Users who paste a direct link to one of
+		// these should get the file back, not a "no media found" error.
 		return 'document';
 	} catch {
 		return null;
