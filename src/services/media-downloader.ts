@@ -57,6 +57,29 @@ export async function downloadMedia(
 	platform?: string,
 	env?: { TELEGRAPH_ACCESS_TOKEN?: string },
 ): Promise<DownloaderResult> {
+	// Auto-retry once on transient failures. Users routinely tapped the Retry
+	// button after a timeout and it worked; doing that automatically removes
+	// the extra click without any prompt-shaped noise on genuinely dead links.
+	// A `gone` classification means "this link is not extractable" — no point
+	// re-running the whole pipeline for that.
+	const first = await downloadOnce(url, mode, platform, env);
+	if (first.status !== 'error') return first;
+	if (first.failureKind !== 'timeout' && first.failureKind !== 'rate_limited') return first;
+
+	// Short breather so we don't slam btch immediately with the same call the
+	// fleet was already struggling on.
+	await new Promise((r) => setTimeout(r, 400));
+	log('warn', 'downloader', 'retry after transient failure', { kind: first.failureKind, url });
+	const second = await downloadOnce(url, mode, platform, env);
+	return second.status === 'error' ? second : second;
+}
+
+async function downloadOnce(
+	url: string,
+	mode: DownloaderMode,
+	platform: string | undefined,
+	env: { TELEGRAPH_ACCESS_TOKEN?: string } | undefined,
+): Promise<DownloaderResult> {
 	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '');
 	try {
 		const result = await registry.download(url, mode, platform);
