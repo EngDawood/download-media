@@ -30,8 +30,13 @@ export function isBtchLimitError(data: any): boolean {
  * Default 12s (was 8s): D1 stats showed a large timeout bucket for extractors that
  * consistently return in 9–11s under load. Providers that need longer (YouTube 20s,
  * Facebook share/ 15s) still pass their own value.
+ *
+ * `isUsable` lets a caller reject a 200 that carries no media. Some backends answer
+ * `{status: true, HD: null, Normal_video: null}` for a link the others extract fine;
+ * without this the race is won by whichever server failed fastest. Treating that as a
+ * failure keeps `Promise.any` waiting on a server that actually has the file.
  */
-export async function btchFetch(endpoint: string, url: string, timeoutMs = 12_000): Promise<any> {
+export async function btchFetch(endpoint: string, url: string, timeoutMs = 12_000, isUsable?: (data: any) => boolean): Promise<any> {
 	const fetchFromServer = async (server: string): Promise<any> => {
 		const res = await fetch(`${server}/api/downloader/${endpoint}?url=${encodeURIComponent(url)}`, {
 			headers: BTCH_HEADERS,
@@ -48,6 +53,10 @@ export async function btchFetch(endpoint: string, url: string, timeoutMs = 12_00
 			throw new DownloadError(`btch ${endpoint}: ${data.msg || 'limit reached'}`, 'rate_limited');
 		}
 		if (data.error) throw new DownloadError(`btch ${endpoint}: ${data.error}`, 'gone');
+		if (isUsable && !isUsable(data)) {
+			log('warn', `btch:${endpoint}`, 'empty payload', { server });
+			throw new DownloadError(`btch ${endpoint}: no media in response`, 'gone');
+		}
 		return data;
 	};
 
