@@ -96,6 +96,10 @@ export const en = {
 	'download.failed': '❌ Download failed. The link may be private, deleted, or unsupported.\n<code>{url}</code>\n<i>Error: {error}</i>',
 	'download.processing_retry':
 		'⏳ YouTube is still processing this video — this can take a moment the first time.\n<code>{url}</code>\n<i>Tap Retry in a few seconds.</i>',
+	'download.delay_retry':
+		'⏳ This is taking longer than usual and the download timed out.\n\nYour link looks fine — the delay is on the download servers, not on your side.\n<code>{url}</code>\n<i>Tap 🔄 Retry — it usually works on the second try.</i>',
+	'download.busy_retry':
+		'🕒 The download servers are busy right now, so this attempt failed.\n\nYour link looks fine — nothing is wrong with it.\n<code>{url}</code>\n<i>Wait a few seconds, then tap 🔄 Retry.</i>',
 	'download.no_media': '😕 No media found. The post may be private or deleted.\n{url}',
 	'download.error': '⚠️ Something went wrong. Please try again in a moment.\n{url}',
 	'download.too_large': '😔 File too large for Telegram (50MB limit). Use the link below to download it directly.',

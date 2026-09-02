@@ -219,8 +219,21 @@ export async function downloadAndSendMedia(
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
 			await recordError(result.error || 'API error');
-			if (result.retryable) {
+			// The URL already passed platform detection before it got here, so a `timeout`
+			// or `rate_limited` failure is a statement about our extraction backends being
+			// slow or busy — not about the user's link. Say that plainly and point at Retry,
+			// instead of the generic "the link may be private or deleted" text, which sends
+			// people off re-checking a link that was fine all along.
+			if (result.retryable && platform === 'YouTube') {
 				await showError(t(locale, 'download.processing_retry', { url }), 'HTML', result.error);
+				return;
+			}
+			if (result.failureKind === 'timeout' || result.retryable) {
+				await showError(t(locale, 'download.delay_retry', { url }), 'HTML', result.error);
+				return;
+			}
+			if (result.failureKind === 'rate_limited') {
+				await showError(t(locale, 'download.busy_retry', { url }), 'HTML', result.error);
 				return;
 			}
 			const safeError = (result.error || 'unknown error').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
