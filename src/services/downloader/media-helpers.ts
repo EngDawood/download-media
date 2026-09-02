@@ -99,6 +99,10 @@ const DECODE_MAP: Record<string, string> = {
 
 /**
  * Extract the direct CDN URL from a tiktokio.com download token.
+ *
+ * Returns null whenever the decode is not provably a complete URL. Callers fall back to
+ * the tiktokio proxy link, which serves the same bytes, so a null here costs nothing —
+ * whereas a half-decoded URL is a dead host that Telegram rejects with a 530.
  */
 export function decodeTiktokDirectUrl(proxyUrl: string): string | null {
 	try {
@@ -112,8 +116,19 @@ export function decodeTiktokDirectUrl(proxyUrl: string): string | null {
 		let b64 = 'aHR0c' + cleaned.slice(10);
 		while (b64.length % 4 !== 0) b64 += '=';
 		const decoded = atob(b64);
-		const match = decoded.match(/^(https?:\/\/.+?\.\w{2,4})/);
-		return match ? match[1] : null;
+		// The substitution above is ambiguous: a digit run that was never an escape gets
+		// rewritten too, so longer tokens (audio links, which carry a query string) turn to
+		// binary noise partway through. Non-printable bytes mean the decode can't be trusted.
+		if (/[^\x20-\x7e]/.test(decoded)) return null;
+		// tiktokio appends a unix timestamp after the filename extension. Anchoring on the
+		// extension is what keeps the lazy quantifier from stopping at the first dot in the
+		// hostname, which used to truncate "https://v16.tokcdn.com/...mp4" to "https://v16.tokc".
+		const match = decoded.match(/^https?:\/\/[^\s"'<>]+?\.[a-z0-9]{2,4}(?=\d{10}$|$)/i);
+		if (!match) return null;
+		// A bare host with no path is never a media link.
+		const parsed = new URL(match[0]);
+		if (parsed.pathname.length <= 1 || !/\.[a-z]{2,}$/i.test(parsed.hostname)) return null;
+		return match[0];
 	} catch {
 		return null;
 	}
