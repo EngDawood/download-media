@@ -24,6 +24,12 @@ export interface DownloaderResult {
 	title?: string;
 	thumbnail?: string;
 	/**
+	 * HTML message the bot sends on its own, right after the media — used by X threads to
+	 * put the Telegraph link in a separate message instead of crowding the media caption.
+	 * Ignored by the MCP route, which gets the whole body in `fullText`.
+	 */
+	followUp?: string;
+	/**
 	 * Full body of long-form content (X Articles, threads) as Markdown.
 	 * The Telegram bot ignores this — it cannot fit in a caption and uses the Telegraph
 	 * link instead. Surfaced only by the MCP route, where clients can take the whole text.

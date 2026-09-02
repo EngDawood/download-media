@@ -66,6 +66,37 @@ function isThreadTweet(tweet: any): boolean {
 }
 
 /**
+ * Media attached to a single tweet, in original order.
+ * `media.all` covers mixed posts (video + photos); the explicit arrays are legacy fallbacks.
+ */
+function collectTweetMedia(tweet: any): MediaItem[] {
+	const media: MediaItem[] = [];
+
+	for (const m of tweet.media?.all ?? []) {
+		if (isUrl(m.url)) media.push({ type: m.type === 'video' || m.type === 'gif' ? 'video' : 'photo', url: m.url });
+	}
+	if (media.length > 0) return media;
+
+	for (const v of tweet.media?.videos ?? []) {
+		if (isUrl(v.url)) media.push({ type: 'video', url: v.url });
+	}
+	if (media.length > 0) return media;
+
+	for (const p of tweet.media?.photos ?? []) {
+		if (isUrl(p.url)) media.push({ type: 'photo', url: p.url });
+	}
+	return media;
+}
+
+/** Video poster frame when the tweet has one, otherwise the author's avatar. */
+function tweetThumbnail(tweet: any): string | undefined {
+	const videoThumb = tweet.media?.videos?.[0]?.thumbnail_url;
+	if (isUrl(videoThumb)) return videoThumb;
+	const avatar = tweet.author?.avatar_url as string | undefined;
+	return isUrl(avatar) ? avatar : undefined;
+}
+
+/**
  * Fetch a single tweet from FxTwitter. Returns the tweet object or null.
  */
 async function fetchTweet(tweetId: string): Promise<any | null> {
@@ -147,10 +178,29 @@ async function tryViaFxTwitter(url: string, accessToken: string, failures: Failu
 			const threadTweets = await collectThread(tweet);
 			if (threadTweets.length > 1) {
 				const telegraphUrl = await publishThreadToTelegraph(threadTweets, accessToken);
-				const first = threadTweets[0];
 				const avatar = tweet.author?.avatar_url as string | undefined;
 
-				// Cover: first photo in the entire thread, fallback to avatar
+				// Sent after the media, so the tweet's own video/photos arrive first.
+				const noticeLines = [`🧵 Thread — ${threadTweets.length} tweets`];
+				noticeLines.push(telegraphUrl ? `📖 <a href="${telegraphUrl}">Read full thread</a>` : `🔗 <a href="${tweet.url}">View on X</a>`);
+				const followUp = noticeLines.join('\n');
+
+				const caption = tweet.text ? `<b>${tweet.text}</b>` : '';
+				const ownMedia = collectTweetMedia(tweet);
+
+				// The tweet the user sent carries its own media — send that, not a cover image.
+				if (ownMedia.length > 0) {
+					return {
+						status: 'success',
+						media: ownMedia,
+						caption,
+						thumbnail: tweetThumbnail(tweet),
+						followUp,
+						fullText: threadToMarkdown(threadTweets),
+					};
+				}
+
+				// Text-only tweet — cover with the first photo anywhere in the thread, else the avatar.
 				let coverUrl: string | undefined;
 				for (const t of threadTweets) {
 					const photo = t.media?.photos?.[0]?.url;
@@ -160,18 +210,12 @@ async function tryViaFxTwitter(url: string, accessToken: string, failures: Failu
 					}
 				}
 
-				const captionLines: string[] = [];
-				const firstText = first.text?.trim();
-				if (firstText) captionLines.push(`<b>${firstText}</b>`);
-				captionLines.push(`🧵 Thread — ${threadTweets.length} tweets`);
-				if (telegraphUrl) captionLines.push(`\n📖 <a href="${telegraphUrl}">Read full thread</a>`);
-				else captionLines.push(`🔗 <a href="${first.url}">View on X</a>`);
-
 				return {
 					status: 'success',
 					media: (coverUrl ?? avatar) ? [{ type: 'photo', url: (coverUrl ?? avatar)! }] : [],
-					caption: captionLines.join('\n'),
+					caption,
 					thumbnail: coverUrl ?? avatar,
+					followUp,
 					fullText: threadToMarkdown(threadTweets),
 				};
 			}
@@ -181,41 +225,10 @@ async function tryViaFxTwitter(url: string, accessToken: string, failures: Failu
 		// ── Media tweet ──
 		const caption = tweet.text ? `<b>${tweet.text}</b>` : '';
 		const avatar = tweet.author?.avatar_url as string | undefined;
-		const media: MediaItem[] = [];
 
-		// Prefer media.all — preserves original order, handles mixed posts (video + photos in same tweet)
-		if (Array.isArray(tweet.media?.all) && tweet.media.all.length > 0) {
-			for (const m of tweet.media.all) {
-				if (isUrl(m.url)) {
-					media.push({ type: m.type === 'video' || m.type === 'gif' ? 'video' : 'photo', url: m.url });
-				}
-			}
-			if (media.length > 0) {
-				const firstVideo = tweet.media.videos?.[0];
-				const thumb = isUrl(firstVideo?.thumbnail_url) ? firstVideo.thumbnail_url : avatar;
-				return { status: 'success', media, caption, thumbnail: thumb };
-			}
-		}
-
-		// Fallback: explicit videos array
-		if (Array.isArray(tweet.media?.videos) && tweet.media.videos.length > 0) {
-			for (const v of tweet.media.videos) {
-				if (isUrl(v.url)) media.push({ type: 'video', url: v.url });
-			}
-			if (media.length > 0) {
-				const thumb = tweet.media.videos[0]?.thumbnail_url;
-				return { status: 'success', media, caption, thumbnail: isUrl(thumb) ? thumb : avatar };
-			}
-		}
-
-		// Fallback: explicit photos array
-		if (Array.isArray(tweet.media?.photos) && tweet.media.photos.length > 0) {
-			for (const p of tweet.media.photos) {
-				if (isUrl(p.url)) media.push({ type: 'photo', url: p.url });
-			}
-			if (media.length > 0) {
-				return { status: 'success', media, caption, thumbnail: avatar };
-			}
+		const media = collectTweetMedia(tweet);
+		if (media.length > 0) {
+			return { status: 'success', media, caption, thumbnail: tweetThumbnail(tweet) };
 		}
 
 		// Text-only tweet

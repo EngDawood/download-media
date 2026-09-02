@@ -310,6 +310,11 @@ export async function downloadAndSendMedia(
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText);
 				}
 			}
+
+			// Separate message after the media (X threads: the Telegraph link).
+			if (result.followUp) {
+				await bot.api.sendMessage(chatId, result.followUp, { parse_mode: 'HTML' }).catch(() => {});
+			}
 			return;
 		}
 
