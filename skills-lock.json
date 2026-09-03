@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "improve-claude-md": {
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "computedHash": "27e3ef1847732d859cc8c8583ffb9768ebd18804fefae0fde718fe69dbf875d4"
+    }
+  }
+}

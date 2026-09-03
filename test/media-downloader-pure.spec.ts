@@ -160,6 +160,29 @@ describe('decodeTiktokDirectUrl', () => {
 		const token = btoa('not-a-url-at-all-xxxx').replace(/=/g, '') + 'O0O0O';
 		expect(decodeTiktokDirectUrl(`https://tiktokio.com/dl?token=${token}`)).toBeNull();
 	});
+	it('decodes a real video token to the full CDN URL', () => {
+		// Captured from btch /ttdl. The trailing 1788388807 is a unix timestamp tiktokio
+		// appends after the extension; it must not end up in the returned URL.
+		const token =
+			'atHsRx0cccHM6Ly92MTYudG9rY2RuLmNvbS9kM2NkNTM3ZDdlOTBlZDFiNjVmNzAxMTU3OTNkMzFlOS82MjllOTUwMC83MTA2NTk0MzEyMjkyNDUzNjc1X29yaWdpbmFsLm1wNDE3ODgzODg4MDcO0O0O';
+		expect(decodeTiktokDirectUrl(`https://dl.tiktokio.com/download?token=${token}`)).toBe(
+			'https://v16.tokcdn.com/d3cd537d7e90ed1b65f70115793d31e9/629e9500/7106594312292453675_original.mp4'
+		);
+	});
+	it('never returns a URL truncated inside the hostname', () => {
+		// Regression: the old lazy `.+?\.\w{2,4}` stopped at the first dot after the scheme,
+		// yielding `https://v16.tokc` — a dead host Telegram answers with a 530.
+		const token =
+			'atHsRx0cccHM6Ly92MTYudG9rY2RuLmNvbS9kM2NkNTM3ZDdlOTBlZDFiNjVmNzAxMTU3OTNkMzFlOS82MjllOTUwMC83MTA2NTk0MzEyMjkyNDUzNjc1X29yaWdpbmFsLm1wNDE3ODgzODg4MDcO0O0O';
+		const out = decodeTiktokDirectUrl(`https://dl.tiktokio.com/download?token=${token}`);
+		expect(out).not.toBe('https://v16.tokc');
+		expect(new URL(out!).pathname.length).toBeGreaterThan(1);
+	});
+	it('returns null for an audio token whose decode is lossy, so the caller keeps the proxy URL', () => {
+		const token =
+			'atHsRx0cccHM6Ly92MTYtaWVzLW11c2ljLnRpa3Rva2Nkbi11cy5jb20vNzA3ZmI3Nzk2ODU4MDFiODRlMTZmODE1YmY5ZGIwMGQvNmFhMWUwNjMvdmlkZW8vdG9zL3VzZWFzdDUO0O0O';
+		expect(decodeTiktokDirectUrl(`https://dl.tiktokio.com/download?token=${token}`)).toBeNull();
+	});
 });
 
 // ─── mediaIdentity / dedupeByIdentity ────────────────────────────────────────
