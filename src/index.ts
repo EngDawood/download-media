@@ -73,7 +73,12 @@ app.post('/telegram', async (c) => {
 	const bot = createBot(c.env);
 	await bot.init();
 	const update = await c.req.json();
-	c.executionCtx.waitUntil(bot.handleUpdate(update).catch((err) => console.error('[webhook] Unhandled update error:', err)));
+	// Awaited, not waitUntil'd. Cloudflare bounds how long waitUntil work may run after the
+	// response is returned, and it was cancelling downloads mid-flight: the bot sent
+	// "Downloading media..." and then went silent, because the send never got to run.
+	// Handling the update inside the request lifetime gives it Telegram's webhook budget
+	// (~60s) instead of the shorter post-response window.
+	await bot.handleUpdate(update).catch((err) => console.error('[webhook] Unhandled update error:', err));
 	return c.json({ ok: true });
 });
 
