@@ -1,11 +1,11 @@
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { downloadMedia, formatFileSize } from '../../media-downloader';
-import { sendMediaToChannel, sendWithCaption } from './send-media';
+import { sendMediaToChannel, sendWithCaption, measureVariants, pickSendableVariant } from './send-media';
 import { setAdminState, clearAdminState } from '../storage/admin-state';
 import { setReportData } from '../storage/session-store';
 import type { TelegramMediaMessage } from '../../../types/telegram';
-import type { MediaItem } from '../../../types/downloader';
+import type { MediaItem, MediaVariant } from '../../../types/downloader';
 import { trackEvent } from '../../../utils/analytics';
 import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats-d1';
 import { getConfig } from '../../../utils/db';
@@ -249,6 +249,26 @@ export async function downloadAndSendMedia(
 					: DEFAULT_INSTAGRAM_FOOTER;
 				caption = caption ? `${caption}\n\n${footer}` : footer;
 			}
+			// Providers that hand us a quality ladder (X) get measured here, before the done
+			// message is composed, so the size shown and the file sent describe the same rendition.
+			// Only single-video posts qualify — an album has no one quality to pick.
+			let ladder: MediaVariant[] = [];
+			let downgradedFrom: MediaVariant | undefined;
+			const single = result.media.length === 1 ? result.media[0] : undefined;
+			if (single?.type === 'video' && single.variants && single.variants.length > 1) {
+				ladder = await measureVariants(single.variants);
+				const best = ladder[0];
+				const picked = pickSendableVariant(ladder);
+				if (picked) {
+					// Compare heights, not URLs: a provider URL that is not itself in the ladder
+					// would otherwise read as a downgrade even when the top rung was chosen.
+					if (picked.height < best.height) downgradedFrom = best;
+					single.url = picked.url;
+					single.quality = picked.label;
+					single.filesize = picked.filesize;
+				}
+			}
+
 			const totalFileSizeBytes = result.media.reduce((sum, m) => sum + (m.filesize ?? 0), 0);
 			const sizeInfo = result.media
 				.map((m) => {
@@ -259,7 +279,15 @@ export async function downloadAndSendMedia(
 				})
 				.filter(Boolean)
 				.join(', ');
-			const doneText = sizeInfo ? t(locale, 'download.done_info', { info: sizeInfo }) : t(locale, 'download.done');
+			let doneText = sizeInfo ? t(locale, 'download.done_info', { info: sizeInfo }) : t(locale, 'download.done');
+			// Never drop quality silently — a smaller file arriving with no explanation reads as a bug.
+			if (downgradedFrom) {
+				doneText += `\n${t(locale, 'download.downgraded', {
+					best: downgradedFrom.label,
+					size: formatFileSize(downgradedFrom.filesize) || '50MB+',
+					picked: single!.quality ?? '',
+				})}`;
+			}
 
 			if (result.media.length > 1) {
 				const groupableItems = result.media.filter((m) => m.type === 'photo' || m.type === 'video');
@@ -305,6 +333,7 @@ export async function downloadAndSendMedia(
 					url: item.url,
 					buffer: item.buffer,
 					filename: item.filename,
+					filesize: item.filesize,
 					title: result.title,
 					caption: caption,
 				};
@@ -312,7 +341,22 @@ export async function downloadAndSendMedia(
 				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 				await recordSuccess(Date.now() - downloadStartTime, totalFileSizeBytes);
 
-				if (result.mp3Url && options?.db && (platform === 'YouTube' || platform === 'TikTok')) {
+				// Offer the rest of the ladder after the media rather than before it: the best
+				// rendition usually fits, so a picker up front would tax every download to serve
+				// the rare one that doesn't. Stored under the sender's own id so guests get it too.
+				if (ladder.length > 1 && options?.db) {
+					await setAdminState(options.db, options.adminId || userId, {
+						action: 'downloading_media',
+						context: {
+							downloadUrl: url,
+							downloadPlatform: platform,
+							mediaTitle: result.title,
+							qualities: ladder.map((v) => ({ quality: v.label, url: v.url, size: formatFileSize(v.filesize) || undefined })),
+						},
+					});
+					const keyboard = new InlineKeyboard().text(t(locale, 'download.btn_other_quality'), 'dl:q');
+					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: keyboard });
+				} else if (result.mp3Url && options?.db && (platform === 'YouTube' || platform === 'TikTok')) {
 					const mp3Keyboard = new InlineKeyboard().text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3');
 					await setAdminState(options.db, options.adminId || userId, {
 						action: 'downloading_media',

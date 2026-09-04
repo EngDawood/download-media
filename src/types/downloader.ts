@@ -7,6 +7,21 @@ import type { FailureKind } from '../services/downloader/failure';
 
 export type DownloaderMode = 'auto' | 'audio' | 'hd' | 'sd';
 
+/**
+ * One alternate rendition of the same video, for platforms that hand us the whole
+ * ladder in the response we already make (X/Twitter). Lets the sender step down to a
+ * smaller file when the best one is over Telegram's limit, and lets the user pick a
+ * different one afterwards. Providers emit these best-first.
+ */
+export interface MediaVariant {
+	/** Shown on picker buttons and in the done message, e.g. '1080p'. */
+	label: string;
+	url: string;
+	height: number;
+	/** Byte size — absent until a preflight HEAD measures it. */
+	filesize?: number;
+}
+
 export interface MediaItem {
 	type: 'video' | 'photo' | 'audio' | 'document';
 	url: string;
@@ -14,6 +29,8 @@ export interface MediaItem {
 	filename?: string; // filename for buffer-based items
 	quality?: string;
 	filesize?: number;
+	/** Alternate renditions of `url`, best-first. Only set when the provider found more than one. */
+	variants?: MediaVariant[];
 }
 
 export interface DownloaderResult {

@@ -35,6 +35,8 @@ export interface TelegramMediaMessage {
 	url?: string;
 	buffer?: Uint8Array; // in-memory binary (used instead of url for document uploads)
 	filename?: string;
+	/** Measured byte size, when known — lets the sender skip a URL pass-through that is certain to fail. */
+	filesize?: number;
 	thumbnailUrl?: string;
 	/** Track title — shown by Telegram as the audio name instead of the raw filename. */
 	title?: string;

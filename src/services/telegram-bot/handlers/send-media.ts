@@ -1,8 +1,12 @@
 import { GrammyError, InputFile, InputMediaBuilder } from 'grammy';
 import type { Bot } from 'grammy';
 import type { TelegramMediaMessage, FormatSettings } from '../../../types/telegram';
+import type { MediaVariant } from '../../../types/downloader';
 
-const MAX_UPLOAD_SIZE = 50 * 1024 * 1024; // 50MB Telegram bot upload limit
+// Telegram's two ceilings for non-photo files, from the Bot API "Sending files" table:
+// it will fetch a URL itself up to 20MB, and accept an upload from us up to 50MB.
+export const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
+export const MAX_URL_FETCH_SIZE = 20 * 1024 * 1024;
 export const MEDIA_CAPTION_LIMIT = 1024; // Telegram caption limit for photo/video/audio/mediagroup
 
 /**
@@ -136,6 +140,25 @@ async function sendPhotoMessage(bot: Bot, chatId: number, message: TelegramMedia
 async function sendVideoMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
 	if (!message.url) throw new Error('Video URL is missing');
 	const url = message.url;
+
+	const upload = async () => {
+		const file = await downloadAsInputFile(url, 'video.mp4');
+		await sendWithCaption(
+			(caption) => bot.api.sendVideo(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
+		);
+	};
+
+	// A measured size over the URL-fetch ceiling means Telegram is certain to refuse the
+	// pass-through, so skip straight to uploading rather than spending a round trip finding out.
+	if (message.filesize && message.filesize > MAX_URL_FETCH_SIZE) {
+		await upload();
+		return;
+	}
+
 	try {
 		await sendWithCaption(
 			(caption) => bot.api.sendVideo(chatId, url, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
@@ -146,14 +169,7 @@ async function sendVideoMessage(bot: Bot, chatId: number, message: TelegramMedia
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
-		const file = await downloadAsInputFile(url, 'video.mp4');
-		await sendWithCaption(
-			(caption) => bot.api.sendVideo(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
-			bot,
-			chatId,
-			message.caption,
-			disableNotification,
-		);
+		await upload();
 	}
 }
 
@@ -337,6 +353,50 @@ async function fetchMediaOnce(url: string): Promise<Response> {
 		headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
 		signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
 	});
+}
+
+/**
+ * Byte size of a remote file from its headers, or undefined when the host will not say.
+ * video.twimg.com answers HEAD with a content-length, which is all this needs; anything
+ * that refuses simply goes unmeasured.
+ */
+async function headContentLength(url: string): Promise<number | undefined> {
+	try {
+		const res = await fetch(url, {
+			method: 'HEAD',
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+			signal: AbortSignal.timeout(8_000),
+		});
+		if (!res.ok) return undefined;
+		const length = Number(res.headers.get('content-length'));
+		return length > 0 ? length : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Fill in `filesize` for every rendition. The HEADs run in parallel, so measuring a
+ * four-rung ladder costs one round trip — and the numbers are reused twice: once to pick
+ * what to send, once to label the quality buttons.
+ */
+export async function measureVariants(variants: MediaVariant[]): Promise<MediaVariant[]> {
+	return Promise.all(variants.map(async (v) => (v.filesize !== undefined ? v : { ...v, filesize: await headContentLength(v.url) })));
+}
+
+/**
+ * Best rendition Telegram will actually accept, from a best-first ladder.
+ *
+ * Quality first, cost second: anything at or under the upload ceiling is fair game even
+ * though sending it means pulling the bytes through the Worker, because Workers bill CPU
+ * rather than wall-clock and a slow stream is nearly free. Dropping to a smaller rendition
+ * just to stay on the no-cost URL path would trade the user's quality for our convenience.
+ *
+ * A rendition whose size could not be measured is taken on trust — trying and failing is
+ * no worse than today, whereas skipping it would refuse videos that would have sent fine.
+ */
+export function pickSendableVariant(variants: MediaVariant[]): MediaVariant | undefined {
+	return variants.find((v) => v.filesize === undefined || v.filesize <= MAX_UPLOAD_SIZE);
 }
 
 async function downloadAsInputFile(url: string, filename: string): Promise<InputFile> {

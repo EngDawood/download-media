@@ -4,7 +4,7 @@ import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types
 import { btchFetch } from '../btch-client';
 import { classifyError, mostPermanent, type FailureKind } from '../failure';
 import { tryAIO } from '../aio-parser';
-import { buildCaption, isUrl, detectMediaType } from '../media-helpers';
+import { buildCaption, isUrl, detectMediaType, parseTwimgVariants } from '../media-helpers';
 import { publishArticleToTelegraph, publishThreadToTelegraph } from '../telegraph-publisher';
 import { articleToMarkdown, threadToMarkdown } from '../article-text';
 import { articleToHtml } from '../article-html';
@@ -66,6 +66,23 @@ function isThreadTweet(tweet: any): boolean {
 }
 
 /**
+ * Build a video item, carrying over the quality ladder FxTwitter ships alongside it.
+ *
+ * `m.url` is already the top rendition, so the ladder changes nothing about what we send by
+ * default — it exists so the sender can step down when that file is over Telegram's limit,
+ * and so the user can pick a different one afterwards.
+ */
+function videoItem(m: { url: string; height?: number; variants?: unknown; formats?: unknown }): MediaItem {
+	const item: MediaItem = { type: 'video', url: m.url };
+	const variants = parseTwimgVariants(m?.variants ?? m?.formats);
+	if (variants.length) item.variants = variants;
+	const height = Number(m?.height);
+	if (height > 0) item.quality = `${height}p`;
+	else if (variants.length) item.quality = variants[0].label;
+	return item;
+}
+
+/**
  * Media attached to a single tweet, in original order.
  * `media.all` covers mixed posts (video + photos); the explicit arrays are legacy fallbacks.
  */
@@ -73,12 +90,13 @@ function collectTweetMedia(tweet: any): MediaItem[] {
 	const media: MediaItem[] = [];
 
 	for (const m of tweet.media?.all ?? []) {
-		if (isUrl(m.url)) media.push({ type: m.type === 'video' || m.type === 'gif' ? 'video' : 'photo', url: m.url });
+		if (!isUrl(m.url)) continue;
+		media.push(m.type === 'video' || m.type === 'gif' ? videoItem(m) : { type: 'photo', url: m.url });
 	}
 	if (media.length > 0) return media;
 
 	for (const v of tweet.media?.videos ?? []) {
-		if (isUrl(v.url)) media.push({ type: 'video', url: v.url });
+		if (isUrl(v.url)) media.push(videoItem(v));
 	}
 	if (media.length > 0) return media;
 

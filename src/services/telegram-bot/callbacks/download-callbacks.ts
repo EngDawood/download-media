@@ -1,3 +1,4 @@
+import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { getAdminState, clearAdminState } from '../storage/admin-state';
 import { downloadAndSendMedia } from '../handlers/download-and-send';
@@ -15,7 +16,10 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 		const firstName = ctx.from?.first_name;
 		const username = ctx.from?.username;
 		const locale = getLocale(ctx);
-		const stateOwner = action === 'yt:mp3' ? userId : adminId;
+		// Quality picking, like the mp3 button, is offered to guests too, so its state lives
+		// under the tapping user rather than the admin.
+		const perUserAction = action === 'yt:mp3' || action === 'q' || action.startsWith('q:');
+		const stateOwner = perUserAction ? userId : adminId;
 		const state = await getAdminState(db, stateOwner);
 
 		if (!state || state.action !== 'downloading_media' || !state.context?.downloadUrl) {
@@ -34,6 +38,50 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 				analytics: env.ANALYTICS,
 				userId,
 				mediaType: 'audio',
+				mediaTitle,
+				firstName,
+				username,
+				locale,
+				originalUrl: downloadUrl,
+				telegraphToken,
+			});
+			return;
+		}
+
+		// A ladder tap that outlived its stored qualities must say so, not fall through to the
+		// generic handler below and silently re-download the original.
+		if (perUserAction && action !== 'yt:mp3' && !qualities?.length) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'callback.session_expired') });
+			return;
+		}
+
+		// Quality ladder — expand the button into the full list of renditions.
+		// State is left in place so the list can be reopened and picked from more than once.
+		if (action === 'q' && qualities?.length) {
+			await ctx.answerCallbackQuery();
+			const keyboard = new InlineKeyboard();
+			qualities.forEach((q, index) => {
+				keyboard.text(q.size ? `${q.quality} · ${q.size}` : q.quality, `dl:q:${index}`);
+				if (index % 2 === 1) keyboard.row();
+			});
+			if (msgId) await bot.api.editMessageReplyMarkup(chatId, msgId, { reply_markup: keyboard });
+			return;
+		}
+
+		// Quality ladder — send the chosen rendition. The stored URL is already a direct CDN
+		// link, so this re-sends rather than re-running the extractor.
+		if (action.startsWith('q:') && qualities?.length) {
+			const picked = qualities[Number(action.slice(2))];
+			if (!picked) {
+				await ctx.answerCallbackQuery({ text: t(locale, 'callback.session_expired') });
+				return;
+			}
+			await ctx.answerCallbackQuery();
+			await downloadAndSendMedia(bot, chatId, picked.url, downloadPlatform || 'X', 'auto', undefined, true, {
+				db,
+				analytics: env.ANALYTICS,
+				userId,
+				mediaType: 'video',
 				mediaTitle,
 				firstName,
 				username,

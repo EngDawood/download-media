@@ -1,3 +1,5 @@
+import type { MediaVariant } from '../../types/downloader';
+
 /** Check if a value is a valid non-empty URL string */
 export function isUrl(val: unknown): val is string {
 	return typeof val === 'string' && val.startsWith('http');
@@ -72,6 +74,43 @@ export function buildCaption(title?: string): string {
 	}
 	if (!title) return '';
 	return `<b>${title}</b>`;
+}
+
+/** `.../vid/avc1/1280x720/xyz.mp4?tag=29` → 720. Null when the path carries no resolution. */
+function heightFromTwimgPath(url: string): number | null {
+	const match = url.match(/\/\d{2,4}x(\d{2,4})\//);
+	return match ? Number(match[1]) : null;
+}
+
+/**
+ * Build the quality ladder for an X video from FxTwitter's `variants` (or `formats`) array.
+ *
+ * Both arrays describe the same renditions under different key names, so either works as
+ * input. The HLS entry is dropped — Telegram cannot fetch an m3u8 playlist.
+ *
+ * Labels come from the resolution in the URL path, never from the reported `bitrate`, which
+ * is peak rather than average and overstates size badly: a 55s clip listed at 10368 kbps is
+ * 4.9MB on disk, not the 71MB that figure implies.
+ *
+ * Returns best-first (tallest). A single rendition is not a ladder, so anything shorter than
+ * two entries comes back empty and callers just use `MediaItem.url`.
+ */
+export function parseTwimgVariants(entries: unknown): MediaVariant[] {
+	if (!Array.isArray(entries)) return [];
+	const byHeight = new Map<number, MediaVariant>();
+	for (const entry of entries) {
+		const url = (entry as { url?: unknown })?.url;
+		if (!isUrl(url)) continue;
+		// `variants` names this content_type ('video/mp4'), `formats` names it container ('mp4').
+		const format =
+			(entry as { content_type?: string; container?: string }).content_type ?? (entry as { container?: string }).container ?? '';
+		if (!/mp4/i.test(format)) continue;
+		const height = heightFromTwimgPath(url);
+		if (!height || byHeight.has(height)) continue;
+		byHeight.set(height, { label: `${height}p`, url, height });
+	}
+	const variants = [...byHeight.values()].sort((a, b) => b.height - a.height);
+	return variants.length > 1 ? variants : [];
 }
 
 /** Format bytes to human-readable string */
