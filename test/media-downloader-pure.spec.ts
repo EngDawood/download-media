@@ -7,7 +7,7 @@ import {
 	decodeTiktokDirectUrl,
 	isUrl,
 } from '../src/services/media-downloader';
-import { mediaIdentity, dedupeByIdentity } from '../src/services/downloader/media-helpers';
+import { mediaIdentity, dedupeByIdentity, parseTwimgVariants } from '../src/services/downloader/media-helpers';
 
 // ─── isUrl ───────────────────────────────────────────────────────────────────
 
@@ -235,5 +235,51 @@ describe('dedupeByIdentity', () => {
 
 	it('returns an empty array unchanged', () => {
 		expect(dedupeByIdentity([])).toEqual([]);
+	});
+});
+
+// ─── parseTwimgVariants ──────────────────────────────────────────────────────
+
+const V = (h: number, ct = 'video/mp4') => ({
+	url: `https://video.twimg.com/amplify_video/209/vid/avc1/${h * 16 / 9 | 0}x${h}/abc.mp4?tag=29`,
+	content_type: ct,
+});
+
+describe('parseTwimgVariants', () => {
+	it('returns renditions tallest-first', () => {
+		const out = parseTwimgVariants([V(270), V(1080), V(360), V(720)]);
+		expect(out.map((v) => v.label)).toEqual(['1080p', '720p', '360p', '270p']);
+	});
+	it('drops the HLS playlist entry', () => {
+		const out = parseTwimgVariants([
+			{ url: 'https://video.twimg.com/amplify_video/209/pl/x.m3u8?tag=29', content_type: 'application/x-mpegURL' },
+			V(720),
+			V(360),
+		]);
+		expect(out).toHaveLength(2);
+		expect(out.every((v) => v.url.endsWith('.mp4?tag=29'))).toBe(true);
+	});
+	it('accepts the formats[] shape, which names the field container', () => {
+		const out = parseTwimgVariants([
+			{ url: 'https://video.twimg.com/amplify_video/209/vid/avc1/1280x720/a.mp4', container: 'mp4' },
+			{ url: 'https://video.twimg.com/amplify_video/209/vid/avc1/640x360/b.mp4', container: 'mp4' },
+			{ url: 'https://video.twimg.com/amplify_video/209/pl/c.m3u8', container: 'm3u8' },
+		]);
+		expect(out.map((v) => v.height)).toEqual([720, 360]);
+	});
+	it('returns empty for a single rendition — one rung is not a ladder', () => {
+		expect(parseTwimgVariants([V(720)])).toEqual([]);
+	});
+	it('de-duplicates by height', () => {
+		expect(parseTwimgVariants([V(720), V(720), V(360)])).toHaveLength(2);
+	});
+	it('skips entries with no resolution in the path, leaving too few to form a ladder', () => {
+		const out = parseTwimgVariants([{ url: 'https://video.twimg.com/ext_tw_video/209/pu/vid/plain.mp4', content_type: 'video/mp4' }, V(720)]);
+		expect(out).toEqual([]);
+	});
+	it('returns empty for non-array input', () => {
+		expect(parseTwimgVariants(undefined)).toEqual([]);
+		expect(parseTwimgVariants(null)).toEqual([]);
+		expect(parseTwimgVariants({})).toEqual([]);
 	});
 });
