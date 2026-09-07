@@ -257,6 +257,11 @@ async function sendDocumentMessage(bot: Bot, chatId: number, message: TelegramMe
 		}
 		filename = ref === 'HEAD' ? `${repo}.zip` : `${repo}-${ref}.zip`;
 		forceDownload = true;
+	} else if (message.filename) {
+		// A provider that knows the real name wins over the URL path. Google Drive
+		// download URLs end in `/download` and Workspace exports in `/export`, so
+		// deriving from the path would upload every one of them extensionless.
+		filename = message.filename;
 	} else {
 		filename = parsedUrl.pathname.split('/').pop()?.split('?')[0] || 'document';
 	}

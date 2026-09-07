@@ -9,7 +9,7 @@ When working on Claude Code features (hooks, skills, subagents, MCP servers, etc
 
 ## Project Overview
 
-**download-media-bot** is a Cloudflare Worker — a Telegram bot for downloading media from 9 platforms. Send a URL, get the media back.
+**download-media-bot** is a Cloudflare Worker — a Telegram bot for downloading media from 12 platforms. Send a URL, get the media back.
 
 Any user can send a URL for auto-download. The admin gets extra controls: quality pickers for YouTube/TikTok/Facebook.
 
@@ -51,7 +51,10 @@ src/
 │   │       ├── threads.ts          # ThreadsProvider
 │   │       ├── soundcloud.ts       # SoundCloudProvider
 │   │       ├── spotify.ts          # SpotifyProvider
-│   │       └── pinterest.ts        # PinterestProvider
+│   │       ├── pinterest.ts        # PinterestProvider
+│   │       ├── douyin.ts           # DouyinProvider
+│   │       ├── github.ts           # GitHubProvider (folder → in-memory zip)
+│   │       └── google-drive.ts     # GoogleDriveProvider (share link → direct download; Workspace → export)
 │   └── telegram-bot/
 │       ├── bot-factory.ts          # Bot creation, admin middleware, handler registration
 │       ├── commands/
@@ -65,7 +68,7 @@ src/
 │       └── storage/
 │           └── admin-state.ts         # KV state for multi-step download flows
 └── utils/
-    ├── url-detector.ts             # Platform URL detection + normalization (9 platforms)
+    ├── url-detector.ts             # Platform URL detection + normalization (12 platforms)
     └── cache.ts                    # KV get/set helpers
 ```
 
@@ -125,7 +128,7 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 
 ## Bot behaviour
 
-**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest
+**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive
 
 **Platform-specific UX:**
 * **YouTube** — fetches quality list, shows picker (up to 4 + Audio button)

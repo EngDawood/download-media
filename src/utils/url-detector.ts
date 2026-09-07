@@ -213,6 +213,7 @@ const KNOWN_PLATFORMS = new Set([
 	'Spotify',
 	'Pinterest',
 	'GitHub',
+	'Google Drive',
 ]);
 
 export function isGenericPlatform(platform: string): boolean {
@@ -282,6 +283,14 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	{
 		platform: 'Pinterest',
 		pattern: /https?:\/\/(?:[a-z]{2}\.)?pinterest\.com\/pin\/\S+|https?:\/\/pin\.it\/\S+/i,
+	},
+	// Google Drive / Docs: share links (/file/d/, /open?id=, /uc?id=), Workspace editor
+	// URLs on docs.google.com, and already-direct drive.usercontent.google.com downloads.
+	// Matched as a known platform so we skip the HEAD probe — a share link always answers
+	// text/html, so probing only costs a round-trip before the provider runs anyway.
+	{
+		platform: 'Google Drive',
+		pattern: /https?:\/\/(?:drive|docs|drive\.usercontent)\.google\.com\/\S+/i,
 	},
 	// GitHub: repo root, /tree/branch (zip), or /blob/branch/file (raw file download)
 	{
