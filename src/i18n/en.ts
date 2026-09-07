@@ -34,7 +34,7 @@ export const en = {
 	'start.guest.body':
 		'<b>Media Download Bot</b>\n\n' +
 		"Send a URL from any supported platform and I'll download the media for you.\n\n" +
-		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub\n' +
+		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo\n' +
 		'\n📸 Use /story to download Instagram Stories by username.\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} free downloads</b> — then join {channel} to keep going.\n',
 	'start.guest.help_hint': '\n/help — More info',

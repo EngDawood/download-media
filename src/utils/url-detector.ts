@@ -214,6 +214,9 @@ const KNOWN_PLATFORMS = new Set([
 	'Pinterest',
 	'GitHub',
 	'Google Drive',
+	'MediaFire',
+	'CapCut',
+	'SnackVideo',
 ]);
 
 export function isGenericPlatform(platform: string): boolean {
@@ -283,6 +286,21 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	{
 		platform: 'Pinterest',
 		pattern: /https?:\/\/(?:[a-z]{2}\.)?pinterest\.com\/pin\/\S+|https?:\/\/pin\.it\/\S+/i,
+	},
+	// MediaFire: file/folder share links — www optional
+	{
+		platform: 'MediaFire',
+		pattern: /https?:\/\/(?:www\.)?mediafire\.com\/\S+/i,
+	},
+	// CapCut: template shares (www) and short redirect links (vt./s.)
+	{
+		platform: 'CapCut',
+		pattern: /https?:\/\/(?:(?:www|vt|s)\.)?capcut\.com\/\S+/i,
+	},
+	// SnackVideo: video pages (www) and short redirect links (s.)
+	{
+		platform: 'SnackVideo',
+		pattern: /https?:\/\/(?:(?:www|s)\.)?snackvideo\.com\/\S+/i,
 	},
 	// Google Drive / Docs: share links (/file/d/, /open?id=, /uc?id=), Workspace editor
 	// URLs on docs.google.com, and already-direct drive.usercontent.google.com downloads.

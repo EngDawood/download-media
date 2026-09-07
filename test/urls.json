@@ -1,8 +1,8 @@
 {
   "meta": {
     "version": 1,
-    "updated_at": "2026-06-01T19:57:00+03:00",
-    "total_urls": 69
+    "updated_at": "2026-09-07T00:00:00+03:00",
+    "total_urls": 72
   },
   "platforms": {
     "twitter": {
@@ -260,6 +260,48 @@
           "urls": [
             "https://soundcloud.com/postmalone/circles",
             "https://soundcloud.com/issabella-marchelina/sisa-rasa-mahalini-official-audio"
+          ]
+        }
+      }
+    },
+    "mediafire": {
+      "label": "MediaFire",
+      "icon": "📁",
+      "color": "#1299f3",
+      "downloader": "mediafire",
+      "categories": {
+        "files": {
+          "label": "Files",
+          "urls": [
+            "https://www.mediafire.com/file/941xczxhn27qbby/GBWA_V12.25FF-By.SamMods-.apk/file"
+          ]
+        }
+      }
+    },
+    "capcut": {
+      "label": "CapCut",
+      "icon": "🎬",
+      "color": "#000000",
+      "downloader": "capcut",
+      "categories": {
+        "templates": {
+          "label": "Templates",
+          "urls": [
+            "https://www.capcut.com/template-detail/7299286607478181121"
+          ]
+        }
+      }
+    },
+    "snackvideo": {
+      "label": "SnackVideo",
+      "icon": "🍿",
+      "color": "#fe2c55",
+      "downloader": "snackvideo",
+      "categories": {
+        "videos": {
+          "label": "Videos",
+          "urls": [
+            "https://s.snackvideo.com/p/j9jKr9dR"
           ]
         }
       }

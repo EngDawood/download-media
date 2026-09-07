@@ -17,6 +17,9 @@ import { PinterestProvider } from './downloader/platforms/pinterest';
 import { GitHubProvider } from './downloader/platforms/github';
 import { DouyinProvider } from './downloader/platforms/douyin';
 import { GoogleDriveProvider } from './downloader/platforms/google-drive';
+import { MediaFireProvider } from './downloader/platforms/mediafire';
+import { CapCutProvider } from './downloader/platforms/capcut';
+import { SnackVideoProvider } from './downloader/platforms/snackvideo';
 
 export type { DownloaderMode, MediaItem, DownloaderResult };
 export { formatFileSize };
@@ -42,6 +45,9 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 		new GitHubProvider(),
 		new DouyinProvider(),
 		new GoogleDriveProvider(),
+		new MediaFireProvider(),
+		new CapCutProvider(),
+		new SnackVideoProvider(),
 	]);
 }
 

@@ -57,7 +57,20 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'footer', description: 'تعيين ذيل تعليق Instagram' },
 ];
 
-const SUPPORTED_PLATFORMS = ['TikTok', 'Instagram', 'X / Twitter', 'YouTube', 'Facebook', 'Threads', 'SoundCloud', 'Spotify', 'Pinterest'];
+const SUPPORTED_PLATFORMS = [
+	'TikTok',
+	'Instagram',
+	'X / Twitter',
+	'YouTube',
+	'Facebook',
+	'Threads',
+	'SoundCloud',
+	'Spotify',
+	'Pinterest',
+	'MediaFire',
+	'CapCut',
+	'SnackVideo',
+];
 
 /**
  * Core setup logic — registers bot commands and sends deploy notification.

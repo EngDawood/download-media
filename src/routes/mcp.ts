@@ -44,6 +44,9 @@ const SUPPORTED_PLATFORMS = [
 	'Spotify',
 	'Pinterest',
 	'GitHub',
+	'MediaFire',
+	'CapCut',
+	'SnackVideo',
 ];
 
 const INSTRUCTIONS =

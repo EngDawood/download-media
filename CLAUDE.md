@@ -54,7 +54,10 @@ src/
 │   │       ├── pinterest.ts        # PinterestProvider
 │   │       ├── douyin.ts           # DouyinProvider
 │   │       ├── github.ts           # GitHubProvider (folder → in-memory zip)
-│   │       └── google-drive.ts     # GoogleDriveProvider (share link → direct download; Docs/Slides/Sheets → docx/pptx/xlsx export)
+│   │       ├── google-drive.ts     # GoogleDriveProvider (share link → direct download; Docs/Slides/Sheets → docx/pptx/xlsx export)
+│   │       ├── mediafire.ts        # MediaFireProvider (arbitrary file host; type derived from mimetype)
+│   │       ├── capcut.ts           # CapCutProvider (template shares)
+│   │       └── snackvideo.ts       # SnackVideoProvider
 │   └── telegram-bot/
 │       ├── bot-factory.ts          # Bot creation, admin middleware, handler registration
 │       ├── commands/
@@ -128,7 +131,7 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 
 ## Bot behaviour
 
-**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive
+**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive, MediaFire, CapCut, SnackVideo
 
 **Platform-specific UX:**
 * **YouTube** — fetches quality list, shows picker (up to 4 + Audio button)
