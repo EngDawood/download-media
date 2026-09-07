@@ -17,11 +17,17 @@ const TYPE_ICON: Record<MediaItem['type'], string> = {
 /**
  * Google Workspace documents have no binary original to download — Drive only
  * hands them over through an export renderer, one format per editor.
+ *
+ * Each editor exports to its Office counterpart rather than to PDF, so what arrives
+ * is the document itself and not a flattened picture of it. PDF is offered for Docs
+ * and Slides too, but taking it would lose the editable original — and Sheets has no
+ * usable PDF at all, since wide tables get sliced across pages.
  */
 const WORKSPACE_EXPORTS: Record<string, { format: string; ext: string }> = {
-	document: { format: 'pdf', ext: 'pdf' },
-	presentation: { format: 'pdf', ext: 'pdf' },
+	document: { format: 'docx', ext: 'docx' },
+	presentation: { format: 'pptx', ext: 'pptx' },
 	spreadsheets: { format: 'xlsx', ext: 'xlsx' },
+	// Drawings have no Office equivalent; PNG is the only sensible binary export.
 	drawings: { format: 'png', ext: 'png' },
 };
 
@@ -59,6 +65,7 @@ export class GoogleDriveProvider implements IDownloaderProvider {
 				media: [item],
 				title: item.filename,
 				caption: `${TYPE_ICON[item.type]} <b>${escapeHtml(item.filename ?? 'file')}</b>${size ? `\n${size}` : ''}`,
+				altFormat: pdfAlternative(parsed, item.filename),
 			};
 		} catch (err: unknown) {
 			return {
@@ -160,6 +167,25 @@ async function resolveDriveFile(id: string): Promise<MediaItem> {
 	await releaseBody(res);
 
 	return itemFromHeaders(finalUrl, res.headers, `drive-${id}`);
+}
+
+/**
+ * The PDF an editor can also render, offered as a follow-up button.
+ *
+ * Only Docs and Slides get one: Sheets paginates wide tables into an unreadable PDF,
+ * Drawings are already a flat image, and an uploaded file has no renderer at all. The
+ * URL is built rather than probed — it costs nothing until someone taps the button, and
+ * a tap goes straight to the same export endpoint the default download already used.
+ */
+export function pdfAlternative(parsed: ParsedDriveUrl, filename: string | undefined): DownloaderResult['altFormat'] {
+	if (parsed.kind !== 'workspace') return undefined;
+	if (parsed.editor !== 'document' && parsed.editor !== 'presentation') return undefined;
+	const base = filename?.replace(/\.(docx|pptx)$/i, '') || `${parsed.editor}-${parsed.id}`;
+	return {
+		label: 'pdf',
+		url: `https://docs.google.com/${parsed.editor}/d/${parsed.id}/export?format=pdf`,
+		filename: `${base}.pdf`,
+	};
 }
 
 /** Workspace docs export straight to a fixed format; there is no interstitial on this path. */

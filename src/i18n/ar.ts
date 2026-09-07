@@ -121,6 +121,7 @@ export const ar: Translations = {
 	'download.btn_browser': '🌐 فتح في المتصفح',
 	'download.downgraded': '⚠️ حجم {best} كان {size} — أكبر من حد تيليجرام (50 ميجابايت)، لذلك تم إرسال {picked} بدلاً منها.',
 	'download.btn_mp3': '🎵 استخراج الصوت',
+	'download.btn_pdf': '📄 الحصول على PDF',
 	'download.btn_other_quality': '🎚 جودة أخرى',
 	'download.btn_retry': '🔄 إعادة محاولة التحميل',
 	'download.btn_report_admin': '📬 الإبلاغ عن مشكلة',

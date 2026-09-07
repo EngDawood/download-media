@@ -59,6 +59,12 @@ export interface DownloaderResult {
 	 */
 	fullHtml?: string;
 	mp3Url?: string;
+	/**
+	 * A second rendering of the same document, offered as a button after the file is sent.
+	 * Google Docs and Slides export to their editable Office format by default; this carries
+	 * the PDF for people who wanted a flat, universally-viewable copy instead.
+	 */
+	altFormat?: { label: string; url: string; filename: string };
 	error?: string;
 	/** True when the error is transient (e.g. backend still extracting) and retrying is likely to succeed. */
 	retryable?: boolean;

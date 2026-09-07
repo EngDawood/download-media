@@ -120,6 +120,7 @@ export const en = {
 	'download.btn_browser': '🌐 Open in Browser',
 	'download.downgraded': "⚠️ {best} was {size} — over Telegram's 50MB limit, so {picked} was sent instead.",
 	'download.btn_mp3': '🎵 Extract Audio',
+	'download.btn_pdf': '📄 Get PDF',
 	'download.btn_other_quality': '🎚 Other quality',
 	'download.btn_retry': '🔄 Retry Download',
 	'download.btn_report_admin': '📬 Report Issue',

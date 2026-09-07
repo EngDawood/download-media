@@ -26,6 +26,8 @@ export interface AdminState {
 		broadcastMessage?: string;
 		/** Download mode stored for retry button */
 		downloadMode?: 'auto' | 'audio' | 'hd' | 'sd';
+		/** Alternate rendering offered after the send (Google Docs/Slides → PDF) */
+		altFormat?: { label: string; url: string; filename: string };
 	};
 }
 

@@ -54,7 +54,7 @@ src/
 │   │       ├── pinterest.ts        # PinterestProvider
 │   │       ├── douyin.ts           # DouyinProvider
 │   │       ├── github.ts           # GitHubProvider (folder → in-memory zip)
-│   │       └── google-drive.ts     # GoogleDriveProvider (share link → direct download; Workspace → export)
+│   │       └── google-drive.ts     # GoogleDriveProvider (share link → direct download; Docs/Slides/Sheets → docx/pptx/xlsx export)
 │   └── telegram-bot/
 │       ├── bot-factory.ts          # Bot creation, admin middleware, handler registration
 │       ├── commands/

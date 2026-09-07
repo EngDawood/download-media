@@ -18,7 +18,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 		const locale = getLocale(ctx);
 		// Quality picking, like the mp3 button, is offered to guests too, so its state lives
 		// under the tapping user rather than the admin.
-		const perUserAction = action === 'yt:mp3' || action === 'q' || action.startsWith('q:');
+		const perUserAction = action === 'yt:mp3' || action === 'q' || action.startsWith('q:') || action === 'alt';
 		const stateOwner = perUserAction ? userId : adminId;
 		const state = await getAdminState(db, stateOwner);
 
@@ -27,7 +27,31 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 			return;
 		}
 
-		const { downloadUrl, downloadPlatform, qualities, mp3Url, mediaTitle } = state.context;
+		const { downloadUrl, downloadPlatform, qualities, mp3Url, mediaTitle, altFormat } = state.context;
+
+		// Alternate rendering of a document already sent (Google Docs/Slides → PDF).
+		// The stored URL is the export endpoint itself, so this sends rather than re-extracting.
+		// State is left in place so the button keeps working if the user taps it again later.
+		if (action === 'alt') {
+			if (!altFormat) {
+				await ctx.answerCallbackQuery({ text: t(locale, 'callback.session_expired') });
+				return;
+			}
+			await ctx.answerCallbackQuery();
+			await downloadAndSendMedia(bot, chatId, altFormat.url, downloadPlatform || 'Google Drive', 'auto', undefined, true, {
+				db,
+				analytics: env.ANALYTICS,
+				userId,
+				mediaType: 'document',
+				mediaTitle: altFormat.filename,
+				firstName,
+				username,
+				locale,
+				originalUrl: downloadUrl,
+				telegraphToken,
+			});
+			return;
+		}
 
 		// YouTube MP3 — available to all users
 		if (action === 'yt:mp3' && mp3Url) {

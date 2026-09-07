@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { parseDriveUrl, parseConfirmForm, parseContentDisposition, accessMessage } from '../src/services/downloader/platforms/google-drive';
+import {
+	parseDriveUrl,
+	parseConfirmForm,
+	parseContentDisposition,
+	accessMessage,
+	pdfAlternative,
+} from '../src/services/downloader/platforms/google-drive';
 
 // Captured verbatim from drive.usercontent.google.com for a large public file.
 // The confirm/uuid pair in this form is what authorises the actual download, so the
@@ -86,6 +92,31 @@ describe('parseConfirmForm()', () => {
 	it('returns null for pages that are not the interstitial', () => {
 		expect(parseConfirmForm('<html><title>Error 404 (Not Found)!!1</title></html>')).toBeNull();
 		expect(parseConfirmForm('<form id="other"><input name="id" value="x"></form>')).toBeNull();
+	});
+});
+
+describe('pdfAlternative()', () => {
+	const alt = (url: string, filename?: string) => pdfAlternative(parseDriveUrl(url)!, filename);
+	const ID = '1AbC_def-123456789';
+
+	it('offers a PDF for Docs and Slides, named after the file', () => {
+		expect(alt(`https://docs.google.com/document/d/${ID}/edit`, 'CV.docx')).toEqual({
+			label: 'pdf',
+			url: `https://docs.google.com/document/d/${ID}/export?format=pdf`,
+			filename: 'CV.pdf',
+		});
+		expect(alt(`https://docs.google.com/presentation/d/${ID}/edit`, 'Deck.pptx')!.filename).toBe('Deck.pdf');
+	});
+
+	it('offers nothing where no PDF renderer applies', () => {
+		// Sheets slices wide tables across pages; an uploaded file has no renderer at all.
+		expect(alt(`https://docs.google.com/spreadsheets/d/${ID}/edit`, 'Data.xlsx')).toBeUndefined();
+		expect(alt(`https://docs.google.com/drawings/d/${ID}/edit`, 'Sketch.png')).toBeUndefined();
+		expect(alt(`https://drive.google.com/file/d/${ID}/view`, 'report.pdf')).toBeUndefined();
+	});
+
+	it('still names the file when the export sent no filename', () => {
+		expect(alt(`https://docs.google.com/document/d/${ID}/edit`, undefined)!.filename).toBe(`document-${ID}.pdf`);
 	});
 });
 
