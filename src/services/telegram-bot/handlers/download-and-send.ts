@@ -349,14 +349,23 @@ export async function downloadAndSendMedia(
 				// Offer the rest of the ladder after the media rather than before it: the best
 				// rendition usually fits, so a picker up front would tax every download to serve
 				// the rare one that doesn't. Stored under the sender's own id so guests get it too.
-				if (ladder.length > 1 && options?.db) {
+				//
+				// Two shapes feed the same button. A measured ladder (X) carries a URL and a size
+				// per rung. `altQualities` (Facebook) carries neither, because resolving a rung
+				// means running the extractor again — so those rungs stay unresolved until tapped,
+				// and the button costs nothing on a download nobody picks a quality for.
+				const qualities =
+					ladder.length > 1
+						? ladder.map((v) => ({ quality: v.label, url: v.url, size: formatFileSize(v.filesize) || undefined }))
+						: result.altQualities?.map((q) => ({ quality: q.label, mode: q.mode }));
+				if (qualities?.length && options?.db) {
 					await setAdminState(options.db, options.adminId || userId, {
 						action: 'downloading_media',
 						context: {
 							downloadUrl: url,
 							downloadPlatform: platform,
 							mediaTitle: result.title,
-							qualities: ladder.map((v) => ({ quality: v.label, url: v.url, size: formatFileSize(v.filesize) || undefined })),
+							qualities,
 						},
 					});
 					const keyboard = new InlineKeyboard().text(t(locale, 'download.btn_other_quality'), 'dl:q');

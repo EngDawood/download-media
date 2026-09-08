@@ -30,12 +30,34 @@ interface FdownResponse {
 	video_info?: { title?: string; thumbnail?: string; uploader?: string };
 	download_url?: string | null;
 	/**
-	 * Deliberately unread. These are yt-dlp's raw DASH renditions — every `format_id`
-	 * ends in `v` and the streams carry no `soun` track, so building a quality ladder
-	 * out of them would hand Telegram silent video. `download_url` is the only field
-	 * here that has been through ffmpeg's audio/video merge.
+	 * Read for its `quality` labels only, never its URLs. These are yt-dlp's raw DASH
+	 * renditions — every `format_id` ends in `v` and the streams carry no `soun` track, so
+	 * sending one would hand Telegram silent video. `download_url` is the only field here
+	 * that has been through ffmpeg's audio/video merge. The labels still answer a useful
+	 * question: whether the post holds more than one rendition at all.
 	 */
-	available_formats?: unknown[];
+	available_formats?: Array<{ quality?: string }>;
+}
+
+/**
+ * The rungs `download()` can actually deliver, or none.
+ *
+ * Only `best` and `worst` are offerable. The service's `360p`/`720p`/`1080p` values select
+ * `best[height<=N][ext=mp4]+bestaudio[ext=m4a]`, and Facebook posts carry no progressive
+ * mp4 at those heights and no separate m4a audio, so all three fail — reported, misleadingly,
+ * as "This video is private or not available for download". Verified against several public
+ * reels: `best` and `worst` succeed, the three fixed heights never do.
+ *
+ * Gated on the post listing more than one distinct height, so a single-rendition post does
+ * not get a button that would hand back the same file.
+ */
+function altQualitiesFor(data: FdownResponse): DownloaderResult['altQualities'] {
+	const heights = new Set((data.available_formats ?? []).map((f) => f?.quality).filter((q): q is string => typeof q === 'string'));
+	if (heights.size < 2) return undefined;
+	return [
+		{ label: 'HD', mode: 'hd' },
+		{ label: 'SD', mode: 'sd' },
+	];
 }
 
 /**
@@ -78,5 +100,6 @@ export async function tryFdown(url: string, mode: DownloaderMode, timeoutMs = FD
 		caption: buildCaption(info?.title),
 		title: info?.title,
 		thumbnail: isUrl(info?.thumbnail) ? info.thumbnail : undefined,
+		altQualities: altQualitiesFor(data),
 	};
 }
