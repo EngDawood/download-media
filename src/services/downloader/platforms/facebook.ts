@@ -2,6 +2,7 @@ import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
 import { tryAIO } from '../aio-parser';
+import { tryFdown } from '../fdown-client';
 import { classifyError, mostPermanent, type FailureKind } from '../failure';
 import { buildCaption, isUrl, formatFileSize } from '../media-helpers';
 
@@ -51,6 +52,17 @@ export class FacebookProvider implements IDownloaderProvider {
 		const failures: FailureKind[] = [];
 		const timeout = FACEBOOK_TIMEOUT_MS;
 		const url = await resolveShareUrl(inputUrl);
+
+		// fdown runs first: it answered 4/4 of the share links sampled against the btch
+		// fleet, where AIO needed a second attempt on half of them, and it returns in
+		// 4–5s against Facebook's 25s budget. Everything below stays as the fallback.
+		try {
+			const fdownResult = await tryFdown(url, mode);
+			if (fdownResult) return fdownResult;
+		} catch (e) {
+			failures.push(classifyError(e));
+		}
+
 		try {
 			const aioResult = await tryAIO(url, 'auto', failures, timeout);
 			if (aioResult?.media?.length) {
