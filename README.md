@@ -186,13 +186,13 @@ Run the test suite using Vitest:
 pnpm test
 ```
 
-## 📜 License
-
-This project is private. See [LICENSE](LICENSE) for details (if applicable).
-
 ## 🙏 Acknowledgments
 
 - [btch-downloader](https://github.com/hostinger-bot/btch-downloader/) - ALL-In-One FREE for for downloading media from multiple platforms see [api-reference](https://backend1.tioo.eu.org/docs/api-reference).
 - [FxEmbed](https://github.com/FxEmbed/FxEmbed) - X (Twitter) media downloader and embed generator with a public API.
 - 
 - [Facebook-Video-Download-API](https://github.com/sh13y/Facebook-Video-Download-API) - API and web interface for downloading Facebook videos with audio support ⚔️
+
+## 📜 License
+
+This project is private. See [LICENSE](LICENSE) for details (if applicable).
