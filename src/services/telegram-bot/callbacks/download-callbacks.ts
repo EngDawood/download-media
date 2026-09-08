@@ -92,8 +92,10 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 			return;
 		}
 
-		// Quality ladder — send the chosen rendition. The stored URL is already a direct CDN
-		// link, so this re-sends rather than re-running the extractor.
+		// Quality ladder — send the chosen rendition. A rung that carries a URL is already a
+		// direct CDN link, so it re-sends rather than re-running the extractor. A rung with no
+		// URL was never resolved (Facebook, where each rendition costs another extractor call):
+		// re-run the original link in that rung's mode instead.
 		if (action.startsWith('q:') && qualities?.length) {
 			const picked = qualities[Number(action.slice(2))];
 			if (!picked) {
@@ -101,18 +103,27 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 				return;
 			}
 			await ctx.answerCallbackQuery();
-			await downloadAndSendMedia(bot, chatId, picked.url, downloadPlatform || 'X', 'auto', undefined, true, {
-				db,
-				analytics: env.ANALYTICS,
-				userId,
-				mediaType: 'video',
-				mediaTitle,
-				firstName,
-				username,
-				locale,
-				originalUrl: downloadUrl,
-				telegraphToken,
-			});
+			await downloadAndSendMedia(
+				bot,
+				chatId,
+				picked.url ?? downloadUrl,
+				downloadPlatform || 'X',
+				picked.url ? 'auto' : (picked.mode ?? 'auto'),
+				undefined,
+				picked.url !== undefined,
+				{
+					db,
+					analytics: env.ANALYTICS,
+					userId,
+					mediaType: 'video',
+					mediaTitle,
+					firstName,
+					username,
+					locale,
+					originalUrl: downloadUrl,
+					telegraphToken,
+				},
+			);
 			return;
 		}
 
@@ -142,7 +153,9 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 		} else if (action.startsWith('yt:') && qualities) {
 			const selectedQuality = action.slice(3);
 			const match = qualities.find((q) => q.quality === selectedQuality);
-			if (match) {
+			// YouTube rungs are always resolved to a URL up front; one without it is not sendable,
+			// so fall through to a plain re-download rather than passing undefined along.
+			if (match?.url) {
 				const mediaType = selectedQuality === 'Audio' ? ('audio' as const) : ('video' as const);
 				await downloadAndSendMedia(bot, chatId, match.url, downloadPlatform || 'YouTube', 'auto', msgId, true, {
 					db,

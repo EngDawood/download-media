@@ -67,6 +67,32 @@ describe('tryFdown()', () => {
 		expect(hd.body.quality).toBe('best');
 	});
 
+	it('offers HD/SD rungs when the post lists more than one height', async () => {
+		stubFdown(200, successBody);
+		const result = await tryFdown('https://www.facebook.com/reel/123/', 'auto');
+		expect(result?.altQualities).toEqual([
+			{ label: 'HD', mode: 'hd' },
+			{ label: 'SD', mode: 'sd' },
+		]);
+	});
+
+	// One rendition means `worst` would hand back the same file the user already has.
+	it('offers no rungs when the post has a single height, or none at all', async () => {
+		const oneHeight = {
+			...successBody,
+			available_formats: [
+				{ quality: '720p', format_id: 'a', ext: 'mp4', url: 'https://video.xx.fbcdn.net/a.mp4' },
+				{ quality: '720p', format_id: 'b', ext: 'mp4', url: 'https://video.xx.fbcdn.net/b.mp4' },
+			],
+		};
+		stubFdown(200, oneHeight);
+		expect((await tryFdown('https://www.facebook.com/reel/123/', 'auto'))?.altQualities).toBeUndefined();
+
+		vi.unstubAllGlobals();
+		stubFdown(200, { ...successBody, available_formats: [] });
+		expect((await tryFdown('https://www.facebook.com/reel/123/', 'auto'))?.altQualities).toBeUndefined();
+	});
+
 	it('returns null on 400 so the failure never outranks a later timeout', async () => {
 		stubFdown(400, { detail: { status: 'error', message: 'Unsupported URL', error_code: 'INVALID_REQUEST' } });
 		await expect(tryFdown('https://www.facebook.com/reel/123/', 'auto')).resolves.toBeNull();
