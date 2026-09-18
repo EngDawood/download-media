@@ -60,6 +60,16 @@ export interface DownloaderResult {
 	fullHtml?: string;
 	mp3Url?: string;
 	/**
+	 * Renditions that exist but are not in hand. Unlike `variants`, which carries URLs the
+	 * provider already extracted, each of these costs another extractor call to resolve, so
+	 * they are offered as buttons after the send and fetched only if the user taps one.
+	 *
+	 * Facebook needs this: fdown exposes a video's other renditions only as raw DASH streams
+	 * with no audio track, so the sole way to get a second playable rendition is to ask the
+	 * extractor again in a different mode.
+	 */
+	altQualities?: Array<{ label: string; mode: DownloaderMode }>;
+	/**
 	 * A second rendering of the same document, offered as a button after the file is sent.
 	 * Google Docs and Slides export to their editable Office format by default; this carries
 	 * the PDF for people who wanted a flat, universally-viewable copy instead.

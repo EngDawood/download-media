@@ -14,8 +14,13 @@ export interface AdminState {
 	context?: {
 		downloadUrl?: string;
 		downloadPlatform?: string;
-		/** Available video qualities for YouTube picker */
-		qualities?: Array<{ quality: string; url: string; size?: string }>;
+		/**
+		 * Renditions offered by the quality picker. `url` is present when the provider already
+		 * extracted the rendition (YouTube, X); when it is absent the rung is unresolved and
+		 * `mode` says how to re-run the original link to get it (Facebook, where every
+		 * rendition costs another extractor call).
+		 */
+		qualities?: Array<{ quality: string; url?: string; size?: string; mode?: 'auto' | 'audio' | 'hd' | 'sd' }>;
 		/** Cached caption from quality fetch */
 		downloadCaption?: string;
 		/** YouTube mp3 URL for audio button after video send */
