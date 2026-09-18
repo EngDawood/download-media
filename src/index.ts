@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { createBot } from './services/telegram-bot/bot-factory';
+import { getSession, setSession } from './utils/db';
 import { handleSetup, runSetup } from './routes/setup';
 import { DEPLOY_ID } from './_deploy-id';
 import { localOnlyGuard, handleGetDashboard, handleGetTestUrls, handlePostTestUrls, handleTestDownload } from './routes/test-dashboard';
@@ -51,8 +52,20 @@ app.post('/telegram', async (c) => {
 		return c.json({ error: 'Unauthorized' }, 401);
 	}
 
-	// Auto-setup: run once per deploy (compare build-time ID against D1 config)
 	const db = c.env.download_media_bot_db;
+	const update = await c.req.json();
+
+	// Slow downloads (Facebook's fallback chain can run 60s+) routinely exceed Telegram's
+	// webhook patience, and Telegram then retries the same update. Without this guard each
+	// retry reprocesses it from scratch — duplicate "Downloading..." replies and duplicate
+	// download attempts for the same message.
+	if (typeof update.update_id === 'number') {
+		const seen = await getSession(db, 'update_seen', update.update_id).catch(() => null);
+		if (seen) return c.json({ ok: true });
+		await setSession(db, 'update_seen', update.update_id, '1', 3600).catch(() => {});
+	}
+
+	// Auto-setup: run once per deploy (compare build-time ID against D1 config)
 	const storedIdRow = await db
 		.prepare(`SELECT value FROM app_config WHERE key = ?`)
 		.bind(DEPLOY_KV_KEY)
@@ -72,7 +85,6 @@ app.post('/telegram', async (c) => {
 
 	const bot = createBot(c.env);
 	await bot.init();
-	const update = await c.req.json();
 	// Awaited, not waitUntil'd. Cloudflare bounds how long waitUntil work may run after the
 	// response is returned, and it was cancelling downloads mid-flight: the bot sent
 	// "Downloading media..." and then went silent, because the send never got to run.
