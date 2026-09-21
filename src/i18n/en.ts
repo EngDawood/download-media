@@ -270,6 +270,8 @@ export const en = {
 	'reply.sent': '✅ Message delivered to user.',
 	'reply.failed': '❌ Failed to deliver. The user may have blocked the bot.',
 	'reply.invalid_id': '❌ Invalid user ID.',
+	'reply.prompt': '💬 Type your reply to user <code>{userId}</code>. It will be sent through the bot.\n\nUse /cancel to abort.',
+	'reply.btn': '💬 Reply to User',
 
 	// --- /logs command ---
 	'logs.header': '📋 <b>Recent Failed Downloads</b>',

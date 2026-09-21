@@ -9,6 +9,9 @@ import { checkSubscriptionGate } from './subscription-gate';
 import { incrementLinkStats, isUserBlocked, isDomainAllowlisted } from '../../../utils/stats-d1';
 import { t, getLocale } from '../../../i18n';
 
+// Admin replies are free text sent with parse_mode HTML; unescaped < or & would make Telegram reject them.
+const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 const IG_RESERVED = ['p', 'reel', 'tv', 'explore', 'accounts', 'stories', 'direct', 'ar', 'live'];
 
 function extractInstagramProfileUsername(url: string): string | null {
@@ -39,6 +42,22 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 
 		if (userId) {
 			const userState = await getAdminState(db, userId);
+			// Checked before URL detection so a reply containing a link is relayed, not downloaded.
+			if (userState?.action === 'awaiting_reply' && userId === adminId) {
+				await clearAdminState(db, userId);
+				const targetId = userState.context?.replyTargetId;
+				if (!targetId) {
+					await ctx.reply(t(locale, 'callback.session_expired'));
+					return;
+				}
+				try {
+					await bot.api.sendMessage(targetId, `📬 <b>Message from admin:</b>\n\n${escapeHtml(text)}`, { parse_mode: 'HTML' });
+					await ctx.reply(t(locale, 'reply.sent'));
+				} catch {
+					await ctx.reply(t(locale, 'reply.failed'));
+				}
+				return;
+			}
 			if (userState?.action === 'awaiting_story_username') {
 				await clearAdminState(db, userId);
 				const storyMatch = text.match(/instagram\.com\/stories\/([^/?]+)/i) ?? text.match(/instagram\.com\/([^/?]+)/i);

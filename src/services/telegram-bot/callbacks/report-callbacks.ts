@@ -2,7 +2,18 @@ import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { t, getLocale } from '../../../i18n';
 import { downloadAndSendMedia } from '../handlers/download-and-send';
-import { isReportSent, setReportSent, getReportData, deleteReportData, setReportPending, getReportPending } from '../storage/session-store';
+import {
+	isReportSent,
+	setReportSent,
+	getReportData,
+	deleteReportData,
+	setReportPending,
+	getReportPending,
+	getBlockedUrl,
+	deleteBlockedUrl,
+} from '../storage/session-store';
+import { setAdminState } from '../storage/admin-state';
+import { detectMediaUrl } from '../../../utils/url-detector';
 
 export function registerReportCallbacks(bot: Bot, db: D1Database, adminId: number, telegraphToken?: string): void {
 	bot.callbackQuery('report:issue', async (ctx) => {
@@ -49,7 +60,7 @@ export function registerReportCallbacks(bot: Bot, db: D1Database, adminId: numbe
 		setReportSent(db, userId).catch(() => {});
 
 		const keyboard = new InlineKeyboard()
-			.url('💬 Reply to User', `tg://user?id=${resolvedId}`)
+			.text(t('en', 'reply.btn'), `report:reply:${resolvedId}`)
 			.row()
 			.text(t('en', 'report.btn_retry_for_user'), `report:retry:${userId}`);
 		await bot.api.sendMessage(adminId, report, { parse_mode: 'HTML', reply_markup: keyboard });
@@ -77,6 +88,42 @@ export function registerReportCallbacks(bot: Bot, db: D1Database, adminId: numbe
 
 		try {
 			await downloadAndSendMedia(bot, targetUserId, url, platform, 'auto', undefined, undefined, { db, telegraphToken });
+			await ctx.reply(t('en', 'report.retry_done'));
+		} catch (e: any) {
+			await ctx.reply(t('en', 'report.retry_failed', { error: e.message || 'unknown' }));
+		}
+	});
+
+	// Replies go out as the bot so the admin's personal account stays out of the user's DMs.
+	bot.callbackQuery(/^report:reply:(\d+)$/, async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
+			return;
+		}
+		const targetUserId = parseInt(ctx.match[1], 10);
+		await setAdminState(db, adminId, { action: 'awaiting_reply', context: { replyTargetId: targetUserId } });
+		await ctx.answerCallbackQuery();
+		await ctx.reply(t(getLocale(ctx), 'reply.prompt', { userId: String(targetUserId) }), { parse_mode: 'HTML' });
+	});
+
+	// Domain reports keep the URL in the blocked-url slot, not report-pending, so they need their own retry.
+	bot.callbackQuery(/^report:dlblocked:(\d+)$/, async (ctx) => {
+		if (ctx.from?.id !== adminId) {
+			await ctx.answerCallbackQuery({ text: t('en', 'stats.admin_only') });
+			return;
+		}
+		const targetUserId = parseInt(ctx.match[1], 10);
+		const url = await getBlockedUrl(db, targetUserId);
+		const detected = url ? detectMediaUrl(url) : null;
+		if (!url || !detected) {
+			await ctx.answerCallbackQuery({ text: t('en', 'report.retry_expired') });
+			return;
+		}
+		await ctx.answerCallbackQuery();
+
+		try {
+			await downloadAndSendMedia(bot, targetUserId, detected.url, detected.platform, 'auto', undefined, undefined, { db, telegraphToken });
+			await deleteBlockedUrl(db, targetUserId);
 			await ctx.reply(t('en', 'report.retry_done'));
 		} catch (e: any) {
 			await ctx.reply(t('en', 'report.retry_failed', { error: e.message || 'unknown' }));

@@ -663,6 +663,10 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		const adminKeyboard = new InlineKeyboard()
 			.text('✅ Accept (one-time)', `report:accept:${userId}`)
 			.row()
+			.text(t('en', 'report.btn_retry_for_user'), `report:dlblocked:${userId}`)
+			.row()
+			.text(t('en', 'reply.btn'), `report:reply:${userId}`)
+			.row()
 			.text('✅ Whitelist domain', `report:whitelist:${userId}`)
 			.row()
 			.text('❌ Deny', `report:deny:${userId}`);

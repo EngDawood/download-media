@@ -10,7 +10,7 @@ export interface FormatSettings {
 
 // Admin conversation state for multi-step flows
 export interface AdminState {
-	action: 'downloading_media' | 'awaiting_broadcast' | 'awaiting_story_username';
+	action: 'downloading_media' | 'awaiting_broadcast' | 'awaiting_story_username' | 'awaiting_reply';
 	context?: {
 		downloadUrl?: string;
 		downloadPlatform?: string;
@@ -27,6 +27,8 @@ export interface AdminState {
 		mp3Url?: string;
 		/** Raw title of the pending media, so the mp3 button can name the audio file */
 		mediaTitle?: string;
+		/** User the admin's next text message is relayed to (awaiting_reply) */
+		replyTargetId?: number;
 		/** Pending broadcast message text */
 		broadcastMessage?: string;
 		/** Download mode stored for retry button */

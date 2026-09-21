@@ -266,6 +266,8 @@ export const ar: Translations = {
 	'reply.sent': '✅ تم تسليم الرسالة للمستخدم.',
 	'reply.failed': '❌ فشل التسليم. ربما حظر المستخدم البوت.',
 	'reply.invalid_id': '❌ معرّف مستخدم غير صالح.',
+	'reply.prompt': '💬 اكتب ردك للمستخدم <code>{userId}</code>. سيتم إرساله عبر البوت.\n\nاستخدم /cancel للإلغاء.',
+	'reply.btn': '💬 الرد على المستخدم',
 
 	// --- /logs command ---
 	'logs.header': '📋 <b>التحميلات الفاشلة الأخيرة</b>',
