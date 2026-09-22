@@ -246,6 +246,13 @@ export async function downloadAndSendMedia(
 			return;
 		}
 
+		// Guests never get posts the source flagged sensitive. No adminId counts as a guest too:
+		// the admin's report retries send to the reporting user's chat without one.
+		if (result.sensitive && (options?.guestMode || options?.adminId === undefined)) {
+			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.sensitive_blocked')).catch(() => {});
+			return;
+		}
+
 		if (result.media && result.media.length > 0) {
 			let caption = result.caption || '';
 			if (platform === 'Instagram') {

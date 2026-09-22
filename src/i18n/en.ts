@@ -101,6 +101,7 @@ export const en = {
 	'download.busy_retry':
 		'🕒 The download servers are busy right now, so this attempt failed.\n\nYour link looks fine — nothing is wrong with it.\n<code>{url}</code>\n<i>Wait a few seconds, then tap 🔄 Retry.</i>',
 	'download.no_media': '😕 No media found. The post may be private or deleted.\n{url}',
+	'download.sensitive_blocked': '🔞 This post is marked as sensitive content and cannot be downloaded.',
 	'download.error': '⚠️ Something went wrong. Please try again in a moment.\n{url}',
 	'download.too_large': '😔 File too large for Telegram (50MB limit). Use the link below to download it directly.',
 	'download.too_large_name': "😔 Sorry {firstName}, this file exceeds Telegram's 50MB limit. Use the link below to download it directly.",
