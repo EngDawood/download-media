@@ -75,6 +75,12 @@ export interface DownloaderResult {
 	 * the PDF for people who wanted a flat, universally-viewable copy instead.
 	 */
 	altFormat?: { label: string; url: string; filename: string };
+	/**
+	 * The source flagged this post as sensitive (adult or graphic media). Set by X only, from
+	 * FxTwitter's `possibly_sensitive`; the btch fallbacks carry no such flag, so it stays unset there.
+	 * The Telegram bot refuses these for guests.
+	 */
+	sensitive?: boolean;
 	error?: string;
 	/** True when the error is transient (e.g. backend still extracting) and retrying is likely to succeed. */
 	retryable?: boolean;

@@ -103,6 +103,7 @@ export const ar: Translations = {
 	'download.busy_retry':
 		'🕒 خوادم التحميل مزدحمة حالياً، لذلك فشلت هذه المحاولة.\n\nرابطك سليم — لا مشكلة فيه.\n<code>{url}</code>\n<i>انتظر بضع ثوانٍ ثم اضغط 🔄 إعادة المحاولة.</i>',
 	'download.no_media': '😕 لم يتم العثور على وسائط. قد يكون المنشور خاصاً أو محذوفاً.\n{url}',
+	'download.sensitive_blocked': '🔞 هذا المنشور مصنّف كمحتوى حساس ولا يمكن تحميله.',
 	'download.error': '⚠️ حدث خطأ ما. يرجى المحاولة مرة أخرى.\n{url}',
 	'download.too_large': '😔 الملف أكبر من حد Telegram البالغ 50MB. استخدم الرابط أدناه للتحميل مباشرةً.',
 	'download.too_large_name': '😔 عذراً {firstName}، هذا الملف يتجاوز حد 50MB في Telegram. استخدم الرابط أدناه للتحميل مباشرةً.',

@@ -157,6 +157,89 @@ async function collectThread(startTweet: any): Promise<any[]> {
 }
 
 /**
+ * Turn a FxTwitter tweet into a result: article, thread, media, or text-only.
+ */
+async function tweetToResult(tweet: any, url: string, accessToken: string): Promise<DownloaderResult | null> {
+	// ── Article tweet ──
+	if (tweet.article) {
+		return await handleArticle(tweet, url, accessToken);
+	}
+
+	// ── Thread tweet ──
+	// Case A: mid-thread tweet (author replying to themselves) — walk backward to root.
+	// Case B: thread root shared directly — we can only send this tweet + a note,
+	//          since FxTwitter has no forward traversal API.
+	const isMidThread = isThreadTweet(tweet);
+	if (isMidThread) {
+		const threadTweets = await collectThread(tweet);
+		if (threadTweets.length > 1) {
+			const telegraphUrl = await publishThreadToTelegraph(threadTweets, accessToken);
+			const avatar = tweet.author?.avatar_url as string | undefined;
+
+			// Sent after the media, so the tweet's own video/photos arrive first.
+			const noticeLines = [`🧵 Thread — ${threadTweets.length} tweets`];
+			noticeLines.push(telegraphUrl ? `📖 <a href="${telegraphUrl}">Read full thread</a>` : `🔗 <a href="${tweet.url}">View on X</a>`);
+			const followUp = noticeLines.join('\n');
+
+			const caption = tweet.text ? `<b>${tweet.text}</b>` : '';
+			const ownMedia = collectTweetMedia(tweet);
+
+			// The tweet the user sent carries its own media — send that, not a cover image.
+			if (ownMedia.length > 0) {
+				return {
+					status: 'success',
+					media: ownMedia,
+					caption,
+					thumbnail: tweetThumbnail(tweet),
+					followUp,
+					fullText: threadToMarkdown(threadTweets),
+				};
+			}
+
+			// Text-only tweet — cover with the first photo anywhere in the thread, else the avatar.
+			let coverUrl: string | undefined;
+			for (const t of threadTweets) {
+				const photo = t.media?.photos?.[0]?.url;
+				if (photo) {
+					coverUrl = photo;
+					break;
+				}
+			}
+
+			return {
+				status: 'success',
+				media: (coverUrl ?? avatar) ? [{ type: 'photo', url: (coverUrl ?? avatar)! }] : [],
+				caption,
+				thumbnail: coverUrl ?? avatar,
+				followUp,
+				fullText: threadToMarkdown(threadTweets),
+			};
+		}
+		// Single tweet in chain — fall through to normal handling
+	}
+
+	// ── Media tweet ──
+	const caption = tweet.text ? `<b>${tweet.text}</b>` : '';
+	const avatar = tweet.author?.avatar_url as string | undefined;
+
+	const media = collectTweetMedia(tweet);
+	if (media.length > 0) {
+		return { status: 'success', media, caption, thumbnail: tweetThumbnail(tweet) };
+	}
+
+	// Text-only tweet
+	if (caption) {
+		return {
+			status: 'success',
+			media: avatar ? [{ type: 'photo', url: avatar }] : [],
+			caption,
+			thumbnail: avatar,
+		};
+	}
+	return null;
+}
+
+/**
  * Primary strategy — FxTwitter API.
  * Handles: media tweets, article tweets, thread tweets, text-only tweets.
  * Docs: docs/FxEmbed-API.md
@@ -182,82 +265,11 @@ async function tryViaFxTwitter(url: string, accessToken: string, failures: Failu
 		const tweet = data?.tweet;
 		if (!tweet) return null;
 
-		// ── Article tweet ──
-		if (tweet.article) {
-			return await handleArticle(tweet, url, accessToken);
-		}
-
-		// ── Thread tweet ──
-		// Case A: mid-thread tweet (author replying to themselves) — walk backward to root.
-		// Case B: thread root shared directly — we can only send this tweet + a note,
-		//          since FxTwitter has no forward traversal API.
-		const isMidThread = isThreadTweet(tweet);
-		if (isMidThread) {
-			const threadTweets = await collectThread(tweet);
-			if (threadTweets.length > 1) {
-				const telegraphUrl = await publishThreadToTelegraph(threadTweets, accessToken);
-				const avatar = tweet.author?.avatar_url as string | undefined;
-
-				// Sent after the media, so the tweet's own video/photos arrive first.
-				const noticeLines = [`🧵 Thread — ${threadTweets.length} tweets`];
-				noticeLines.push(telegraphUrl ? `📖 <a href="${telegraphUrl}">Read full thread</a>` : `🔗 <a href="${tweet.url}">View on X</a>`);
-				const followUp = noticeLines.join('\n');
-
-				const caption = tweet.text ? `<b>${tweet.text}</b>` : '';
-				const ownMedia = collectTweetMedia(tweet);
-
-				// The tweet the user sent carries its own media — send that, not a cover image.
-				if (ownMedia.length > 0) {
-					return {
-						status: 'success',
-						media: ownMedia,
-						caption,
-						thumbnail: tweetThumbnail(tweet),
-						followUp,
-						fullText: threadToMarkdown(threadTweets),
-					};
-				}
-
-				// Text-only tweet — cover with the first photo anywhere in the thread, else the avatar.
-				let coverUrl: string | undefined;
-				for (const t of threadTweets) {
-					const photo = t.media?.photos?.[0]?.url;
-					if (photo) {
-						coverUrl = photo;
-						break;
-					}
-				}
-
-				return {
-					status: 'success',
-					media: (coverUrl ?? avatar) ? [{ type: 'photo', url: (coverUrl ?? avatar)! }] : [],
-					caption,
-					thumbnail: coverUrl ?? avatar,
-					followUp,
-					fullText: threadToMarkdown(threadTweets),
-				};
-			}
-			// Single tweet in chain — fall through to normal handling
-		}
-
-		// ── Media tweet ──
-		const caption = tweet.text ? `<b>${tweet.text}</b>` : '';
-		const avatar = tweet.author?.avatar_url as string | undefined;
-
-		const media = collectTweetMedia(tweet);
-		if (media.length > 0) {
-			return { status: 'success', media, caption, thumbnail: tweetThumbnail(tweet) };
-		}
-
-		// Text-only tweet
-		if (caption) {
-			return {
-				status: 'success',
-				media: avatar ? [{ type: 'photo', url: avatar }] : [],
-				caption,
-				thumbnail: avatar,
-			};
-		}
+		const result = await tweetToResult(tweet, url, accessToken);
+		// X marks a post sensitive when its author or moderation flagged the media (adult or graphic).
+		// Carried on the result so the bot can refuse it for guests while the admin still gets it.
+		if (result && (tweet.possibly_sensitive || tweet.quote?.possibly_sensitive)) result.sensitive = true;
+		return result;
 	} catch (e) {
 		failures.push(classifyError(e));
 		log('warn', 'downloader:Twitter', 'fxtwitter failed', { error: (e as Error).message });
