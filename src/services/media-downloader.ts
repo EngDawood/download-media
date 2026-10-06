@@ -101,10 +101,7 @@ async function downloadOnce(
 		// check missed the AbortError case, so users routinely saw "The operation was
 		// aborted due to timeout" verbatim.
 		const kind = classifyError(err);
-		const friendly =
-			kind === 'timeout' ||
-			kind === 'rate_limited' ||
-			/btch |all servers failed|AggregateError/i.test(err?.message || '');
+		const friendly = kind === 'timeout' || kind === 'rate_limited' || /btch |all servers failed|AggregateError/i.test(err?.message || '');
 		const userError = friendly
 			? 'Download service temporarily unavailable. Please try again or use the Retry button.'
 			: err?.message || 'Unknown error';

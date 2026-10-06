@@ -216,9 +216,7 @@ async function callDownloadMedia(args: Record<string, unknown>, env: Env) {
 	const { url, platform } = resolved.detected!;
 
 	const mode = (VALID_MODES as string[]).includes(String(args.mode)) ? (args.mode as DownloaderMode) : 'auto';
-	const format = (BODY_FORMATS as readonly string[]).includes(String(args.format))
-		? (args.format as BodyFormat)
-		: DEFAULT_BODY_FORMAT;
+	const format = (BODY_FORMATS as readonly string[]).includes(String(args.format)) ? (args.format as BodyFormat) : DEFAULT_BODY_FORMAT;
 
 	const result = await downloadMedia(url, mode, platform, env);
 	if (result.status !== 'success' || !result.media?.length) {

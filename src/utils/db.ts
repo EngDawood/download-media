@@ -1,13 +1,5 @@
 export type SessionKeyType =
-	| 'state'
-	| 'lock'
-	| 'lock_pending'
-	| 'usage'
-	| 'blocked_url'
-	| 'report'
-	| 'report_sent'
-	| 'report_pending'
-	| 'update_seen';
+	'state' | 'lock' | 'lock_pending' | 'usage' | 'blocked_url' | 'report' | 'report_sent' | 'report_pending' | 'update_seen';
 
 export async function getSession(db: D1Database, keyType: SessionKeyType, userId: number): Promise<string | null> {
 	const now = Date.now();
