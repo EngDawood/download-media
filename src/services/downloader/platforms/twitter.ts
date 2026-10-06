@@ -132,11 +132,35 @@ async function fetchTweet(tweetId: string): Promise<any | null> {
 }
 
 /**
- * Walk backward from the given tweet to find the thread root,
- * then collect all tweets from root → given tweet (oldest first).
- * Stops at max 20 tweets to avoid runaway fetches.
+ * The author's whole thread (root → last tweet) via FxTwitter v2, from any tweet in it.
+ * Returns null when the endpoint fails so the caller can fall back to walking backward.
+ */
+async function fetchThreadV2(tweetId: string, screenName: string | undefined): Promise<any[] | null> {
+	try {
+		const res = await fetch(`https://api.fxtwitter.com/2/thread/${tweetId}`, {
+			headers: { 'User-Agent': 'DownloadMediaBot/1.0 (https://github.com/dawo5d/download-media)' },
+			signal: AbortSignal.timeout(10_000),
+		});
+		if (!res.ok) return null;
+		const data: any = await res.json();
+		if (!Array.isArray(data?.thread)) return null;
+		const author = screenName?.toLowerCase();
+		return data.thread.filter((t: any) => t?.author?.screen_name?.toLowerCase() === author);
+	} catch (e) {
+		log('warn', 'downloader:Twitter', 'fxtwitter v2 thread failed', { error: (e as Error).message });
+		return null;
+	}
+}
+
+/**
+ * Collect the full thread the tweet belongs to, oldest first.
+ * Primary: FxTwitter v2 thread endpoint (covers tweets after the shared one too).
+ * Fallback: walk backward from the given tweet to the root (max 20 tweets).
  */
 async function collectThread(startTweet: any): Promise<any[]> {
+	const v2 = await fetchThreadV2(startTweet.id, startTweet.author?.screen_name);
+	if (v2 && v2.length > 0) return v2;
+
 	const MAX = 20;
 	const chain: any[] = [startTweet];
 
@@ -166,11 +190,10 @@ async function tweetToResult(tweet: any, url: string, accessToken: string): Prom
 	}
 
 	// ── Thread tweet ──
-	// Case A: mid-thread tweet (author replying to themselves) — walk backward to root.
-	// Case B: thread root shared directly — we can only send this tweet + a note,
-	//          since FxTwitter has no forward traversal API.
-	const isMidThread = isThreadTweet(tweet);
-	if (isMidThread) {
+	// Mid-thread tweet (author replying to themselves), or a root with replies that may be
+	// the start of a thread. Either way the whole thread is collected.
+	const mayBeThread = isThreadTweet(tweet) || (!tweet.replying_to && tweet.replies > 0);
+	if (mayBeThread) {
 		const threadTweets = await collectThread(tweet);
 		if (threadTweets.length > 1) {
 			const telegraphUrl = await publishThreadToTelegraph(threadTweets, accessToken);
