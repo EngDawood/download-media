@@ -8,6 +8,19 @@ import { buildCaption, isUrl } from '../media-helpers';
 /** YouTube extraction is the slowest btch operation; give it more headroom than the 8s default. */
 const YOUTUBE_TIMEOUT_MS = 20_000;
 
+/**
+ * The AIO fallback for YouTube answers "Failed to obtain Cloudflare token" after ~30s or never
+ * answers at all, so it is a last-ditch attempt rather than a real second path. Keep it short
+ * so a failed primary call does not burn another 20s of the webhook budget on it.
+ */
+const YOUTUBE_AIO_TIMEOUT_MS = 6_000;
+
+/**
+ * Some btch backends answer the youtube endpoint with `{status: true}` and no links.
+ * Without this the race is won by whichever backend answered emptiest and fastest.
+ */
+const hasYoutubeMedia = (data: { mp4?: unknown; mp3?: unknown } | undefined): boolean => isUrl(data?.mp4) || isUrl(data?.mp3);
+
 /** Telegram caps bot uploads at 50MB; stay under it so multipart overhead cannot tip us over. */
 const MAX_SENDABLE_BYTES = 45 * 1024 * 1024;
 
@@ -33,7 +46,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
 		const failures: FailureKind[] = [];
 		try {
-			const res = await btchFetch('youtube', url, YOUTUBE_TIMEOUT_MS);
+			const res = await btchFetch('youtube', url, YOUTUBE_TIMEOUT_MS, hasYoutubeMedia);
 			const caption = buildCaption(res.title);
 			const thumbnail = res.thumbnail;
 			if (mode === 'audio' && isUrl(res.mp3))
@@ -53,7 +66,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 		}
 
 		try {
-			const aio = await btchFetch('aio', url, YOUTUBE_TIMEOUT_MS);
+			const aio = await btchFetch('aio', url, YOUTUBE_AIO_TIMEOUT_MS);
 			const data = aio.data;
 			if (data?.links) {
 				const caption = buildCaption(data.title);
