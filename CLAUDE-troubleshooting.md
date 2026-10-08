@@ -69,6 +69,22 @@ If all 4 btch backend servers fail, the user sees: *"Download service temporaril
 
 ---
 
+## YouTube Timeouts / "Still Processing" Failures
+
+**Symptom:** YouTube downloads sit on "Downloading..." then fail or go silent.
+
+**Causes found (2026-10-08, tested live against all 4 backends):**
+- `/api/downloader/youtube` takes 2–6s but some backends answer HTTP 200 `{"status":true}` with no `mp4`/`mp3`. Without an `isUsable` guard, `Promise.any` in `btchFetch` is won by whichever backend answers first, even an empty one (one test URL had media on only 1 of 4 backends).
+- `/api/downloader/aio` is dead for YouTube: it returns `"Failed to obtain Cloudflare token"` after ~32s, or never answers. The old 20s AIO fallback plus the auto-retry in `downloadMedia` gave ~80s worst case, over Telegram's ~60s webhook window (`src/index.ts`), so the Worker run was cut off with no reply.
+
+**Fixes:** `hasYoutubeMedia` guard on the `youtube` call, AIO fallback capped at 6s (`YOUTUBE_AIO_TIMEOUT_MS`), `downloadMedia` skips the auto-retry when the first attempt took >15s (`RETRY_MAX_ELAPSED_MS`).
+
+**Quick check:** `curl -H 'User-Agent: btch/6.0.25' "https://backend{1..4}.tioo.eu.org/api/downloader/youtube?url=<encoded>"` and look for `mp4` in each body. Test URLs used: `foT9rsHmS24`, `p54LUOrHzZU?feature=shared`, `dQw4w9WgXcQ`.
+
+**Still open:** `downloadMedia` retries `rate_limited` as well as `timeout`, but `failure.ts` says only `timeout` is retryable.
+
+---
+
 ## Webhook Not Receiving Updates
 
 1. Verify webhook is set: `curl https://api.telegram.org/bot{TOKEN}/getWebhookInfo`

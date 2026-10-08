@@ -43,10 +43,21 @@ describe('YouTubeProvider', () => {
 		expect(result.media?.[0]).toEqual({ type: 'audio', url: MEDIA.mp3 });
 	});
 
-	it('reports a definitive failure when no backend has media and AIO errors', async () => {
-		vi.stubGlobal('fetch', async (input: string) =>
-			input.includes('/aio?') ? Response.json({ error: 'Failed to obtain Cloudflare token' }) : Response.json({ status: true }),
-		);
+	it('treats every backend answering empty as retryable and skips the AIO fallback', async () => {
+		const calls: string[] = [];
+		vi.stubGlobal('fetch', async (input: string) => {
+			calls.push(input);
+			return input.includes('/aio?') ? Response.json({ error: 'Failed to obtain Cloudflare token' }) : Response.json({ status: true });
+		});
+		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
+		expect(result.status).toBe('error');
+		expect(result.retryable).toBe(true);
+		expect(result.failureKind).toBe('timeout');
+		expect(calls.some((c) => c.includes('/aio?'))).toBe(false);
+	});
+
+	it('reports a definitive failure when backends return a real error', async () => {
+		vi.stubGlobal('fetch', async () => Response.json({ error: 'Video unavailable' }));
 		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
 		expect(result.status).toBe('error');
 		expect(result.retryable).toBeFalsy();

@@ -68,6 +68,16 @@ telegram-bot/
 
 **Implementation:** `btchFetch()` in `media-downloader.ts` — loops over `BTCH_SERVERS` array.
 
+## 2026-10-08: YouTube reliability (empty-200 guard, short AIO fallback, retry cap)
+
+**Context:** Most YouTube downloads timed out. Live tests showed `/youtube` is fast but several backends return an empty 200, and `/aio` fails for YouTube (Cloudflare token error, ~32s). Worst case was ~80s, past Telegram's ~60s webhook window.
+
+**Decision:** Pass an `isUsable` guard (`mp4` or `mp3` present) to the `youtube` btch call; cut the YouTube AIO fallback to 6s rather than removing it; skip `downloadMedia`'s auto-retry when the first attempt took >15s (applies to all platforms, so Facebook's 15s timeouts no longer retry).
+
+**Note:** `btchFetch` races all 4 backends with `Promise.any` (the older "try next server on 5xx" entry above is superseded).
+
+**Files:** `platforms/youtube.ts`, `media-downloader.ts`, test `test/youtube-provider.spec.ts`. Branch `feat/elegant-dirac-3r4qmd`.
+
 ## 2026-02-xx: Guest mode for non-admin users
 
 **Context:** The bot should be usable by non-admin users for auto-downloads, but quality pickers and KV state management should remain admin-only.

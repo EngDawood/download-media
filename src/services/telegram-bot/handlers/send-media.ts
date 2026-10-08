@@ -2,6 +2,7 @@ import { GrammyError, InputFile, InputMediaBuilder } from 'grammy';
 import type { Bot } from 'grammy';
 import type { TelegramMediaMessage, FormatSettings } from '../../../types/telegram';
 import type { MediaVariant } from '../../../types/downloader';
+import { log } from '../../../utils/logger';
 
 // Telegram's two ceilings for non-photo files, from the Bot API "Sending files" table:
 // it will fetch a URL itself up to 20MB, and accept an upload from us up to 50MB.
@@ -38,7 +39,9 @@ const NON_URL_400_PATTERNS = [
 function isTelegramUrlError(err: unknown): boolean {
 	if (!(err instanceof GrammyError) || err.error_code !== 400) return false;
 	const description = err.description.toLowerCase();
-	return !NON_URL_400_PATTERNS.some((pattern) => description.includes(pattern));
+	const refused = !NON_URL_400_PATTERNS.some((pattern) => description.includes(pattern));
+	if (refused) log('warn', 'send-media', 'telegram refused url, falling back to upload', { description: err.description });
+	return refused;
 }
 
 /** If caption fits, attach it to media. If too long, send media without caption then post caption as separate text. */
@@ -410,7 +413,20 @@ async function downloadAsInputFile(url: string, filename: string): Promise<Input
 		await new Promise((r) => setTimeout(r, 700));
 		resp = await fetchMediaOnce(url);
 	}
-	if (!resp.ok) throw new Error(`Failed to download media: ${resp.status}`);
+	if (!resp.ok) {
+		// Host and path only: the query carries a signed token and can run to 1.5KB.
+		const body = await resp.text().catch(() => '');
+		log('warn', 'send-media', 'media fetch refused', {
+			status: resp.status,
+			host: new URL(url).host,
+			path: new URL(url).pathname,
+			server: resp.headers.get('server'),
+			cfRay: resp.headers.get('cf-ray'),
+			contentType: resp.headers.get('content-type'),
+			body: body.slice(0, 200),
+		});
+		throw new Error(`Failed to download media: ${resp.status}`);
+	}
 
 	const contentLength = Number(resp.headers.get('content-length') || 0);
 	if (contentLength > MAX_UPLOAD_SIZE) {

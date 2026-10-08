@@ -16,22 +16,14 @@ User sends URL
 ## btch API Server Failover
 
 ```typescript
-const BTCH_SERVERS = ['https://backend1.tioo.eu.org', ...]; // 4 servers
-
-async function btchFetch(endpoint: string, url: string) {
-    for (const server of BTCH_SERVERS) {
-        try {
-            const res = await fetch(`${server}/api/downloader/${endpoint}?url=...`);
-            if (res.status >= 500) continue;  // try next server on 5xx
-            if (!res.ok) throw new Error(...); // fail fast on 4xx
-            return await res.json();
-        } catch (err) {
-            if (err.name === 'TimeoutError' || err.message?.includes('returned 5')) continue;
-            throw err; // propagate non-retryable errors
-        }
-    }
-}
+// btch-client.ts: all 4 servers are raced in parallel; first usable response wins
+btchFetch(endpoint, url, timeoutMs = 12_000, isUsable?: (data) => boolean)
+//   Promise.any(BTCH_SERVERS.map(fetchFromServer))
+//   a 200 that fails isUsable is treated as a failure, so the race keeps waiting
+//   all-fail -> DownloadError classified by most-permanent failure kind
 ```
+
+Pass `isUsable` whenever a backend can answer 200 with no media (YouTube: `hasYoutubeMedia`). Otherwise the fastest empty answer wins the race.
 
 ## URL-First Telegram Send Strategy
 
