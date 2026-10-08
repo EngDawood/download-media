@@ -69,3 +69,21 @@ describe('btchFetch() failure resolution', () => {
 		await expect(btchFetch('aio', 'https://example.com/x')).rejects.toThrow('returned 404');
 	});
 });
+
+describe('btchFetch() empty payloads', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	const stubEmpty = () => vi.stubGlobal('fetch', async () => Response.json({ status: true }));
+
+	it('classifies an all-empty race as gone by default', async () => {
+		stubEmpty();
+		await expect(btchFetch('x', 'https://example.com/x', 1000, (d) => !!d.mp4)).rejects.toMatchObject({ kind: 'gone' });
+	});
+
+	it('uses the caller-supplied kind when every server answers empty', async () => {
+		stubEmpty();
+		await expect(btchFetch('x', 'https://example.com/x', 1000, (d) => !!d.mp4, 'timeout')).rejects.toMatchObject({ kind: 'timeout' });
+	});
+});

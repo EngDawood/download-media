@@ -1,5 +1,5 @@
 import { log } from '../../utils/logger';
-import { DownloadError, classifyError, kindFromStatus, mostPermanent } from './failure';
+import { DownloadError, classifyError, kindFromStatus, mostPermanent, type FailureKind } from './failure';
 
 const BTCH_SERVERS = [
 	'https://backend2.tioo.eu.org',
@@ -35,8 +35,16 @@ export function isBtchLimitError(data: any): boolean {
  * `{status: true, HD: null, Normal_video: null}` for a link the others extract fine;
  * without this the race is won by whichever server failed fastest. Treating that as a
  * failure keeps `Promise.any` waiting on a server that actually has the file.
+ * `emptyKind` is how that rejection is classified when every server comes back empty:
+ * `gone` by default, `timeout` for extractors whose empty answer means "not ready yet".
  */
-export async function btchFetch(endpoint: string, url: string, timeoutMs = 12_000, isUsable?: (data: any) => boolean): Promise<any> {
+export async function btchFetch(
+	endpoint: string,
+	url: string,
+	timeoutMs = 12_000,
+	isUsable?: (data: any) => boolean,
+	emptyKind: FailureKind = 'gone',
+): Promise<any> {
 	const fetchFromServer = async (server: string): Promise<any> => {
 		const res = await fetch(`${server}/api/downloader/${endpoint}?url=${encodeURIComponent(url)}`, {
 			headers: BTCH_HEADERS,
@@ -55,7 +63,7 @@ export async function btchFetch(endpoint: string, url: string, timeoutMs = 12_00
 		if (data.error) throw new DownloadError(`btch ${endpoint}: ${data.error}`, 'gone');
 		if (isUsable && !isUsable(data)) {
 			log('warn', `btch:${endpoint}`, 'empty payload', { server });
-			throw new DownloadError(`btch ${endpoint}: no media in response`, 'gone');
+			throw new DownloadError(`btch ${endpoint}: no media in response`, emptyKind);
 		}
 		return data;
 	};

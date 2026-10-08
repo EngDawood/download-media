@@ -21,6 +21,13 @@ const YOUTUBE_AIO_TIMEOUT_MS = 6_000;
  */
 const hasYoutubeMedia = (data: { mp4?: unknown; mp3?: unknown } | undefined): boolean => isUrl(data?.mp4) || isUrl(data?.mp3);
 
+const stillProcessing = (kind: FailureKind): DownloaderResult => ({
+	status: 'error',
+	error: 'YouTube is still processing this video',
+	retryable: true,
+	failureKind: kind,
+});
+
 /** Telegram caps bot uploads at 50MB; stay under it so multipart overhead cannot tip us over. */
 const MAX_SENDABLE_BYTES = 45 * 1024 * 1024;
 
@@ -46,7 +53,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
 		const failures: FailureKind[] = [];
 		try {
-			const res = await btchFetch('youtube', url, YOUTUBE_TIMEOUT_MS, hasYoutubeMedia);
+			const res = await btchFetch('youtube', url, YOUTUBE_TIMEOUT_MS, hasYoutubeMedia, 'timeout');
 			const caption = buildCaption(res.title);
 			const thumbnail = res.thumbnail;
 			if (mode === 'audio' && isUrl(res.mp3))
@@ -62,7 +69,12 @@ export class YouTubeProvider implements IDownloaderProvider {
 				};
 			}
 		} catch (e) {
-			failures.push(classifyError(e)); /* fall through to AIO */
+			const kind = classifyError(e);
+			failures.push(kind);
+			// Every backend empty or too slow means the extraction is not ready yet. The AIO
+			// endpoint cannot do better (it fails for YouTube) and its "gone" error would outrank
+			// this and turn a retryable miss into "No YouTube media found".
+			if (isRetryable(kind)) return stillProcessing(kind);
 		}
 
 		try {
@@ -115,9 +127,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 		// Most-permanent-wins: if one attempt got a definitive "not found" and the other
 		// merely timed out, this is a dead link, not a slow extraction.
 		const kind = mostPermanent(failures);
-		if (isRetryable(kind)) {
-			return { status: 'error', error: 'YouTube is still processing this video', retryable: true, failureKind: kind };
-		}
+		if (isRetryable(kind)) return stillProcessing(kind);
 		return { status: 'error', error: 'No YouTube media found', failureKind: kind };
 	}
 }
