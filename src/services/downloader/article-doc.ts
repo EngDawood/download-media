@@ -67,12 +67,7 @@ export function buildEntityLookup(entityMap: unknown): Record<string, any> {
  * Apply Draft.js inline style ranges and link entities to a block's text, collapsing
  * runs of identically-formatted characters into spans.
  */
-function splitInline(
-	text: string,
-	inlineStyleRanges: any[],
-	entityRanges: any[],
-	entities: Record<string, any>,
-): Inline[] {
+function splitInline(text: string, inlineStyleRanges: any[], entityRanges: any[], entities: Record<string, any>): Inline[] {
 	if (!text) return [];
 
 	type Annotation = { bold?: boolean; italic?: boolean; href?: string };
