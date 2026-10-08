@@ -53,6 +53,9 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
+/** Skip the automatic retry when the first attempt already took longer than this. */
+const RETRY_MAX_ELAPSED_MS = 15_000;
+
 /**
  * Download media from a URL.
  * @param mode 'auto' returns video/photo, 'audio' returns audio, 'hd'/'sd' for quality
@@ -70,9 +73,13 @@ export async function downloadMedia(
 	// the extra click without any prompt-shaped noise on genuinely dead links.
 	// A `gone` classification means "this link is not extractable" — no point
 	// re-running the whole pipeline for that.
+	const startedAt = Date.now();
 	const first = await downloadOnce(url, mode, platform, env);
 	if (first.status !== 'error') return first;
 	if (first.failureKind !== 'timeout' && first.failureKind !== 'rate_limited') return first;
+	// A slow first attempt (YouTube burns 20s+ on a timeout) leaves no room for a second one
+	// inside Telegram's ~60s webhook window; the retry would only get cut off mid-flight.
+	if (Date.now() - startedAt > RETRY_MAX_ELAPSED_MS) return first;
 
 	// Short breather so we don't slam btch immediately with the same call the
 	// fleet was already struggling on.
