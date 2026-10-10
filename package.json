@@ -1,6 +1,6 @@
 {
 	"name": "download-media-bot",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"private": true,
 	"scripts": {
 		"check": "tsc --noEmit && eslint src && prettier src --check",
