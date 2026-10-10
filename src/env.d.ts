@@ -5,5 +5,6 @@ declare namespace Cloudflare {
 		TELEGRAPH_ACCESS_TOKEN: string;
 		TELEGRAM_WEBHOOK_SECRET?: string;
 		PUBLIC_API_KEY?: string;
+		GITHUB_TOKEN?: string;
 	}
 }
