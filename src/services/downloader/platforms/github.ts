@@ -1,12 +1,10 @@
+import { env } from 'cloudflare:workers';
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult } from '../../../types/downloader';
 import { DownloadError, classifyError, kindFromStatus } from '../failure';
 
 const GITHUB_API = 'https://api.github.com';
-const API_HEADERS = {
-	'User-Agent': 'download-media-bot/1.0',
-	Accept: 'application/vnd.github.v3+json',
-};
+const USER_AGENT = 'download-media-bot/1.0';
 const MAX_FILES = 50;
 const MAX_TOTAL_SIZE = 45 * 1024 * 1024; // 45 MB — under Telegram's 50 MB bot upload limit
 
@@ -98,8 +96,14 @@ interface GitHubFile {
 async function listFiles(owner: string, repo: string, path: string, ref: string, counter: [number]): Promise<GitHubFile[]> {
 	if (counter[0] <= 0) return [];
 	const url = `${GITHUB_API}/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`;
-	const resp = await fetch(url, { headers: API_HEADERS, signal: AbortSignal.timeout(10_000) });
+	// Optional token lifts the 60 req/h per-IP anonymous limit (Workers share egress IPs) to 5000/h
+	const headers: Record<string, string> = { 'User-Agent': USER_AGENT, Accept: 'application/vnd.github.v3+json' };
+	if (env.GITHUB_TOKEN) headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
+	const resp = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
 	if (resp.status === 404) throw new DownloadError(`Path not found: ${path}`, 'gone');
+	if (resp.status === 403 && resp.headers.get('x-ratelimit-remaining') === '0') {
+		throw new DownloadError('GitHub API rate limit reached', 'rate_limited');
+	}
 	if (!resp.ok) throw new DownloadError(`GitHub API error ${resp.status}`, kindFromStatus(resp.status));
 	const items = (await resp.json()) as Array<{ type: string; path: string; download_url: string | null }>;
 
@@ -121,7 +125,7 @@ async function downloadFiles(files: GitHubFile[]): Promise<{ name: string; data:
 	return Promise.all(
 		files.map(async (f) => {
 			const resp = await fetch(f.download_url, {
-				headers: { 'User-Agent': API_HEADERS['User-Agent'] },
+				headers: { 'User-Agent': USER_AGENT },
 				signal: AbortSignal.timeout(20_000),
 			});
 			if (!resp.ok) throw new DownloadError(`Failed to download ${f.path}: ${resp.status}`, kindFromStatus(resp.status));
