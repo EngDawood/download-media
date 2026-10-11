@@ -33,7 +33,10 @@
 	],*/
 	
 	"vars": {
-		"ADMIN_TELEGRAM_ID": "801062947"
+		"ADMIN_TELEGRAM_ID": "801062947",
+		// Max file size (MB) the public API / MCP may return per item. The bot
+		// keeps Telegram's hard 50 MB upload limit regardless of this value.
+		"API_MAX_FILE_MB": "150"
 	},
 	// Analytics Engine dataset for download statistics
 	"analytics_engine_datasets": [

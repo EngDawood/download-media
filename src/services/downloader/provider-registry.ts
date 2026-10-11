@@ -1,5 +1,5 @@
 import type { IDownloaderProvider } from '../../types/downloader-provider';
-import type { DownloaderMode, DownloaderResult } from '../../types/downloader';
+import type { DownloaderMode, DownloaderOptions, DownloaderResult } from '../../types/downloader';
 
 export class ProviderRegistry {
 	constructor(private readonly providers: IDownloaderProvider[]) {}
@@ -27,9 +27,9 @@ export class ProviderRegistry {
 		);
 	}
 
-	async download(url: string, mode: DownloaderMode, platformHint?: string): Promise<DownloaderResult | null> {
+	async download(url: string, mode: DownloaderMode, platformHint?: string, opts?: DownloaderOptions): Promise<DownloaderResult | null> {
 		const provider = this.findForUrl(url, platformHint);
-		return provider ? provider.download(url, mode) : null;
+		return provider ? provider.download(url, mode, opts) : null;
 	}
 
 	private hostnameOf(url: string): string {

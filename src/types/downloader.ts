@@ -8,6 +8,19 @@ import type { FailureKind } from '../services/downloader/failure';
 export type DownloaderMode = 'auto' | 'audio' | 'hd' | 'sd';
 
 /**
+ * Per-call options for the download pipeline.
+ */
+export interface DownloaderOptions {
+	/**
+	 * Largest file (bytes) a provider may pick for this call. Providers that see
+	 * several renditions prefer the best one that fits. Defaults to the Telegram
+	 * bot upload limit; the public API / MCP pass a higher ceiling because they
+	 * hand back links instead of uploading to Telegram.
+	 */
+	maxFileBytes?: number;
+}
+
+/**
  * One alternate rendition of the same video, for platforms that hand us the whole
  * ladder in the response we already make (X/Twitter). Lets the sender step down to a
  * smaller file when the best one is over Telegram's limit, and lets the user pick a

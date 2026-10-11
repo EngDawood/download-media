@@ -1,5 +1,5 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
-import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
+import type { DownloaderMode, DownloaderOptions, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
 import { classifyError, isRetryable, mostPermanent, type FailureKind } from '../failure';
 import { parseLinksSection } from '../aio-parser';
@@ -28,21 +28,25 @@ const stillProcessing = (kind: FailureKind): DownloaderResult => ({
 	failureKind: kind,
 });
 
-/** Telegram caps bot uploads at 50MB; stay under it so multipart overhead cannot tip us over. */
+/**
+ * Telegram caps bot uploads at 50MB; stay under it so multipart overhead cannot
+ * tip us over. API/MCP callers pass a higher ceiling via opts because they
+ * receive links instead of a Telegram upload.
+ */
 const MAX_SENDABLE_BYTES = 45 * 1024 * 1024;
 
 /**
- * Pick the best variant Telegram will actually accept.
- * btch lists variants best-first, but the best is routinely far over the upload
+ * Pick the best variant the caller will actually accept.
+ * btch lists variants best-first, but the best is routinely far over the caller's
  * limit when a lower one would sail through — so prefer the largest variant that
  * still fits. Variants with no reported size keep the old best-first behaviour;
  * if every known size is over the limit we take the smallest, which at least has
- * a chance of being sent.
+ * a chance of being delivered.
  */
-function pickSendableVideo(videos: MediaItem[]): MediaItem {
+function pickSendableVideo(videos: MediaItem[], maxFileBytes: number = MAX_SENDABLE_BYTES): MediaItem {
 	const sized = videos.filter((v): v is MediaItem & { filesize: number } => typeof v.filesize === 'number' && v.filesize > 0);
 	if (!sized.length) return videos[0];
-	const fitting = sized.filter((v) => v.filesize <= MAX_SENDABLE_BYTES);
+	const fitting = sized.filter((v) => v.filesize <= maxFileBytes);
 	if (fitting.length) return fitting.reduce((best, v) => (v.filesize > best.filesize ? v : best));
 	return sized.reduce((smallest, v) => (v.filesize < smallest.filesize ? v : smallest));
 }
@@ -50,7 +54,7 @@ function pickSendableVideo(videos: MediaItem[]): MediaItem {
 export class YouTubeProvider implements IDownloaderProvider {
 	readonly platforms = ['youtube.com', 'youtu.be', 'music.youtube.com'];
 
-	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
+	async download(url: string, mode: DownloaderMode, opts?: DownloaderOptions): Promise<DownloaderResult> {
 		const failures: FailureKind[] = [];
 		try {
 			const res = await btchFetch('youtube', url, YOUTUBE_TIMEOUT_MS, hasYoutubeMedia, 'timeout');
@@ -94,7 +98,14 @@ export class YouTubeProvider implements IDownloaderProvider {
 						const match = videos.find((v) => v.quality?.includes(mode));
 						if (match) return { status: 'success', media: [match], caption, title: data.title, thumbnail, mp3Url };
 					}
-					return { status: 'success', media: [pickSendableVideo(videos)], caption, title: data.title, thumbnail, mp3Url };
+					return {
+						status: 'success',
+						media: [pickSendableVideo(videos, opts?.maxFileBytes)],
+						caption,
+						title: data.title,
+						thumbnail,
+						mp3Url,
+					};
 				}
 			}
 			// btch AIO for YouTube sometimes returns { mp4, mp3, title } at the top level

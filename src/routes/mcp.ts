@@ -2,6 +2,7 @@ import { Context } from 'hono';
 import { downloadMedia, fetchFacebookInfo, fetchTikTokInfo } from '../services/media-downloader';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../types/downloader';
 import { detectMediaUrl, isBlockedDomain } from '../utils/url-detector';
+import { apiMaxFileBytes } from '../constants';
 
 /**
  * MCP (Model Context Protocol) server — exposes the downloader to AI agents.
@@ -218,7 +219,11 @@ async function callDownloadMedia(args: Record<string, unknown>, env: Env) {
 	const mode = (VALID_MODES as string[]).includes(String(args.mode)) ? (args.mode as DownloaderMode) : 'auto';
 	const format = (BODY_FORMATS as readonly string[]).includes(String(args.format)) ? (args.format as BodyFormat) : DEFAULT_BODY_FORMAT;
 
-	const result = await downloadMedia(url, mode, platform, env);
+	// MCP hands back links, not Telegram uploads, so it gets the higher ceiling
+	// (default 150 MB, tunable via the API_MAX_FILE_MB worker var).
+	const result = await downloadMedia(url, mode, platform, env, {
+		maxFileBytes: apiMaxFileBytes(env),
+	});
 	if (result.status !== 'success' || !result.media?.length) {
 		const retry = result.retryable ? ' This is transient — retrying in a few seconds may succeed.' : '';
 		return toolError(`Download failed for ${platform}: ${result.error ?? 'no media found'}.${retry}`);

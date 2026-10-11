@@ -63,4 +63,35 @@ describe('YouTubeProvider', () => {
 		expect(result.retryable).toBeFalsy();
 		expect(result.failureKind).toBe('gone');
 	});
+
+	it('picks the best variant under the caller-supplied maxFileBytes', async () => {
+		vi.stubGlobal('fetch', async (input: string) => {
+			// Primary backends fail definitively so the AIO fallback runs.
+			if (input.includes('/aio?')) {
+				return Response.json({
+					status: true,
+					data: {
+						title: 'Big video',
+						links: {
+							video: [
+								{ url: 'https://cdn.example/small.mp4', size: 10 * 1024 * 1024, q_text: '480p' },
+								{ url: 'https://cdn.example/big.mp4', size: 100 * 1024 * 1024, q_text: '1080p' },
+							],
+						},
+					},
+				});
+			}
+			return Response.json({ error: 'Video unavailable' });
+		});
+
+		// Default (bot) behaviour: stay under Telegram's upload limit.
+		const bot = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
+		expect(bot.status).toBe('success');
+		expect(bot.media?.[0].url).toBe('https://cdn.example/small.mp4');
+
+		// API/MCP callers pass a higher ceiling and get the better variant.
+		const api = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto', { maxFileBytes: 150 * 1024 * 1024 });
+		expect(api.status).toBe('success');
+		expect(api.media?.[0].url).toBe('https://cdn.example/big.mp4');
+	});
 });

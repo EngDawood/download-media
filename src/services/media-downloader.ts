@@ -1,5 +1,5 @@
 import { log } from '../utils/logger';
-import type { DownloaderMode, MediaItem, DownloaderResult } from '../types/downloader';
+import type { DownloaderMode, DownloaderOptions, MediaItem, DownloaderResult } from '../types/downloader';
 import { ProviderRegistry } from './downloader/provider-registry';
 import { tryAIO } from './downloader/aio-parser';
 import { btchFetch } from './downloader/btch-client';
@@ -21,7 +21,7 @@ import { MediaFireProvider } from './downloader/platforms/mediafire';
 import { CapCutProvider } from './downloader/platforms/capcut';
 import { SnackVideoProvider } from './downloader/platforms/snackvideo';
 
-export type { DownloaderMode, MediaItem, DownloaderResult };
+export type { DownloaderMode, DownloaderOptions, MediaItem, DownloaderResult };
 export { formatFileSize };
 
 // ─── Re-export helpers consumed by callbacks ─────────────────────────────────
@@ -61,12 +61,14 @@ const RETRY_MAX_ELAPSED_MS = 15_000;
  * @param mode 'auto' returns video/photo, 'audio' returns audio, 'hd'/'sd' for quality
  * @param platform Optional platform hint from url-detector (skips hostname re-detection)
  * @param env Cloudflare Workers env — required for Telegraph article publishing
+ * @param opts Optional per-call options (e.g. a higher maxFileBytes for API/MCP callers)
  */
 export async function downloadMedia(
 	url: string,
 	mode: DownloaderMode = 'auto',
 	platform?: string,
 	env?: { TELEGRAPH_ACCESS_TOKEN?: string },
+	opts?: DownloaderOptions,
 ): Promise<DownloaderResult> {
 	// Auto-retry once on transient failures. Users routinely tapped the Retry
 	// button after a timeout and it worked; doing that automatically removes
@@ -74,7 +76,7 @@ export async function downloadMedia(
 	// A `gone` classification means "this link is not extractable" — no point
 	// re-running the whole pipeline for that.
 	const startedAt = Date.now();
-	const first = await downloadOnce(url, mode, platform, env);
+	const first = await downloadOnce(url, mode, platform, env, opts);
 	if (first.status !== 'error') return first;
 	if (first.failureKind !== 'timeout' && first.failureKind !== 'rate_limited') return first;
 	// A slow first attempt (YouTube burns 20s+ on a timeout) leaves no room for a second one
@@ -85,7 +87,7 @@ export async function downloadMedia(
 	// fleet was already struggling on.
 	await new Promise((r) => setTimeout(r, 400));
 	log('warn', 'downloader', 'retry after transient failure', { kind: first.failureKind, url });
-	const second = await downloadOnce(url, mode, platform, env);
+	const second = await downloadOnce(url, mode, platform, env, opts);
 	return second.status === 'error' ? second : second;
 }
 
@@ -94,10 +96,11 @@ async function downloadOnce(
 	mode: DownloaderMode,
 	platform: string | undefined,
 	env: { TELEGRAPH_ACCESS_TOKEN?: string } | undefined,
+	opts?: DownloaderOptions,
 ): Promise<DownloaderResult> {
 	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '');
 	try {
-		const result = await registry.download(url, mode, platform);
+		const result = await registry.download(url, mode, platform, opts);
 		if (result) return result;
 		return await downloadAIO(url, mode);
 	} catch (err: any) {

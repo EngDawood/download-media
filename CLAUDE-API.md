@@ -196,6 +196,9 @@ Any other URL is attempted via the generic AIO fallback — it may or may not re
   some platforms, RSSHub/FxTwitter. Transient `502`s are expected when those are down.
 - **No `picker` flow.** Quality pickers are a Telegram-only UX. The API resolves a single best
   result per `mode`; it does not return interactive choices.
+- **File-size ceiling.** The API/MCP return the best variant under `API_MAX_FILE_MB`
+  (default 150MB) instead of Telegram's 50MB cap. The Worker never proxies bytes —
+  it hands back links — so this ceiling only affects which rendition is picked.
 
 ---
 
@@ -264,9 +267,10 @@ pairs** (indexing it positionally resolves the wrong entity), and `media_entitie
 `article`, not `tweet`. `telegraph-publisher.ts` still has both bugs, which is why Telegraph
 pages lose inline images and mis-assign some link URLs.
 
-> **Caveat:** for YouTube, the shared pipeline prefers the largest variant under ~45MB because of
-> Telegram's upload cap. MCP consumers have no such limit, so they may get a lower quality than the
-> best available. Changing this would affect the bot, so it is left as-is deliberately.
+> **Note:** variant picking is per-caller. The Telegram bot keeps Telegram's ~45MB
+> ceiling, while the API/MCP pass a higher `maxFileBytes` (default 150MB, tunable
+> via the `API_MAX_FILE_MB` worker var), so API/MCP consumers get the best variant
+> under that ceiling instead of the bot-sized one.
 
 ---
 
@@ -281,7 +285,7 @@ Implementation lives in:
 | `test/mcp.spec.ts` | Protocol-layer tests (handshake, auth, transport, tool dispatch) — no network. |
 | `src/index.ts` | Route wiring: `app.post('/api/download', handleApiDownload)`, `app.post('/mcp', handleMcp)`. |
 | `src/env.d.ts` | Declares the `PUBLIC_API_KEY?` secret on `Cloudflare.Env`. |
-| `src/services/media-downloader.ts` | `downloadMedia(url, mode, platform?, env)` — the shared pipeline (bot + API). |
+| `src/services/media-downloader.ts` | `downloadMedia(url, mode, platform?, env, opts?)` — the shared pipeline (bot + API). |
 | `src/utils/url-detector.ts` | `detectMediaUrl` (normalize + platform), `isBlockedDomain` (content policy). |
 
 Rules when changing the API:

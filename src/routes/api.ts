@@ -2,6 +2,7 @@ import { Context } from 'hono';
 import { downloadMedia } from '../services/media-downloader';
 import type { DownloaderMode } from '../types/downloader';
 import { detectMediaUrl, isBlockedDomain } from '../utils/url-detector';
+import { apiMaxFileBytes } from '../constants';
 
 const VALID_MODES: DownloaderMode[] = ['auto', 'audio', 'hd', 'sd'];
 
@@ -48,6 +49,10 @@ export async function handleApiDownload(c: Context) {
 	}
 
 	const platform = body.platform || detected.platform;
-	const result = await downloadMedia(detected.url, mode, platform, c.env);
+	// The API hands back links, not Telegram uploads, so it gets the higher
+	// ceiling (default 150 MB, tunable via the API_MAX_FILE_MB worker var).
+	const result = await downloadMedia(detected.url, mode, platform, c.env, {
+		maxFileBytes: apiMaxFileBytes(c.env),
+	});
 	return c.json({ ...result, platform }, result.status === 'success' ? 200 : 502);
 }

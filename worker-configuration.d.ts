@@ -10,6 +10,7 @@ declare namespace Cloudflare {
 		ANALYTICS: AnalyticsEngineDataset;
 		TELEGRAM_BOT_TOKEN: string;
 		ADMIN_TELEGRAM_ID: string;
+		API_MAX_FILE_MB: string;
 		TELEGRAPH_ACCESS_TOKEN: string;
 		PUBLIC_API_KEY: string;
 	}
@@ -19,7 +20,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "TELEGRAM_BOT_TOKEN" | "ADMIN_TELEGRAM_ID" | "TELEGRAPH_ACCESS_TOKEN" | "PUBLIC_API_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "TELEGRAM_BOT_TOKEN" | "ADMIN_TELEGRAM_ID" | "API_MAX_FILE_MB" | "TELEGRAPH_ACCESS_TOKEN" | "PUBLIC_API_KEY">> {}
 }
 
 // Begin runtime types
