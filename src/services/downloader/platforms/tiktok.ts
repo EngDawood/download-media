@@ -1,12 +1,16 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
+import { fetchTikwm, tryTikwm } from '../tikwm-client';
 import { buildCaption, isUrl, decodeTiktokDirectUrl } from '../media-helpers';
 
 export class TikTokProvider implements IDownloaderProvider {
 	readonly platforms = ['tiktok.com'];
 
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
+		const tikwm = await tryTikwm(url, mode);
+		if (tikwm) return tikwm;
+
 		try {
 			const res = await btchFetch('tiktok', url);
 			const data = res.data;
@@ -49,6 +53,14 @@ export class TikTokProvider implements IDownloaderProvider {
 	}
 
 	async fetchInfo(url: string): Promise<{ caption: string; isImagePost: boolean; audioAvailable: boolean } | null> {
+		const tikwm = await fetchTikwm(url);
+		if (tikwm) {
+			return {
+				caption: buildCaption(tikwm.title),
+				isImagePost: Array.isArray(tikwm.images) && tikwm.images.length > 0,
+				audioAvailable: isUrl(tikwm.music),
+			};
+		}
 		try {
 			const res = await btchFetch('tiktok', url);
 			const data = res.data;
