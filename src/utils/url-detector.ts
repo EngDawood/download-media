@@ -27,13 +27,26 @@ const BLOCKED_DOMAINS = new Set([
 
 const ADULT_HOSTNAME_PATTERN = /\b(porn|sex|xxx|nude|nudes|nsfw|hentai|erotic|adult|onlyfans|fap|xvideos|xnxx|xhamster|sexarab)\b/i;
 
+// Strict mode (bot only). Brand names from BLOCKED_DOMAINS without the TLD, so mirrors on other TLDs (pornhub.org) are caught.
+const BLOCKED_LABELS = new Set([...BLOCKED_DOMAINS].map((d) => d.slice(0, d.lastIndexOf('.'))));
+// Unambiguous keywords: matched anywhere in the hostname (freeporn.com, xvideos2.net).
+const ADULT_SUBSTRING_PATTERN = /porn|xxx|hentai|onlyfans|xvideos|xnxx|xhamster|sexarab/i;
+
 /**
  * Returns true if the URL's hostname is a known adult domain or contains adult content keywords.
+ * With `strict`, also matches subdomains, other-TLD mirrors and embedded keywords (freeporn.com).
  */
-export function isBlockedDomain(url: string): boolean {
+export function isBlockedDomain(url: string, strict = false): boolean {
 	try {
-		const hostname = new URL(url).hostname.replace(/^www\./, '');
-		return BLOCKED_DOMAINS.has(hostname) || ADULT_HOSTNAME_PATTERN.test(hostname);
+		const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+		if (BLOCKED_DOMAINS.has(hostname) || ADULT_HOSTNAME_PATTERN.test(hostname)) return true;
+		if (!strict) return false;
+		const labels = hostname.split('.');
+		return (
+			labels.some((_, i) => BLOCKED_DOMAINS.has(labels.slice(i).join('.'))) ||
+			labels.slice(0, -1).some((l) => BLOCKED_LABELS.has(l)) ||
+			ADULT_SUBSTRING_PATTERN.test(hostname)
+		);
 	} catch {
 		return false;
 	}

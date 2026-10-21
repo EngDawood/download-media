@@ -109,7 +109,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				return;
 			}
 
-			if (!isAdmin && isBlockedDomain(url) && !(await isDomainAllowlisted(db, url))) {
+			if (!isAdmin && isBlockedDomain(url, true) &&!(await isDomainAllowlisted(db, url))) {
 				if (userId) {
 					await setBlockedUrl(db, userId, url);
 				}
