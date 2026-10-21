@@ -34,7 +34,36 @@ const ADULT_SUBSTRING_PATTERN = /porn|xxx|hentai|onlyfans|xvideos|xnxx|xhamster|
 
 // Strict mode path/query: whole tokens only (split on non-alphanumerics), so random IDs like YouTube's rarely match.
 // "adult" and "fap" are left out here: too ambiguous in paths ("adult-education").
-const ADULT_PATH_WORDS = new Set(['porn', 'porno', 'sex', 'xxx', 'nude', 'nudes', 'nsfw', 'hentai', 'erotic', 'onlyfans']);
+const ADULT_PATH_WORDS = new Set([
+	'porn',
+	'porno',
+	'sex',
+	'xxx',
+	'nude',
+	'nudes',
+	'nsfw',
+	'hentai',
+	'erotic',
+	'onlyfans',
+	'blowjob',
+	'handjob',
+	'fuck',
+	'fucks',
+	'fucked',
+	'fucking',
+	'cumshot',
+	'creampie',
+	'pussy',
+	'milf',
+	'boobs',
+	'orgasm',
+	'masturbation',
+	'masturbating',
+	'threesome',
+	'gangbang',
+	'deepthroat',
+	'bdsm',
+]);
 
 function safeDecode(s: string): string {
 	try {

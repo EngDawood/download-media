@@ -32,6 +32,7 @@ function extractInstagramProfileUsername(url: string): string | null {
 export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): void {
 	const adminId = parseInt(env.ADMIN_TELEGRAM_ID, 10);
 	const telegraphToken = env.TELEGRAPH_ACCESS_TOKEN;
+	const openaiApiKey = env.OPENAI_API_KEY;
 
 	bot.on('message:text', async (ctx) => {
 		const text = ctx.message.text;
@@ -147,6 +148,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 					username,
 					locale,
 					telegraphToken,
+					openaiApiKey,
 				});
 				return;
 			}
@@ -167,6 +169,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 						locale,
 						mediaType: directMediaType,
 						telegraphToken,
+						openaiApiKey,
 					});
 					return;
 				}
@@ -181,6 +184,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 					username,
 					locale,
 					telegraphToken,
+					openaiApiKey,
 				});
 				return;
 			}

@@ -12,6 +12,7 @@ import { getConfig } from '../../../utils/db';
 import { t, DEFAULT_LOCALE, type Locale } from '../../../i18n';
 import { KV_KEY_INSTAGRAM_FOOTER, DEFAULT_INSTAGRAM_FOOTER } from '../../../constants';
 import { log } from '../../../utils/logger';
+import { isSexualResult } from '../../moderation';
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -82,6 +83,8 @@ export async function downloadAndSendMedia(
 		locale?: Locale;
 		originalUrl?: string;
 		telegraphToken?: string;
+		/** Enables the OpenAI moderation check on guest downloads. Omit to skip it. */
+		openaiApiKey?: string;
 	},
 ): Promise<void> {
 	const userType = options?.guestMode ? 'guest' : 'admin';
@@ -246,9 +249,11 @@ export async function downloadAndSendMedia(
 			return;
 		}
 
-		// Guests never get posts the source flagged sensitive. No adminId counts as a guest too:
-		// the admin's report retries send to the reporting user's chat without one.
-		if (result.sensitive && (options?.guestMode || options?.adminId === undefined)) {
+		// Guests never get posts the source flagged sensitive, or whose caption/thumbnail OpenAI flags as sexual.
+		// No adminId counts as a guest too: the admin's report retries send to the reporting user's chat without one.
+		// The OpenAI check runs for real guest sessions only, so those retries are not re-moderated.
+		const isGuest = options?.guestMode || options?.adminId === undefined;
+		if (isGuest && (result.sensitive || (options?.guestMode && (await isSexualResult(options.openaiApiKey, result))))) {
 			await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.sensitive_blocked')).catch(() => {});
 			return;
 		}
