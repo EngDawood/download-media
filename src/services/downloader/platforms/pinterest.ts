@@ -3,17 +3,10 @@ import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types
 import { log } from '../../../utils/logger';
 import { btchFetch } from '../btch-client';
 import { tryAIO } from '../aio-parser';
-import { buildCaption, isUrl } from '../media-helpers';
-
-// Pinterest serves the full pin page (with og tags and media URLs) to a normal desktop UA.
-const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
+import { BROWSER_UA, buildCaption, isUrl, metaContent } from '../media-helpers';
 
 const VIDEO_URL_RE = /https:\/\/v1\.pinimg\.com\/videos\/[^"'\\\s<>]+\.mp4/g;
 const HLS_URL_RE = /v1\.pinimg\.com\/videos\/[^"'\\\s<>]+\.m3u8/;
-
-function metaContent(html: string, property: string): string | undefined {
-	return html.match(new RegExp(`<meta[^>]*content="([^"]+)"[^>]*property="${property}"`))?.[1];
-}
 
 /**
  * The og:image is a resized .jpg (`/736x/aa/bb/cc/<hash>.jpg`). The page also holds the full-size

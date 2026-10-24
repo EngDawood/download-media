@@ -62,6 +62,18 @@ export function detectMediaType(url: string): 'photo' | 'video' | 'document' {
 	return 'video';
 }
 
+/** Desktop Chrome UA — the platforms whose pages we read directly serve their full markup to it. */
+export const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
+
+/** Raw `content` of an `<meta property|name="...">` tag, in either attribute order. Not entity-decoded. */
+export function metaContent(html: string, property: string): string | undefined {
+	const key = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return (
+		html.match(new RegExp(`<meta[^>]*(?:property|name)="${key}"[^>]*content="([^"]*)"`))?.[1] ??
+		html.match(new RegExp(`<meta[^>]*content="([^"]*)"[^>]*(?:property|name)="${key}"`))?.[1]
+	);
+}
+
 /** Build a caption string from title. Strips Facebook engagement metadata (e.g. "404K views · 8.7K reactions | ") if present. */
 export function buildCaption(title?: string): string {
 	if (!title) return '';
