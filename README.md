@@ -231,3 +231,5 @@ pnpm check
 ## 📜 License
 
 Released under the [MIT License](LICENSE).
+
+Built by [Eng. Dawood Saleh](https://engdawood.com).
