@@ -31,39 +31,10 @@ Stick to these habits to stay aligned with Codex repository expectations.
 - Respect docs-writer standards for every Markdown edit and keep line length at
   80 characters.
 
-## Project snapshot
+## Project
 
-`download-media` is a Cloudflare Worker Telegram bot built with Hono and grammY.
-`src/index.ts` wires `GET /health`, `GET /setup`, and `POST /telegram`. The bot
-routes live under `src/services/telegram-bot` and the btch-powered downloader
-lives in `src/services/media-downloader.ts`. Supported platforms: TikTok,
-Instagram, Twitter/X, YouTube, Facebook, Threads, SoundCloud, Spotify, and
-Pinterest.
-
-## Commands
-
-Reference this table whenever you need to run local or deployment workflows.
-
-| Command | Purpose |
-| ------- | ------- |
-| `npx wrangler dev` | Local development |
-| `npx wrangler deploy` | Deploy to Cloudflare |
-| `npx wrangler types` | Regenerate `worker-configuration.d.ts` |
-| `npm run dev` | Starts Wrangler dev server via package script |
-| `npm test` | Run Vitest suite |
-
-Run `npx wrangler types` after any change to `wrangler.jsonc` bindings so the
-typings stay synchronized.
-
-## Configuration and secrets
-
-Keep these values aligned across Wrangler, local dev, and production.
-
-- Wrangler vars: `ADMIN_TELEGRAM_ID`.
-- Secrets: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` (set with
-  `npx wrangler secret put`).
-- KV namespace: `DOWNLOAD_CACHE` (state + cache for download flows).
-- Local dev: populate `.dev.vars` with the same keys before running tests.
+See `CLAUDE.md` for the project overview, conventions and pointers.
+Commands live in `package.json`; bindings and secrets in `wrangler.jsonc`.
 
 ## Error references
 
