@@ -13,6 +13,10 @@ This project uses a structured memory bank system with specialized context files
 
 **Important:** Always reference the active context file first to understand what's currently being worked on and maintain session continuity.
 
+### Engineering Skills Config
+
+Matt Pocock's engineering skills (installed via `npx skills@latest add mattpocock/skills`, set up with `/setup-matt-pocock-skills`) read their per-repo config from the `## Agent skills` block in `CLAUDE.md` and from `docs/agents/*.md` (issue tracker, domain docs). Edit those files directly to change the setup.
+
 ### Memory Bank Backups
 
 When asked to backup Memory Bank System files, copy the core context files above and the `.claude/` settings directory to the requested backup directory. Overwrite if files already exist there.

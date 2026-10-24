@@ -112,3 +112,11 @@ telegram-bot/
 **Decision:** Add `GET /setup` route handled by `src/routes/setup.ts` that calls `setMyCommands()` and `setChatMenuButton()`. Idempotent — can be called multiple times safely.
 
 **Commands registered:** `/start`, `/help`, `/cancel`
+
+## 2026-10-24: Adopt Matt Pocock's engineering skills
+
+**Context:** Wanted a standard issue-tracker and domain-docs convention for the engineering skills.
+
+**Decision:** Installed `setup-matt-pocock-skills` into `.claude/skills/` (tracked in `skills-lock.json`) and ran its setup. Issue tracker is GitHub Issues. Domain docs are single-context (`GLOSSARY.md` + `docs/adr/` at root, created lazily). Triage labels skipped because the `triage` skill is not installed.
+
+**Config lives in:** the `## Agent skills` block in `CLAUDE.md`, `docs/agents/issue-tracker.md`, `docs/agents/domain.md`.

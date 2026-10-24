@@ -161,3 +161,13 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 2. YouTube/TikTok/Facebook → show quality picker, store state in KV
 3. Other platforms → call `downloadAndSendMedia` directly
 4. Callback (`dl:*`) → read state from KV → download → send to chat
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `EngDawood/download-media` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, both created lazily. See `docs/agents/domain.md`.
