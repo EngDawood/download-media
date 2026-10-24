@@ -92,7 +92,9 @@ export function isBlockedDomain(url: string, strict = false): boolean {
 		) {
 			return true;
 		}
-		const tokens = safeDecode(parsed.pathname + parsed.search).toLowerCase().split(/[^a-z0-9]+/);
+		const tokens = safeDecode(parsed.pathname + parsed.search)
+			.toLowerCase()
+			.split(/[^a-z0-9]+/);
 		return tokens.some((w) => ADULT_PATH_WORDS.has(w) || BLOCKED_LABELS.has(w));
 	} catch {
 		return false;
@@ -277,6 +279,7 @@ const KNOWN_PLATFORMS = new Set([
 	'MediaFire',
 	'CapCut',
 	'SnackVideo',
+	'Internet Archive',
 ]);
 
 export function isGenericPlatform(platform: string): boolean {
@@ -361,6 +364,11 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	{
 		platform: 'SnackVideo',
 		pattern: /https?:\/\/(?:(?:www|s)\.)?snackvideo\.com\/\S+/i,
+	},
+	// Internet Archive: item pages and the download/stream URLs that point at one of its files
+	{
+		platform: 'Internet Archive',
+		pattern: /https?:\/\/(?:www\.)?archive\.org\/(?:details|download|stream|embed)\/\S+/i,
 	},
 	// Google Drive / Docs: share links (/file/d/, /open?id=, /uc?id=), Workspace editor
 	// URLs on docs.google.com, and already-direct drive.usercontent.google.com downloads.

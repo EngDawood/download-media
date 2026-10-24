@@ -36,7 +36,7 @@ export const ar: Translations = {
 	'start.guest.body':
 		'<b>بوت تحميل الوسائط</b>\n\n' +
 		'أرسل رابط من أي منصة مدعومة وسأحمّل الوسائط لك.\n\n' +
-		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo\n' +
+		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive\n' +
 		'\n📸 استخدم /story لتحميل قصص Instagram باسم المستخدم.\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} تحميلات مجانية</b> — ثم انضم إلى {channel} للمتابعة.\n',
 	'start.guest.help_hint': '\n/help — مزيد من المعلومات',
@@ -123,6 +123,7 @@ export const ar: Translations = {
 	'download.downgraded': '⚠️ حجم {best} كان {size} — أكبر من حد تيليجرام (50 ميجابايت)، لذلك تم إرسال {picked} بدلاً منها.',
 	'download.btn_mp3': '🎵 استخراج الصوت',
 	'download.btn_pdf': '📄 الحصول على PDF',
+	'download.btn_epub': '📖 الحصول على EPUB',
 	'download.btn_other_quality': '🎚 جودة أخرى',
 	'download.btn_retry': '🔄 إعادة محاولة التحميل',
 	'download.btn_report_admin': '📬 الإبلاغ عن مشكلة',

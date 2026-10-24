@@ -70,6 +70,7 @@ const SUPPORTED_PLATFORMS = [
 	'MediaFire',
 	'CapCut',
 	'SnackVideo',
+	'Internet Archive',
 ];
 
 /**
