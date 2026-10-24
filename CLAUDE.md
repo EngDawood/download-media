@@ -40,7 +40,7 @@ src/
 │   ├── downloader/
 │   │   ├── btch-client.ts          # btchFetch (4-server failover) + isBtchLimitError
 │   │   ├── aio-parser.ts           # tryAIO, parseAioGallery, parseLinksSection
-│   │   ├── media-helpers.ts        # isUrl, detectMediaType, detectTypeFromJwtUrl, buildCaption, formatFileSize, decodeTiktokDirectUrl
+│   │   ├── media-helpers.ts        # isUrl, detectMediaType, detectTypeFromJwtUrl, buildCaption, formatFileSize, decodeTiktokDirectUrl, BROWSER_UA, metaContent
 │   │   ├── provider-registry.ts    # ProviderRegistry class (findForUrl, download)
 │   │   └── platforms/
 │   │       ├── tiktok.ts           # TikTokProvider (+ fetchInfo for picker UI)
@@ -51,13 +51,14 @@ src/
 │   │       ├── threads.ts          # ThreadsProvider
 │   │       ├── soundcloud.ts       # SoundCloudProvider
 │   │       ├── spotify.ts          # SpotifyProvider
-│   │       ├── pinterest.ts        # PinterestProvider
+│   │       ├── pinterest.ts        # PinterestProvider (direct pin-page parse → AIO → btch)
 │   │       ├── douyin.ts           # DouyinProvider
 │   │       ├── github.ts           # GitHubProvider (folder → in-memory zip)
 │   │       ├── google-drive.ts     # GoogleDriveProvider (share link → direct download; Docs/Slides/Sheets → docx/pptx/xlsx export)
 │   │       ├── mediafire.ts        # MediaFireProvider (arbitrary file host; type derived from mimetype)
-│   │       ├── capcut.ts           # CapCutProvider (template shares)
-│   │       └── snackvideo.ts       # SnackVideoProvider
+│   │       ├── capcut.ts           # CapCutProvider (template shares; og:video:url direct → btch)
+│   │       ├── snackvideo.ts       # SnackVideoProvider (page contentUrl direct → btch → AIO)
+│   │       └── internet-archive.ts # InternetArchiveProvider (metadata API → PDF; EPUB as alt button)
 │   └── telegram-bot/
 │       ├── bot-factory.ts          # Bot creation, admin middleware, handler registration
 │       ├── commands/
@@ -87,13 +88,18 @@ The downloader uses a **Provider Registry + Strategy Pattern**. `media-downloade
 **Key modules:**
 - `btch-client.ts` — all HTTP calls to the btch API go through here. Handles 4-server failover, timeouts, limit/maintenance detection. Never call `fetch` against btch servers directly.
 - `aio-parser.ts` — `tryAIO` is the shared fallback used by most platforms. `parseAioGallery` and `parseLinksSection` are the extracted helpers that eliminate duplicated response-parsing logic.
-- `media-helpers.ts` — pure utility functions (no side effects, fully unit-tested).
+- `media-helpers.ts` — pure utility functions (no side effects, fully unit-tested). Also holds `BROWSER_UA` and `metaContent` (reads an `<meta property|name>` tag in either attribute order) for providers that read a page directly.
 - `IDownloaderProvider` — each platform implements `download(url, mode)` and optionally `fetchInfo(url)` for picker UIs (TikTok, Facebook).
 
 **Fallback pattern used by most platforms:**
 ```
 try AIO (richer data, caption, gallery) → fallback to platform-specific btch endpoint → error
 ```
+**Direct-first platforms:** where the share page itself carries the media URL, the provider fetches it with `BROWSER_UA` and parses it before touching btch/AIO, returning `null` on any miss so the fallbacks run. Verified this way: Pinterest, CapCut, SnackVideo. Checked and not viable (empty JS shell, login wall or blocked): Instagram, Threads, YouTube, Facebook. TikTok's page works but its mp4 needs the page's cookies, so Telegram cannot fetch it by URL (the Worker would have to download the bytes).
+* **Pinterest** — video `.mp4` via regex over the page (`v1.pinimg.com/videos/...mp4`, 720p preferred); photo is the `/originals/` URL matching the og:image hash. Pinterest sometimes serves a video pin's page with only the `.m3u8`, so a page with HLS but no mp4 is refetched (3 attempts) and never sent as its thumbnail. A dead pin redirects to the homepage, which counts as a miss.
+* **CapCut** — `og:video:url`; an empty `og:title` means a removed template (placeholder video) and counts as a miss.
+* **SnackVideo** — the page's `contentUrl` (VideoObject), else the first `video-0` player; the page also lists other videos' mp4s.
+
 Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter endpoint`. FxTwitter is used first because it returns full tweet text, per-video thumbnails, and properly separated `videos[]`/`photos[]` arrays. See `docs/FxEmbed-API.md`.
 
 ## Conventions
@@ -131,7 +137,7 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 
 ## Bot behaviour
 
-**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive, MediaFire, CapCut, SnackVideo
+**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive, MediaFire, CapCut, SnackVideo, Internet Archive
 
 **Platform-specific UX:**
 * **YouTube** — fetches quality list, shows picker (up to 4 + Audio button)
@@ -139,6 +145,8 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 * **Facebook** — shows HD/SD picker if multiple qualities available
 * **Instagram Stories** — fetched via RSSHub/picnob.info; sent in media groups of 4. `/story` command available to all users (accepts `@username`, plain username, or URL). Optional custom footer via `/footer` (admin).
 * **SoundCloud / Spotify** — audio auto-download
+* **Internet Archive** — `archive.org/details|download|stream|embed/<id>` resolved through `archive.org/metadata/<id>`; sends the PDF (EPUB if there is none) with the other as a `dl:alt` button (`download.btn_epub`). Direct `ia*.us.archive.org/<n>/items/<id>/<file>` links pass through as-is; borrow-only items return an `unsupported` error. Large PDFs follow the usual >20MB/>50MB paths in `send-media.ts`.
+* **MediaFire** — files flagged by VirusTotal sit behind a "Download Anyway" malware advisory; do not automate past it.
 * **All others** — auto-download best quality
 
 **Guest mode:** Non-admin users can send supported URLs and receive auto-downloads (no quality pickers, no KV state). SoundCloud/Spotify force `audio` mode; all others use `auto`. Pickers (YouTube, TikTok, Facebook) are admin-only.
