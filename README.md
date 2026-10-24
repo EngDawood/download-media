@@ -1,8 +1,6 @@
 # Download Media Bot
 
 [![Code Quality](https://github.com/EngDawood/download-media/actions/workflows/code-quality.yml/badge.svg)](https://github.com/EngDawood/download-media/actions/workflows/code-quality.yml)
-[![CodeQL](https://github.com/EngDawood/download-media/actions/workflows/codeql.yml/badge.svg)](https://github.com/EngDawood/download-media/actions/workflows/codeql.yml)
-[![Commit Validator](https://github.com/EngDawood/download-media/actions/workflows/commitlint.yml/badge.svg)](https://github.com/EngDawood/download-media/actions/workflows/commitlint.yml)
 [![Release](https://github.com/EngDawood/download-media/actions/workflows/release-please.yml/badge.svg)](https://github.com/EngDawood/download-media/actions/workflows/release-please.yml)
 
 A high-performance, multi-platform media downloader Telegram bot built with **Hono**, **grammY**, and **Cloudflare Workers**. This bot allows users to download videos, photos, and audio from popular social media platforms directly within Telegram.
@@ -20,12 +18,19 @@ A high-performance, multi-platform media downloader Telegram bot built with **Ho
   - **Spotify**: Audio previews and track downloads.
   - **Pinterest**: Videos and high-resolution images.
   - **GitHub**: Repository archives, folders, and single raw files.
+  - **Douyin**: Videos.
+  - **Google Drive**: Shared files, plus Docs, Slides, and Sheets exported as DOCX, PPTX, and XLSX.
+  - **MediaFire**: Any file behind a share link.
+  - **CapCut**: Template share videos.
+  - **SnackVideo**: Videos.
+  - **Internet Archive**: Books as PDF, with EPUB as an alternative button.
 - **Fast & Reliable**: Powered by Cloudflare's global network for low-latency responses.
 - **Quality Options**: Integrated quality picker for platforms like YouTube and Facebook.
 - **Long-form Content**: X Articles and self-reply threads are published to Telegraph for reading in Telegram, and returned in full as Markdown over the API/MCP.
 - **API & MCP Server**: The same downloader is exposed as a REST endpoint and as an MCP server for AI agents. See [API & MCP Server](#-api--mcp-server).
-- **Auto-Setup**: Automated webhook and bot configuration on deployment.
-- **Analytics**: Built-in download statistics and per-user tracking via Cloudflare KV.
+- **Auto-Setup**: Bot commands and the menu button register themselves on the first webhook request.
+- **Analytics**: Download statistics and per-user tracking in Cloudflare D1, plus Analytics Engine metrics.
+- **Access Control**: Optional channel-subscription gate after a number of free downloads, user blocking, and adult-domain blocking with an admin allowlist.
 - **Multi-language Support**: Automatically detects and uses the user's language (English / Arabic).
 
 ## 🛠️ Tech Stack
@@ -33,7 +38,7 @@ A high-performance, multi-platform media downloader Telegram bot built with **Ho
 - **[Hono](https://hono.dev/)**: Lightweight web framework for the Cloudflare Worker.
 - **[grammY](https://grammy.dev/)**: Powerful and easy-to-use Telegram bot framework.
 - **[Cloudflare Workers](https://workers.cloudflare.com/)**: Serverless execution platform.
-- **[Cloudflare KV](https://www.cloudflare.com/products/workers-kv/)**: Persistent storage for caching and state management.
+- **[Cloudflare D1](https://developers.cloudflare.com/d1/)**: SQL storage for stats, user state, and settings.
 - **[Cloudflare Analytics Engine](https://developers.cloudflare.com/analytics/analytics-engine/)**: For real-time download metrics.
 
 ## 📋 Prerequisites
@@ -54,6 +59,8 @@ Set these using `wrangler secret put`:
 
 - `TELEGRAM_BOT_TOKEN`: Your Telegram bot token from @BotFather.
 - `TELEGRAM_WEBHOOK_SECRET`: A random string used to secure your webhook endpoint.
+- `TELEGRAPH_ACCESS_TOKEN`: Telegraph account token, used to publish X Articles and threads.
+- `GITHUB_TOKEN` *(optional)*: Raises the GitHub rate limit for folder downloads.
 - `PUBLIC_API_KEY` *(optional)*: Enables `POST /api/download` and the MCP server. **Both stay disabled (`503`) while this is unset** — leave it out if you only want the Telegram bot.
 
 ## 🚀 Installation & Deployment
@@ -69,22 +76,37 @@ Set these using `wrangler secret put`:
     pnpm install
     ```
 
-3.  **Configure `wrangler.jsonc`**:
-    Update the `ADMIN_TELEGRAM_ID` in `wrangler.jsonc`.
+3.  **Create the D1 database**:
+    ```bash
+    pnpm exec wrangler d1 create download-media-bot-db
+    ```
+    Copy the returned `database_id` into the `d1_databases` entry in `wrangler.jsonc`, and set `ADMIN_TELEGRAM_ID` there too.
 
-4.  **Set Secrets**:
+4.  **Apply the migrations**:
+    ```bash
+    pnpm exec wrangler d1 migrations apply download-media-bot-db --remote
+    ```
+
+5.  **Set Secrets**:
     ```bash
     pnpm exec wrangler secret put TELEGRAM_BOT_TOKEN
     pnpm exec wrangler secret put TELEGRAM_WEBHOOK_SECRET
+    pnpm exec wrangler secret put TELEGRAPH_ACCESS_TOKEN
     ```
 
-5.  **Deploy to Cloudflare**:
+6.  **Deploy to Cloudflare**:
     ```bash
     pnpm deploy
     ```
 
-6.  **Setup Webhook**:
-    After deployment, visit `https://your-worker-url/setup` to finalize the bot configuration.
+7.  **Register the Telegram webhook**. The Worker verifies the secret on every update, so use the same value as `TELEGRAM_WEBHOOK_SECRET` (letters, digits, `_` and `-` only):
+    ```bash
+    curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+      -d "url=https://your-worker-url/telegram" \
+      -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+    ```
+
+The bot registers its commands on the first update it receives. Visit `https://your-worker-url/setup` to run that step again and get a deploy message in the admin chat.
 
 ## 📖 Usage
 
@@ -186,13 +208,26 @@ Run the test suite using Vitest:
 pnpm test
 ```
 
+Run lint, type-check, and format checks (the same ones CI runs):
+
+```bash
+pnpm check
+```
+
+## 📚 Documentation
+
+- [`GLOSSARY.md`](GLOSSARY.md): the project's domain terms.
+- [`docs/adr/`](docs/adr): architecture decisions.
+- [`docs/downloader.md`](docs/downloader.md): how platform providers and fallbacks work.
+- [`docs/troubleshooting.md`](docs/troubleshooting.md): known failures and how to check them.
+- [`CLAUDE-API.md`](CLAUDE-API.md): the public API and MCP reference.
+
 ## 🙏 Acknowledgments
 
-- [btch-downloader](https://github.com/hostinger-bot/btch-downloader/) - ALL-In-One FREE for for downloading media from multiple platforms see [api-reference](https://backend1.tioo.eu.org/docs/api-reference).
+- [btch-downloader](https://github.com/hostinger-bot/btch-downloader/) - ALL-In-One FREE for downloading media from multiple platforms see [api-reference](https://backend1.tioo.eu.org/docs/api-reference).
 - [FxEmbed](https://github.com/FxEmbed/FxEmbed) - X (Twitter) media downloader and embed generator with a public API.
-- 
 - [Facebook-Video-Download-API](https://github.com/sh13y/Facebook-Video-Download-API) - API and web interface for downloading Facebook videos with audio support ⚔️
 
 ## 📜 License
 
-This project is private. See [LICENSE](LICENSE) for details (if applicable).
+This project is private.
