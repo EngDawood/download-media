@@ -20,6 +20,7 @@ import { GoogleDriveProvider } from './downloader/platforms/google-drive';
 import { MediaFireProvider } from './downloader/platforms/mediafire';
 import { CapCutProvider } from './downloader/platforms/capcut';
 import { SnackVideoProvider } from './downloader/platforms/snackvideo';
+import { InternetArchiveProvider } from './downloader/platforms/internet-archive';
 
 export type { DownloaderMode, MediaItem, DownloaderResult };
 export { formatFileSize };
@@ -48,6 +49,7 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 		new MediaFireProvider(),
 		new CapCutProvider(),
 		new SnackVideoProvider(),
+		new InternetArchiveProvider(),
 	]);
 }
 

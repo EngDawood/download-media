@@ -384,14 +384,18 @@ export async function downloadAndSendMedia(
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: keyboard });
 				} else if (result.altFormat && options?.db) {
 					// Google Docs/Slides arrive as .docx/.pptx so the original stays editable;
-					// this offers the PDF for anyone who just wanted to read it. Stored under the
-					// sender's own id so guests get the button too.
+					// this offers the PDF for anyone who just wanted to read it. Internet Archive
+					// books arrive as PDF and offer the EPUB. Stored under the sender's own id so
+					// guests get the button too.
 					await setAdminState(options.db, options.adminId || userId, {
 						action: 'downloading_media',
 						context: { downloadUrl: url, downloadPlatform: platform, altFormat: result.altFormat },
 					});
-					const pdfKeyboard = new InlineKeyboard().text(t(locale, 'download.btn_pdf'), 'dl:alt');
-					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: pdfKeyboard });
+					const altKeyboard = new InlineKeyboard().text(
+						t(locale, result.altFormat.label === 'epub' ? 'download.btn_epub' : 'download.btn_pdf'),
+						'dl:alt',
+					);
+					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: altKeyboard });
 				} else if (result.mp3Url && options?.db && (platform === 'YouTube' || platform === 'TikTok')) {
 					const mp3Keyboard = new InlineKeyboard().text(t(locale, 'download.btn_mp3'), 'dl:yt:mp3');
 					await setAdminState(options.db, options.adminId || userId, {
