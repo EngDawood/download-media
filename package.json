@@ -2,6 +2,7 @@
 	"name": "download-media-bot",
 	"version": "1.0.0",
 	"private": true,
+	"license": "MIT",
 	"scripts": {
 		"check": "tsc --noEmit && eslint src && prettier src --check",
 		"fix": "eslint src --fix && prettier src --write",

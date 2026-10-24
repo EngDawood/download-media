@@ -230,4 +230,4 @@ pnpm check
 
 ## 📜 License
 
-This project is private.
+Released under the [MIT License](LICENSE).
