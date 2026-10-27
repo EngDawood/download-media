@@ -6,6 +6,7 @@
 		"check": "tsc --noEmit && eslint src && prettier src --check",
 		"fix": "eslint src --fix && prettier src --write",
 		"deploy": "wrangler deploy",
+		"deploy:bot": "wrangler deploy -c wrangler.bot.jsonc",
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"test": "vitest",
