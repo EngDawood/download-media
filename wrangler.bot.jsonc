@@ -3,7 +3,7 @@
 	// Same code as wrangler.jsonc; the engdawood Worker keeps serving the API and MCP.
 	// Deploy with: pnpm deploy:bot (wrangler deploy -c wrangler.bot.jsonc)
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "download-media-tg-bot",
+	"name": "download-media",
 	"main": "src/index.ts",
 	"build": {
 		"command": "node scripts/gen-deploy-id.cjs"
