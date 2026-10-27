@@ -30,12 +30,15 @@
 	"vars": {
 		"ADMIN_TELEGRAM_ID": "801062947"
 	},
-	"analytics_engine_datasets": [
-		{
-			"binding": "ANALYTICS",
-			"dataset": "ANALYTICS"
-		}
-	],
+	// Disabled: deploy failed with error 10089 ("You need to enable Analytics Engine") on the
+	// dawood account even after enabling it. trackEvent() skips when the binding is absent.
+	// Uncomment once the account accepts it.
+	// "analytics_engine_datasets": [
+	// 	{
+	// 		"binding": "ANALYTICS",
+	// 		"dataset": "ANALYTICS"
+	// 	}
+	// ],
 	// D1 is per account. Create it in dawood (wrangler d1 create download-media-bot-db),
 	// paste the printed id below, then import the dump.
 	"d1_databases": [
