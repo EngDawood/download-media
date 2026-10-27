@@ -30,6 +30,7 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 **Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive, MediaFire, CapCut, SnackVideo, Internet Archive
 
 **Platform-specific UX:**
+* **GitHub**: public repos, folders and files need no token. With the `GITHUB_TOKEN` secret set, the bot uses it for every user (higher rate limits) except for repos owned by an account in `GITHUB_PRIVATE_OWNERS` (`wrangler.bot.jsonc`), which only the admin reads, so those private repos (whole-repo zip, `/tree/` folder, `/blob/` file) download for the admin and fail for everyone else. With `GITHUB_PRIVATE_OWNERS` empty the token is admin-only. The token never reaches the API or MCP endpoints. Use a fine-grained token with `Contents: Read-only`. Code: `github-private.ts`, `GitHubProvider`.
 * **YouTube**: fetches quality list, shows picker (up to 4 + Audio button)
 * **TikTok**: slideshows auto-download; videos show Video/Audio picker
 * **Facebook**: shows HD/SD picker if multiple qualities available

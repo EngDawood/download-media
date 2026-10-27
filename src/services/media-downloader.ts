@@ -15,6 +15,7 @@ import { SoundCloudProvider } from './downloader/platforms/soundcloud';
 import { SpotifyProvider } from './downloader/platforms/spotify';
 import { PinterestProvider } from './downloader/platforms/pinterest';
 import { GitHubProvider } from './downloader/platforms/github';
+import type { GithubAuth } from './downloader/github-private';
 import { DouyinProvider } from './downloader/platforms/douyin';
 import { GoogleDriveProvider } from './downloader/platforms/google-drive';
 import { MediaFireProvider } from './downloader/platforms/mediafire';
@@ -32,7 +33,7 @@ export { isUrl, detectMediaType, detectTypeFromJwtUrl, buildCaption, decodeTikto
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
-function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
+function buildRegistry(telegraphAccessToken: string, githubAuth?: GithubAuth): ProviderRegistry {
 	return new ProviderRegistry([
 		new TikTokProvider(),
 		new InstagramProvider(),
@@ -43,7 +44,7 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 		new SoundCloudProvider(),
 		new SpotifyProvider(),
 		new PinterestProvider(),
-		new GitHubProvider(),
+		new GitHubProvider(githubAuth),
 		new DouyinProvider(),
 		new GoogleDriveProvider(),
 		new MediaFireProvider(),
@@ -55,6 +56,9 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
+/** `githubAuth` is built per request by the bot. API and MCP pass their whole Worker env here, so it must not share a name with a secret. */
+type DownloadEnv = { TELEGRAPH_ACCESS_TOKEN?: string; githubAuth?: GithubAuth };
+
 /** Skip the automatic retry when the first attempt already took longer than this. */
 const RETRY_MAX_ELAPSED_MS = 15_000;
 
@@ -62,13 +66,13 @@ const RETRY_MAX_ELAPSED_MS = 15_000;
  * Download media from a URL.
  * @param mode 'auto' returns video/photo, 'audio' returns audio, 'hd'/'sd' for quality
  * @param platform Optional platform hint from url-detector (skips hostname re-detection)
- * @param env Cloudflare Workers env — required for Telegraph article publishing
+ * @param env Telegraph token for article publishing. `githubAuth` carries the GitHub token and who may use it.
  */
 export async function downloadMedia(
 	url: string,
 	mode: DownloaderMode = 'auto',
 	platform?: string,
-	env?: { TELEGRAPH_ACCESS_TOKEN?: string },
+	env?: DownloadEnv,
 ): Promise<DownloaderResult> {
 	// Auto-retry once on transient failures. Users routinely tapped the Retry
 	// button after a timeout and it worked; doing that automatically removes
@@ -95,9 +99,9 @@ async function downloadOnce(
 	url: string,
 	mode: DownloaderMode,
 	platform: string | undefined,
-	env: { TELEGRAPH_ACCESS_TOKEN?: string } | undefined,
+	env: DownloadEnv | undefined,
 ): Promise<DownloaderResult> {
-	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '');
+	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '', env?.githubAuth);
 	try {
 		const result = await registry.download(url, mode, platform);
 		if (result) return result;

@@ -28,7 +28,9 @@
 		}
 	},
 	"vars": {
-		"ADMIN_TELEGRAM_ID": "801062947"
+		"ADMIN_TELEGRAM_ID": "801062947",
+		// GITHUB_TOKEN serves every user except for repos owned by these accounts, which only the admin reads.
+		"GITHUB_PRIVATE_OWNERS": "EngDawood"
 	},
 	"analytics_engine_datasets": [
 		{
@@ -51,5 +53,6 @@
 	// - TELEGRAM_BOT_TOKEN
 	// - TELEGRAM_WEBHOOK_SECRET
 	// - TELEGRAPH_ACCESS_TOKEN
+	// - GITHUB_TOKEN (optional; fine-grained with Contents: Read-only; see GITHUB_PRIVATE_OWNERS above)
 	// Leave PUBLIC_API_KEY unset: POST /api/download and POST /mcp stay disabled on this Worker.
 }

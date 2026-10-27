@@ -6,6 +6,8 @@ declare namespace Cloudflare {
 		TELEGRAM_WEBHOOK_SECRET?: string;
 		PUBLIC_API_KEY?: string;
 		GITHUB_TOKEN?: string;
+		/** Comma separated GitHub owners whose repos only the admin may read with GITHUB_TOKEN. */
+		GITHUB_PRIVATE_OWNERS?: string;
 		OPENAI_API_KEY?: string;
 	}
 }

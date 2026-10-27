@@ -118,7 +118,7 @@ const en: SiteCopy = {
 			},
 			{ title: 'Audio on its own', body: 'Pull the track out of a YouTube video, a TikTok, a SoundCloud upload, or a Spotify link.' },
 			{ title: 'Whole galleries, not the first frame', body: 'Carousels, albums, and photo slideshows return every item in the post.' },
-			{ title: 'Instagram stories by username', body: 'Send <code>/story</code> with a handle and the current stories arrive as albums.' },
+			// { title: 'Instagram stories by username', body: 'Send <code>/story</code> with a handle and the current stories arrive as albums.' },
 			{
 				title: 'Long reads stay readable',
 				body: 'X articles and self-reply threads are published to Telegraph so the full text is actually reachable.',
@@ -261,7 +261,7 @@ const ar: SiteCopy = {
 			{ title: 'تيك توك بلا علامة مائية', body: 'فيديو نظيف في كل مرة، وبقية المنصات تصلك بأفضل جودة تتيحها.' },
 			{ title: 'الصوت وحده', body: 'استخرج المقطع الصوتي من فيديو يوتيوب أو تيك توك أو ساوندكلاود أو رابط سبوتيفاي.' },
 			{ title: 'الألبوم كاملًا لا الصورة الأولى', body: 'المنشورات المتعددة والألبومات وعروض الصور تصلك بكل عناصرها.' },
-			{ title: 'ستوري إنستغرام بالمعرّف', body: 'أرسل <code>/story</code> مع اسم الحساب لتصلك الستوري الحالية على شكل ألبومات.' },
+			// { title: 'ستوري إنستغرام بالمعرّف', body: 'أرسل <code>/story</code> مع اسم الحساب لتصلك الستوري الحالية على شكل ألبومات.' },
 			{ title: 'المقالات الطويلة تبقى مقروءة', body: 'مقالات إكس والسلاسل تُنشر على تيليغراف ليصل إليك النص كاملًا.' },
 			{ title: 'بالعربية والإنجليزية', body: 'يختار البوت اللغة من إعدادات تيليجرام لديك، و<code>/lang</code> تغيّرها.' },
 		],

@@ -8,7 +8,7 @@ export const en = {
 		'• YouTube — Auto-download video (🎵 MP3 button after)\n' +
 		'• TikTok — Video/Audio picker (slideshows auto-download)\n' +
 		'• Facebook — HD/SD picker when available\n' +
-		'• Instagram — Auto-download · /story for Stories\n' +
+		'• Instagram — Auto-download\n' +
 		'• X / Twitter — Auto-download\n' +
 		'• Threads — Auto-download\n' +
 		'• SoundCloud — Audio\n' +
@@ -20,7 +20,6 @@ export const en = {
 		'/setfreeuses {count} — Set free downloads limit\n' +
 		'/adminstats — View detailed statistics\n' +
 		'/stats — View usage statistics\n' +
-		'/story [@dawo5d] — Download Instagram Stories\n' +
 		'/footer [text|clear] — Set Instagram caption footer\n' +
 		'/lang — Change bot language\n' +
 		'/cancel — Cancel current action\n' +
@@ -34,8 +33,7 @@ export const en = {
 	'start.guest.body':
 		'<b>Media Download Bot</b>\n\n' +
 		"Send a URL from any supported platform and I'll download the media for you.\n\n" +
-		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive\n' +
-		'\n📸 Use /story to download Instagram Stories by username.\n',
+		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} free downloads</b> — then join {channel} to keep going.\n',
 	'start.guest.help_hint': '\n/help — More info',
 
@@ -46,13 +44,12 @@ export const en = {
 		'• <b>YouTube</b> — Auto-downloads video, offers 🎵 MP3 button\n' +
 		'• <b>TikTok</b> — Video/Audio (slideshows skip the picker)\n' +
 		'• <b>Facebook</b> — HD/SD when multiple qualities available\n' +
-		'• <b>Instagram Stories</b> — Use <code>/story</code> @dawo5d or send a story URL\n' +
+		'• <b>Instagram Stories</b> — Send a story URL\n' +
 		'• Large files (&gt;50MB) show the direct URL to download manually\n\n' +
 		'<b>Admin commands:</b>\n' +
 		'<code>/setchannel</code> @username — Require users to join a channel after {freeUses} free downloads.\n' +
 		'<code>/setfreeuses</code> {count} — Change the number of free downloads allowed.\n' +
 		'<code>/stats</code> or <code>/adminstats</code> — View bot usage statistics.\n' +
-		'<code>/story</code> [@dawo5d] — Download Instagram Stories (available to all users).\n' +
 		'<code>/footer</code> [text|clear] — Set or clear the Instagram caption footer.\n' +
 		'<code>/lang</code> — Change bot language.\n' +
 		'<code>/cancel</code> — Cancel the current download flow.\n' +
@@ -65,8 +62,7 @@ export const en = {
 	'help.guest.body':
 		'<b>How to use</b>\n\n' +
 		'Send a URL and the bot downloads it for you.\n' +
-		'Large files (&gt;50MB) show the direct URL to download manually.\n\n' +
-		'📸 <b>Instagram Stories</b> — Use /story @dawo5d to download stories.',
+		'Large files (&gt;50MB) show the direct URL to download manually.',
 	'help.guest.free_tier': '\n<b>Free tier:</b> {freeUses} downloads — then join {channel} to keep using the bot.',
 	'help.name_prefix': "{firstName}, here's how it works:\n\n",
 
@@ -127,7 +123,7 @@ export const en = {
 	'download.btn_retry': '🔄 Retry Download',
 	'download.btn_report_admin': '📬 Report Issue',
 	'download.contact_admin': 'Need help? Join our support channel @dawo5d or contact the admin @Daw5d.',
-	'download.report_sent': '✅ Your report has been sent to the admin.',
+	'download.report_sent': '✅ Your report has been recorded.',
 	'download.admin_error_report':
 		'🚨 <b>Failed Download Report</b>\n\n👤 User: {user}\n📱 Platform: {platform}\n🔗 URL: <code>{url}</code>\n❌ Error: <code>{error}</code>',
 

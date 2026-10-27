@@ -18,7 +18,8 @@ Use the terms in `GLOSSARY.md`. Decisions live in `docs/adr/`.
 * No cheerio, no Instagram auth cookies. RSSHub is the only RSS source (Instagram Stories).
 * State lives in D1. The `DOWNLOAD_CACHE` KV binding is commented out in `wrangler.jsonc`.
 * Run `pnpm cf-typegen` after changing `wrangler.jsonc`. `TELEGRAM_WEBHOOK_SECRET` must be added to `worker-configuration.d.ts` by hand.
-* Keep `workers_dev: true` in `wrangler.jsonc`; the Telegram webhook is registered on that host.
+* Two Workers run this code. `wrangler.jsonc` (engdawood account, `dl.engdawood.com`) serves the API and MCP. `wrangler.bot.jsonc` (dawood account, `download-media.dawod.workers.dev`) serves the Telegram bot; deploy it with `-c wrangler.bot.jsonc`. Each has its own D1 database. The Telegram webhook is registered on the dawood host, and `PUBLIC_API_KEY` stays unset there.
+* Keep `workers_dev: true` in both wrangler configs; the bot's webhook host depends on it in `wrangler.bot.jsonc`. `setWebhook` is a direct Telegram API call: `/setup` only registers bot commands.
 * MediaFire files flagged by VirusTotal sit behind a "Download Anyway" advisory. Do not automate past it.
 
 ## Agent skills

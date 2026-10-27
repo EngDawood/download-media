@@ -38,7 +38,7 @@ btch cuts the tweet text in `title`. FxTwitter is the primary source and returns
 
 ## Webhook not receiving updates
 
-1. `curl https://api.telegram.org/bot{TOKEN}/getWebhookInfo`
+1. `curl https://api.telegram.org/bot{TOKEN}/getWebhookInfo`. The `url` must be the bot Worker's `/telegram` (`https://download-media.dawod.workers.dev/telegram`), not `dl.engdawood.com`. A `404` or Cloudflare error `1042` there means the host is wrong or the Worker is not deployed; check the `workers.dev` host in the dashboard spelling.
 2. Confirm `X-Telegram-Bot-Api-Secret-Token` matches `TELEGRAM_WEBHOOK_SECRET`.
 3. Watch live logs with `pnpm exec wrangler tail`.
 

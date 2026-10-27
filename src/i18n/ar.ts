@@ -10,7 +10,7 @@ export const ar: Translations = {
 		'• YouTube — تحميل تلقائي للفيديو (زر 🎵 MP3 بعد التحميل)\n' +
 		'• TikTok — اختيار فيديو/صوت (الصور تُحمّل تلقائياً)\n' +
 		'• Facebook — اختيار HD/SD عند توفر جودات متعددة\n' +
-		'• Instagram — تحميل تلقائي · /story للقصص\n' +
+		'• Instagram — تحميل تلقائي\n' +
 		'• X / Twitter — تحميل تلقائي\n' +
 		'• Threads — تحميل تلقائي\n' +
 		'• SoundCloud — صوت\n' +
@@ -22,7 +22,6 @@ export const ar: Translations = {
 		'/setfreeuses {count} — تعيين حد التحميل المجاني\n' +
 		'/adminstats — عرض إحصائيات مفصلة\n' +
 		'/stats — عرض إحصائيات الاستخدام\n' +
-		'/story [@dawo5d] — تحميل قصص Instagram\n' +
 		'/footer [نص|clear] — تعيين ذيل تعليق Instagram\n' +
 		'/lang — تغيير لغة البوت\n' +
 		'/cancel — إلغاء الإجراء الحالي\n' +
@@ -36,8 +35,7 @@ export const ar: Translations = {
 	'start.guest.body':
 		'<b>بوت تحميل الوسائط</b>\n\n' +
 		'أرسل رابط من أي منصة مدعومة وسأحمّل الوسائط لك.\n\n' +
-		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive\n' +
-		'\n📸 استخدم /story لتحميل قصص Instagram باسم المستخدم.\n',
+		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} تحميلات مجانية</b> — ثم انضم إلى {channel} للمتابعة.\n',
 	'start.guest.help_hint': '\n/help — مزيد من المعلومات',
 
@@ -48,13 +46,12 @@ export const ar: Translations = {
 		'• <b>YouTube</b> — تحميل تلقائي للفيديو، يعرض زر 🎵 MP3\n' +
 		'• <b>TikTok</b> — فيديو/صوت (الصور تتخطى الاختيار)\n' +
 		'• <b>Facebook</b> — HD/SD عند توفر جودات متعددة\n' +
-		'• <b>قصص Instagram</b> — استخدم <code>/story</code> @dawo5d أو أرسل رابط القصة\n' +
+		'• <b>قصص Instagram</b> — أرسل رابط القصة\n' +
 		'• الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً\n\n' +
 		'<b>أوامر المشرف:</b>\n' +
 		'<code>/setchannel</code> @username — إلزام المستخدمين بالانضمام لقناة بعد {freeUses} تحميلات مجانية.\n' +
 		'<code>/setfreeuses</code> {count} — تغيير عدد مرات التحميل المجانية المسموح بها.\n' +
 		'<code>/stats</code> أو <code>/adminstats</code> — عرض إحصائيات استخدام البوت.\n' +
-		'<code>/story</code> [@dawo5d] — تحميل قصص Instagram (متاح لجميع المستخدمين).\n' +
 		'<code>/footer</code> [نص|clear] — تعيين أو مسح ذيل تعليق Instagram.\n' +
 		'<code>/lang</code> — تغيير لغة البوت.\n' +
 		'<code>/cancel</code> — إلغاء عملية التحميل الحالية.\n' +
@@ -65,10 +62,7 @@ export const ar: Translations = {
 
 	// --- /help command (guest) ---
 	'help.guest.body':
-		'<b>طريقة الاستخدام</b>\n\n' +
-		'أرسل رابط والبوت يحمّله لك.\n' +
-		'الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً.\n\n' +
-		'📸 <b>قصص Instagram</b> — استخدم <code>/story</code> @dawo5d لتحميل القصص.',
+		'<b>طريقة الاستخدام</b>\n\n' + 'أرسل رابط والبوت يحمّله لك.\n' + 'الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً.',
 	'help.guest.free_tier': '\n<b>الباقة المجانية:</b> {freeUses} تحميلات — ثم انضم إلى {channel} لمتابعة استخدام البوت.',
 	'help.name_prefix': '{firstName}، إليك طريقة الاستخدام:\n\n',
 
@@ -128,7 +122,7 @@ export const ar: Translations = {
 	'download.btn_retry': '🔄 إعادة محاولة التحميل',
 	'download.btn_report_admin': '📬 الإبلاغ عن مشكلة',
 	'download.contact_admin': 'تحتاج مساعدة؟ انضم لقناة الدعم @dawo5d أو تواصل مع المشرف @Daw5d.',
-	'download.report_sent': '✅ تم إرسال التقرير للمشرف.',
+	'download.report_sent': '✅ تم تسجيل البلاغ.',
 	'download.admin_error_report':
 		'🚨 <b>تقرير تحميل فاشل</b>\n\n👤 المستخدم: {user}\n📱 المنصة: {platform}\n🔗 الرابط: <code>{url}</code>\n❌ الخطأ: <code>{error}</code>',
 

@@ -7,7 +7,7 @@ type HonoEnv = { Bindings: Env };
 const GUEST_COMMANDS = [
 	{ command: 'start', description: 'Show supported platforms' },
 	{ command: 'help', description: 'How to use the bot' },
-	{ command: 'story', description: 'Download Instagram stories by username' },
+	// { command: 'story', description: 'Download Instagram stories by username' },
 	{ command: 'lang', description: 'Change bot language' },
 	{ command: 'cancel', description: 'Cancel current action' },
 ];
@@ -15,7 +15,7 @@ const GUEST_COMMANDS = [
 const GUEST_COMMANDS_AR = [
 	{ command: 'start', description: 'عرض المنصات المدعومة' },
 	{ command: 'help', description: 'طريقة استخدام البوت' },
-	{ command: 'story', description: 'تحميل قصص Instagram باسم المستخدم' },
+	// { command: 'story', description: 'تحميل قصص Instagram باسم المستخدم' },
 	{ command: 'lang', description: 'تغيير لغة البوت' },
 	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
 ];
@@ -26,7 +26,7 @@ const ADMIN_COMMANDS = [
 	{ command: 'help', description: 'How to use the bot' },
 	{ command: 'lang', description: 'Change bot language' },
 	{ command: 'cancel', description: 'Cancel current action' },
-	{ command: 'story', description: 'Download Instagram stories by username' },
+	// { command: 'story', description: 'Download Instagram stories by username' },
 	{ command: 'setchannel', description: 'Set required subscription channel' },
 	{ command: 'setfreeuses', description: 'Set free downloads before gate' },
 	{ command: 'stats', description: 'View usage statistics' },
@@ -44,7 +44,7 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'help', description: 'طريقة استخدام البوت' },
 	{ command: 'lang', description: 'تغيير لغة البوت' },
 	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
-	{ command: 'story', description: 'تحميل قصص Instagram باسم المستخدم' },
+	// { command: 'story', description: 'تحميل قصص Instagram باسم المستخدم' },
 	{ command: 'setchannel', description: 'تعيين قناة الاشتراك' },
 	{ command: 'setfreeuses', description: 'تعيين عدد التحميلات المجانية' },
 	{ command: 'stats', description: 'عرض إحصائيات الاستخدام' },

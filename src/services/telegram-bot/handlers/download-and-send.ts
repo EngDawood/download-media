@@ -1,6 +1,8 @@
+import { env as workerEnv } from 'cloudflare:workers';
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { downloadMedia, formatFileSize } from '../../media-downloader';
+import { parseOwners } from '../../downloader/github-private';
 import { sendMediaToChannel, sendWithCaption, measureVariants, pickSendableVariant } from './send-media';
 import { setAdminState, clearAdminState } from '../storage/admin-state';
 import { setReportData } from '../storage/session-store';
@@ -222,7 +224,13 @@ export async function downloadAndSendMedia(
 			return;
 		}
 
-		result = await downloadMedia(url, mode, platform, { TELEGRAPH_ACCESS_TOKEN: options?.telegraphToken });
+		// Report retries for a user run without adminId, so they count as a guest and never read protected repos.
+		const githubAuth = {
+			token: workerEnv.GITHUB_TOKEN,
+			isAdmin: options?.adminId !== undefined && !options?.guestMode,
+			protectedOwners: parseOwners(workerEnv.GITHUB_PRIVATE_OWNERS),
+		};
+		result = await downloadMedia(url, mode, platform, { TELEGRAPH_ACCESS_TOKEN: options?.telegraphToken, githubAuth });
 
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });

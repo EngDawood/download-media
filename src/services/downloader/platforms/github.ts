@@ -1,19 +1,24 @@
-import { env } from 'cloudflare:workers';
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult } from '../../../types/downloader';
-import { DownloadError, classifyError, kindFromStatus } from '../failure';
+import { DownloadError, classifyError } from '../failure';
+import { fetchBytes, downloadWithToken, resolveGithubToken, type GithubAuth } from '../github-private';
 
 const CODELOAD = 'https://codeload.github.com';
-const USER_AGENT = 'download-media-bot/1.0';
-// Workers cap an isolate at 128 MB. The archive is buffered (~2x while chunks are joined),
-// then the folder zip is built next to it, so both limits are kept well under that.
-const MAX_ARCHIVE_SIZE = 48 * 1024 * 1024;
 const MAX_ZIP_SIZE = 40 * 1024 * 1024; // under Telegram's 50 MB bot upload limit
 
 export class GitHubProvider implements IDownloaderProvider {
 	readonly platforms = ['github.com'];
 
+	/** Token policy per request: see resolveGithubToken. Without `auth` every request is anonymous. */
+	constructor(private readonly auth?: GithubAuth) {}
+
 	async download(url: string, _mode: DownloaderMode): Promise<DownloaderResult> {
+		const token = resolveGithubToken(this.auth, ownerOf(url));
+		if (token) {
+			const direct = await downloadWithToken(url, token);
+			if (direct) return direct;
+		}
+
 		const parsed = parseGitHubUrl(url);
 		if (!parsed) return { status: 'error', error: 'Invalid GitHub folder URL', failureKind: 'unsupported' };
 
@@ -22,7 +27,7 @@ export class GitHubProvider implements IDownloaderProvider {
 		try {
 			// One request for the whole repo instead of one per file: a folder with
 			// thousands of files would blow the Workers subrequest limit.
-			const archive = await fetchArchive(owner, repo, ref);
+			const archive = await fetchArchive(owner, repo, ref, token);
 			const entries = selectFolderEntries(archive, folderPath);
 			if (entries.length === 0) return { status: 'error', error: 'Folder is empty or not found', failureKind: 'gone' };
 
@@ -44,6 +49,15 @@ export class GitHubProvider implements IDownloaderProvider {
 		} catch (err: unknown) {
 			return { status: 'error', error: (err as Error).message || 'Failed to download folder', failureKind: classifyError(err) };
 		}
+	}
+}
+
+/** First path segment: the repo owner on github.com and raw.githubusercontent.com URLs. */
+function ownerOf(url: string): string {
+	try {
+		return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean)[0] ?? '');
+	} catch {
+		return '';
 	}
 }
 
@@ -73,40 +87,9 @@ function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
 
 // ─── Repo archive download ───────────────────────────────────────────────────
 
-async function fetchArchive(owner: string, repo: string, ref: string): Promise<Uint8Array> {
+async function fetchArchive(owner: string, repo: string, ref: string, token?: string): Promise<Uint8Array> {
 	// Works for branches, tags and commit SHAs. The token (optional) also unlocks private repos.
-	const headers: Record<string, string> = { 'User-Agent': USER_AGENT };
-	if (env.GITHUB_TOKEN) headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
-	const resp = await fetch(`${CODELOAD}/${owner}/${repo}/zip/${encodeURIComponent(ref)}`, {
-		headers,
-		signal: AbortSignal.timeout(30_000),
-	});
-	if (resp.status === 404) throw new DownloadError(`Repository or ref not found: ${owner}/${repo}@${ref}`, 'gone');
-	if (!resp.ok || !resp.body) throw new DownloadError(`GitHub archive error ${resp.status}`, kindFromStatus(resp.status));
-
-	const tooLarge = () => new DownloadError(`Repository archive too large (> ${MAX_ARCHIVE_SIZE / 1024 / 1024} MB)`, 'gone');
-	if (Number(resp.headers.get('content-length') ?? 0) > MAX_ARCHIVE_SIZE) throw tooLarge();
-
-	const reader = resp.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let total = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		total += value.length;
-		if (total > MAX_ARCHIVE_SIZE) {
-			await reader.cancel();
-			throw tooLarge();
-		}
-		chunks.push(value);
-	}
-	const out = new Uint8Array(total);
-	let pos = 0;
-	for (const c of chunks) {
-		out.set(c, pos);
-		pos += c.length;
-	}
-	return out;
+	return fetchBytes(`${CODELOAD}/${owner}/${repo}/zip/${encodeURIComponent(ref)}`, token, 'Bearer', `${owner}/${repo}@${ref}`);
 }
 
 // ─── ZIP: read the central directory, copy selected entries without recompressing ─
