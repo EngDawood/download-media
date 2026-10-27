@@ -2,7 +2,7 @@ import { InlineKeyboard, type Bot } from 'grammy';
 import { clearAdminState, getAdminState, setAdminState } from '../storage/admin-state';
 import { deleteSession } from '../../../utils/db';
 import { getBlockedUrl, deleteBlockedUrl } from '../storage/session-store';
-import { downloadAndSendMedia } from '../handlers/download-and-send';
+// import { downloadAndSendMedia } from '../handlers/download-and-send'; // used by the disabled /story handler
 import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, KV_KEY_INSTAGRAM_FOOTER } from '../../../constants';
 import { getConfig, setConfig, deleteConfig, setUserLang } from '../../../utils/db';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
@@ -878,6 +878,8 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		}
 	});
 
+	// /story is disabled. Restore this handler and the BOT_COMMANDS and /start, /help entries to re-enable it.
+	/*
 	bot.command('story', async (ctx) => {
 		const locale = getLocale(ctx);
 		const userId = ctx.from?.id;
@@ -930,6 +932,7 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 			locale,
 		});
 	});
+	*/
 
 	bot.command('footer', async (ctx) => {
 		const locale = getLocale(ctx);

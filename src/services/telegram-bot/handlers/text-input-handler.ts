@@ -59,6 +59,8 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				}
 				return;
 			}
+			// Disabled together with /story, the only command that sets this state.
+			/*
 			if (userState?.action === 'awaiting_story_username') {
 				await clearAdminState(db, userId);
 				const storyMatch = text.match(/instagram\.com\/stories\/([^/?]+)/i) ?? text.match(/instagram\.com\/([^/?]+)/i);
@@ -87,6 +89,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				});
 				return;
 			}
+			*/
 		}
 
 		const detected = detectMediaUrl(text);
@@ -110,7 +113,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				return;
 			}
 
-			if (!isAdmin && isBlockedDomain(url, true) &&!(await isDomainAllowlisted(db, url))) {
+			if (!isAdmin && isBlockedDomain(url, true) && !(await isDomainAllowlisted(db, url))) {
 				if (userId) {
 					await setBlockedUrl(db, userId, url);
 				}
