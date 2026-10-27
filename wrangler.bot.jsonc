@@ -42,7 +42,7 @@
 		{
 			"binding": "download_media_bot_db",
 			"database_name": "download-media-bot-db",
-			"database_id": "REPLACE_WITH_DAWOOD_D1_ID"
+			"database_id": "7cf1fdba-28e9-4a78-9a21-cc67a293d739"
 		}
 	],
 	// No custom domain: the Telegram webhook is registered on the workers.dev host.
