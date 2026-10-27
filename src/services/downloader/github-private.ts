@@ -8,6 +8,33 @@ const USER_AGENT = 'download-media-bot/1.0';
 // so this stays well under that and under Telegram's 50 MB bot upload limit.
 export const MAX_ARCHIVE_SIZE = 48 * 1024 * 1024;
 
+export interface GithubAuth {
+	token?: string;
+	/** The requester is the bot admin. */
+	isAdmin: boolean;
+	/** Owners whose repos only the admin may read with the token (GITHUB_PRIVATE_OWNERS, comma separated). */
+	protectedOwners: string[];
+}
+
+export function parseOwners(list?: string): string[] {
+	return (list ?? '')
+		.split(',')
+		.map((o) => o.trim().toLowerCase())
+		.filter(Boolean);
+}
+
+/**
+ * The token serves every requester except for repos owned by a protected account, which only the admin
+ * may read. With no protected owner configured the token stays admin-only, so a missing setting never
+ * exposes private repos.
+ */
+export function resolveGithubToken(auth: GithubAuth | undefined, owner: string): string | undefined {
+	if (!auth?.token) return undefined;
+	if (auth.isAdmin) return auth.token;
+	if (auth.protectedOwners.length === 0) return undefined;
+	return auth.protectedOwners.includes(owner.toLowerCase()) ? undefined : auth.token;
+}
+
 const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/');
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 

@@ -1,7 +1,7 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult } from '../../../types/downloader';
 import { DownloadError, classifyError } from '../failure';
-import { fetchBytes, downloadWithToken } from '../github-private';
+import { fetchBytes, downloadWithToken, resolveGithubToken, type GithubAuth } from '../github-private';
 
 const CODELOAD = 'https://codeload.github.com';
 const MAX_ZIP_SIZE = 40 * 1024 * 1024; // under Telegram's 50 MB bot upload limit
@@ -9,12 +9,13 @@ const MAX_ZIP_SIZE = 40 * 1024 * 1024; // under Telegram's 50 MB bot upload limi
 export class GitHubProvider implements IDownloaderProvider {
 	readonly platforms = ['github.com'];
 
-	/** The token is only set for requests from the admin, so private repos stay private to them. */
-	constructor(private readonly token?: string) {}
+	/** Token policy per request: see resolveGithubToken. Without `auth` every request is anonymous. */
+	constructor(private readonly auth?: GithubAuth) {}
 
 	async download(url: string, _mode: DownloaderMode): Promise<DownloaderResult> {
-		if (this.token) {
-			const direct = await downloadWithToken(url, this.token);
+		const token = resolveGithubToken(this.auth, ownerOf(url));
+		if (token) {
+			const direct = await downloadWithToken(url, token);
 			if (direct) return direct;
 		}
 
@@ -26,7 +27,7 @@ export class GitHubProvider implements IDownloaderProvider {
 		try {
 			// One request for the whole repo instead of one per file: a folder with
 			// thousands of files would blow the Workers subrequest limit.
-			const archive = await fetchArchive(owner, repo, ref, this.token);
+			const archive = await fetchArchive(owner, repo, ref, token);
 			const entries = selectFolderEntries(archive, folderPath);
 			if (entries.length === 0) return { status: 'error', error: 'Folder is empty or not found', failureKind: 'gone' };
 
@@ -48,6 +49,15 @@ export class GitHubProvider implements IDownloaderProvider {
 		} catch (err: unknown) {
 			return { status: 'error', error: (err as Error).message || 'Failed to download folder', failureKind: classifyError(err) };
 		}
+	}
+}
+
+/** First path segment: the repo owner on github.com and raw.githubusercontent.com URLs. */
+function ownerOf(url: string): string {
+	try {
+		return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean)[0] ?? '');
+	} catch {
+		return '';
 	}
 }
 
