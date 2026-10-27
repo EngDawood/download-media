@@ -1,0 +1,55 @@
+{
+	// Telegram bot Worker for the dawood Cloudflare account.
+	// Same code as wrangler.jsonc; the engdawood Worker keeps serving the API and MCP.
+	// Deploy with: pnpm deploy:bot (wrangler deploy -c wrangler.bot.jsonc)
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "download-media-tg-bot",
+	"main": "src/index.ts",
+	"build": {
+		"command": "node scripts/gen-deploy-id.cjs"
+	},
+	"compatibility_date": "2026-02-10",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": true,
+			"invocation_logs": true
+		},
+		"traces": {
+			"enabled": true,
+			"persist": true,
+			"head_sampling_rate": 1
+		}
+	},
+	"vars": {
+		"ADMIN_TELEGRAM_ID": "801062947"
+	},
+	"analytics_engine_datasets": [
+		{
+			"binding": "ANALYTICS",
+			"dataset": "ANALYTICS"
+		}
+	],
+	// D1 is per account. Create it in dawood (wrangler d1 create download-media-bot-db),
+	// paste the printed id below, then import the dump.
+	"d1_databases": [
+		{
+			"binding": "download_media_bot_db",
+			"database_name": "download-media-bot-db",
+			"database_id": "REPLACE_WITH_DAWOOD_D1_ID"
+		}
+	],
+	// No custom domain: the Telegram webhook is registered on the workers.dev host.
+	"workers_dev": true
+	// Secrets (wrangler secret put -c wrangler.bot.jsonc):
+	// - TELEGRAM_BOT_TOKEN
+	// - TELEGRAM_WEBHOOK_SECRET
+	// - TELEGRAPH_ACCESS_TOKEN
+	// Leave PUBLIC_API_KEY unset: POST /api/download and POST /mcp stay disabled on this Worker.
+}
