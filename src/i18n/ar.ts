@@ -128,7 +128,7 @@ export const ar: Translations = {
 	'download.btn_retry': '🔄 إعادة محاولة التحميل',
 	'download.btn_report_admin': '📬 الإبلاغ عن مشكلة',
 	'download.contact_admin': 'تحتاج مساعدة؟ انضم لقناة الدعم @dawo5d أو تواصل مع المشرف @Daw5d.',
-	'download.report_sent': '✅ تم إرسال التقرير للمشرف.',
+	'download.report_sent': '✅ تم تسجيل البلاغ.',
 	'download.admin_error_report':
 		'🚨 <b>تقرير تحميل فاشل</b>\n\n👤 المستخدم: {user}\n📱 المنصة: {platform}\n🔗 الرابط: <code>{url}</code>\n❌ الخطأ: <code>{error}</code>',
 

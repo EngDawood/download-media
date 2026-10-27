@@ -127,7 +127,7 @@ export const en = {
 	'download.btn_retry': '🔄 Retry Download',
 	'download.btn_report_admin': '📬 Report Issue',
 	'download.contact_admin': 'Need help? Join our support channel @dawo5d or contact the admin @Daw5d.',
-	'download.report_sent': '✅ Your report has been sent to the admin.',
+	'download.report_sent': '✅ Your report has been recorded.',
 	'download.admin_error_report':
 		'🚨 <b>Failed Download Report</b>\n\n👤 User: {user}\n📱 Platform: {platform}\n🔗 URL: <code>{url}</code>\n❌ Error: <code>{error}</code>',
 
