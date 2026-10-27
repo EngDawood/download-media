@@ -32,7 +32,7 @@ export { isUrl, detectMediaType, detectTypeFromJwtUrl, buildCaption, decodeTikto
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
-function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
+function buildRegistry(telegraphAccessToken: string, githubToken?: string): ProviderRegistry {
 	return new ProviderRegistry([
 		new TikTokProvider(),
 		new InstagramProvider(),
@@ -43,7 +43,7 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 		new SoundCloudProvider(),
 		new SpotifyProvider(),
 		new PinterestProvider(),
-		new GitHubProvider(),
+		new GitHubProvider(githubToken),
 		new DouyinProvider(),
 		new GoogleDriveProvider(),
 		new MediaFireProvider(),
@@ -55,6 +55,9 @@ function buildRegistry(telegraphAccessToken: string): ProviderRegistry {
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
+/** Lowercase `githubToken` on purpose: API and MCP pass their whole Worker env here, and it must not match a secret by name. */
+type DownloadEnv = { TELEGRAPH_ACCESS_TOKEN?: string; githubToken?: string };
+
 /** Skip the automatic retry when the first attempt already took longer than this. */
 const RETRY_MAX_ELAPSED_MS = 15_000;
 
@@ -62,13 +65,13 @@ const RETRY_MAX_ELAPSED_MS = 15_000;
  * Download media from a URL.
  * @param mode 'auto' returns video/photo, 'audio' returns audio, 'hd'/'sd' for quality
  * @param platform Optional platform hint from url-detector (skips hostname re-detection)
- * @param env Cloudflare Workers env — required for Telegraph article publishing
+ * @param env Telegraph token for article publishing. `githubToken` unlocks private repos, so pass it only for the admin.
  */
 export async function downloadMedia(
 	url: string,
 	mode: DownloaderMode = 'auto',
 	platform?: string,
-	env?: { TELEGRAPH_ACCESS_TOKEN?: string },
+	env?: DownloadEnv,
 ): Promise<DownloaderResult> {
 	// Auto-retry once on transient failures. Users routinely tapped the Retry
 	// button after a timeout and it worked; doing that automatically removes
@@ -95,9 +98,9 @@ async function downloadOnce(
 	url: string,
 	mode: DownloaderMode,
 	platform: string | undefined,
-	env: { TELEGRAPH_ACCESS_TOKEN?: string } | undefined,
+	env: DownloadEnv | undefined,
 ): Promise<DownloaderResult> {
-	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '');
+	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '', env?.githubToken);
 	try {
 		const result = await registry.download(url, mode, platform);
 		if (result) return result;

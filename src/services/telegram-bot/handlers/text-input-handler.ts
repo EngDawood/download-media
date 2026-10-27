@@ -249,7 +249,8 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				return;
 			}
 
-			const directMediaType = await resolveDirectMediaType(url, platform);
+			// With a GitHub token the admin's links skip the direct send: Telegram cannot fetch private repos itself.
+			const directMediaType = platform === 'GitHub' && env.GITHUB_TOKEN ? null : await resolveDirectMediaType(url, platform);
 			if (directMediaType) {
 				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, true, {
 					db,

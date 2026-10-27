@@ -51,5 +51,6 @@
 	// - TELEGRAM_BOT_TOKEN
 	// - TELEGRAM_WEBHOOK_SECRET
 	// - TELEGRAPH_ACCESS_TOKEN
+	// - GITHUB_TOKEN (optional; admin-only, fine-grained with Contents: Read-only, for private repos)
 	// Leave PUBLIC_API_KEY unset: POST /api/download and POST /mcp stay disabled on this Worker.
 }

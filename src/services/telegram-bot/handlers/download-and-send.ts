@@ -1,3 +1,4 @@
+import { env as workerEnv } from 'cloudflare:workers';
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { downloadMedia, formatFileSize } from '../../media-downloader';
@@ -222,7 +223,9 @@ export async function downloadAndSendMedia(
 			return;
 		}
 
-		result = await downloadMedia(url, mode, platform, { TELEGRAPH_ACCESS_TOKEN: options?.telegraphToken });
+		// Admin requests only. Report retries for a user run without adminId, so they never see private repos.
+		const githubToken = options?.adminId !== undefined && !options?.guestMode ? workerEnv.GITHUB_TOKEN : undefined;
+		result = await downloadMedia(url, mode, platform, { TELEGRAPH_ACCESS_TOKEN: options?.telegraphToken, githubToken });
 
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
