@@ -12,7 +12,7 @@ const REHYDRATION_RE = /id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)<\/scr
 
 interface TiktokItem {
 	desc?: string;
-	video?: { playAddr?: string; downloadAddr?: string; cover?: string; originCover?: string };
+	video?: { playAddr?: string; downloadAddr?: string; cover?: string; originCover?: string; size?: string | number };
 	music?: { playUrl?: string };
 	imagePost?: { images?: { imageURL?: { urlList?: string[] } }[] };
 }
@@ -57,7 +57,11 @@ async function downloadBytes(mediaUrl: string, cookie: string): Promise<Uint8Arr
 			headers: { 'User-Agent': BROWSER_UA, Referer: 'https://www.tiktok.com/', ...(cookie ? { Cookie: cookie } : {}) },
 			signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS),
 		});
-		if (!res.ok || Number(res.headers.get('content-length') ?? 0) > MAX_BUFFER_BYTES) return null;
+		if (!res.ok) {
+			log('warn', 'tiktok-direct', 'media refused', { status: res.status, host: new URL(mediaUrl).host });
+			return null;
+		}
+		if (Number(res.headers.get('content-length') ?? 0) > MAX_BUFFER_BYTES) return null;
 		return new Uint8Array(await res.arrayBuffer());
 	} catch (e) {
 		log('warn', 'tiktok-direct', 'media download failed', { error: (e as Error)?.message });
@@ -65,8 +69,9 @@ async function downloadBytes(mediaUrl: string, cookie: string): Promise<Uint8Arr
 	}
 }
 
-async function toItem(type: 'video' | 'audio', url: string, cookie: string): Promise<MediaItem> {
-	const buffer = await downloadBytes(url, cookie);
+async function toItem(type: 'video' | 'audio', url: string, cookie: string, knownSize = 0): Promise<MediaItem> {
+	// A file the page already reports as over the cap would only run the Worker out of memory.
+	const buffer = knownSize > MAX_BUFFER_BYTES ? null : await downloadBytes(url, cookie);
 	return buffer ? { type, url, buffer, filename: type === 'video' ? 'tiktok.mp4' : 'tiktok.mp3' } : { type, url };
 }
 
@@ -93,5 +98,11 @@ export async function tryTiktokDirect(url: string, mode: DownloaderMode): Promis
 
 	const video = item.video?.playAddr || item.video?.downloadAddr;
 	if (!isUrl(video)) return null;
-	return { status: 'success', media: [await toItem('video', video, cookie)], caption, thumbnail, mp3Url: isUrl(music) ? music : undefined };
+	return {
+		status: 'success',
+		media: [await toItem('video', video, cookie, Number(item.video?.size))],
+		caption,
+		thumbnail,
+		mp3Url: isUrl(music) ? music : undefined,
+	};
 }

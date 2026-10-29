@@ -141,6 +141,18 @@ async function sendPhotoMessage(bot: Bot, chatId: number, message: TelegramMedia
 }
 
 async function sendVideoMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
+	// Bytes the provider already downloaded (TikTok's CDN refuses a bare link) skip the URL pass-through.
+	if (message.buffer) {
+		const file = new InputFile(message.buffer, message.filename || 'video.mp4');
+		await sendWithCaption(
+			(caption) => bot.api.sendVideo(chatId, file, { caption, parse_mode: 'HTML', disable_notification: disableNotification }),
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
+		);
+		return;
+	}
 	if (!message.url) throw new Error('Video URL is missing');
 	const url = message.url;
 
@@ -192,11 +204,22 @@ export function audioFilename(title?: string): string {
 }
 
 async function sendAudioMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
-	if (!message.url) throw new Error('Audio URL is missing');
-	const url = message.url;
 	// Telegram labels the track with `title` when present; without it the raw
 	// filename from the CDN (or 'audio') is shown instead.
 	const title = message.title?.trim() || undefined;
+	if (message.buffer) {
+		const file = new InputFile(message.buffer, message.filename || audioFilename(title));
+		await sendWithCaption(
+			(caption) => bot.api.sendAudio(chatId, file, { caption, title, parse_mode: 'HTML', disable_notification: disableNotification }),
+			bot,
+			chatId,
+			message.caption,
+			disableNotification,
+		);
+		return;
+	}
+	if (!message.url) throw new Error('Audio URL is missing');
+	const url = message.url;
 	try {
 		await sendWithCaption(
 			(caption) => bot.api.sendAudio(chatId, url, { caption, title, parse_mode: 'HTML', disable_notification: disableNotification }),
