@@ -6,7 +6,7 @@ const TIKWM_ENDPOINT = 'https://www.tikwm.com/api/';
 
 export const TIKWM_TIMEOUT_MS = 8_000;
 
-/** The free tier allows 1 request/second; one short wait covers a collision, anything more falls through to btch. */
+/** The free tier allows 1 request/second; one short wait covers a collision, anything more falls through to the next source. */
 const TIKWM_RETRY_DELAY_MS = 1_100;
 
 export interface TikwmData {
@@ -46,7 +46,9 @@ async function requestTikwm(url: string, timeoutMs: number): Promise<TikwmRespon
 export async function fetchTikwm(url: string, timeoutMs = TIKWM_TIMEOUT_MS): Promise<TikwmData | null> {
 	try {
 		let body = await requestTikwm(url, timeoutMs);
-		if (body.code !== 0 && /limit/i.test(body.msg ?? '')) {
+		// Only the per-second limit is worth waiting out. The daily one ("10000 request/ 1 day")
+		// holds until tomorrow, so retrying just burns another second and another request.
+		if (body.code !== 0 && /request\/\s*second/i.test(body.msg ?? '')) {
 			await new Promise((r) => setTimeout(r, TIKWM_RETRY_DELAY_MS));
 			body = await requestTikwm(url, timeoutMs);
 		}
