@@ -2,6 +2,7 @@ import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
 import { fetchTikwm, tryTikwm } from '../tikwm-client';
+import { tryTiktokDirect } from '../tiktok-direct';
 import { buildCaption, isUrl, decodeTiktokDirectUrl } from '../media-helpers';
 
 export class TikTokProvider implements IDownloaderProvider {
@@ -10,6 +11,10 @@ export class TikTokProvider implements IDownloaderProvider {
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
 		const tikwm = await tryTikwm(url, mode);
 		if (tikwm) return tikwm;
+
+		// btch's TikTok endpoints time out or answer empty, so read the post page before them.
+		const direct = await tryTiktokDirect(url, mode);
+		if (direct) return direct;
 
 		try {
 			const res = await btchFetch('tiktok', url);

@@ -72,7 +72,13 @@ describe('tikwm client', () => {
 		expect(calls).toHaveLength(2);
 	});
 
-	it('returns null on failures so the btch backends take over', async () => {
+	it('does not retry the daily limit', async () => {
+		const calls = stubTikwm({ code: -1, msg: 'Free Api Limit: 10000 request/ 1 day.' }, okBody);
+		expect(await fetchTikwm('https://vt.tiktok.com/abc/')).toBeNull();
+		expect(calls).toHaveLength(1);
+	});
+
+	it('returns null on failures so the next source takes over', async () => {
 		stubTikwm({ code: -1, msg: 'Url parsing is failed! Please check url.' });
 		expect(await tryTikwm('https://vt.tiktok.com/abc/', 'auto')).toBeNull();
 		vi.stubGlobal('fetch', async () => {
