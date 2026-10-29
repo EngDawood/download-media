@@ -484,7 +484,8 @@ export async function downloadAndSendMedia(
 				const sorry = options?.firstName
 					? t(locale, 'download.too_large_limit_name', { firstName: options.firstName })
 					: t(locale, 'download.too_large_limit');
-				const mediaUrl = result?.media?.[0]?.url || url;
+				// TikTok's CDN link answers 403 without the page's cookies, so point at the post instead.
+				const mediaUrl = platform === 'TikTok' ? url : result?.media?.[0]?.url || url;
 				const fileInfo = tooLargeFileInfo(locale, result?.media?.[0], result?.title, mediaUrl, errMsg);
 				const keyboard = new InlineKeyboard()
 					.url(t(locale, 'download.btn_urluploadxbot'), 'https://t.me/urluploadxbot')

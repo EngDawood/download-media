@@ -72,7 +72,8 @@ async function downloadBytes(mediaUrl: string, cookie: string): Promise<Uint8Arr
 async function toItem(type: 'video' | 'audio', url: string, cookie: string, knownSize = 0): Promise<MediaItem> {
 	// A file the page already reports as over the cap would only run the Worker out of memory.
 	const buffer = knownSize > MAX_BUFFER_BYTES ? null : await downloadBytes(url, cookie);
-	return buffer ? { type, url, buffer, filename: type === 'video' ? 'tiktok.mp4' : 'tiktok.mp3' } : { type, url };
+	const filesize = knownSize > 0 ? knownSize : undefined;
+	return buffer ? { type, url, buffer, filesize, filename: type === 'video' ? 'tiktok.mp4' : 'tiktok.mp3' } : { type, url, filesize };
 }
 
 /** TikTok extraction straight from the post page. Returns `null` to fall through to the btch backends. */

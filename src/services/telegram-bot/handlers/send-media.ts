@@ -156,6 +156,12 @@ async function sendVideoMessage(bot: Bot, chatId: number, message: TelegramMedia
 	if (!message.url) throw new Error('Video URL is missing');
 	const url = message.url;
 
+	// A known size over the upload ceiling cannot be sent by any route; say so now instead of
+	// downloading it first. The error text is what the caller matches to show the "too large" screen.
+	if (message.filesize && message.filesize > MAX_UPLOAD_SIZE) {
+		throw new Error(`File too large (${(message.filesize / 1024 / 1024).toFixed(1)}MB)`);
+	}
+
 	const upload = async () => {
 		const file = await downloadAsInputFile(url, 'video.mp4');
 		await sendWithCaption(
