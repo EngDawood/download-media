@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/EngDawood/download-media/compare/download-media-bot-v1.0.0...download-media-bot-v1.1.0) (2026-10-29)
+
+
+### Features
+
+* **tiktok:** show the too-large screen for videos over 50MB ([8c4348a](https://github.com/EngDawood/download-media/commit/8c4348a79b23bcd01e616fb7028f38c9b780f07d))
+* **tiktok:** show the too-large screen for videos over 50MB ([e3cfcec](https://github.com/EngDawood/download-media/commit/e3cfcec577b7da2e5d66b74e1548211533f0b59b))
+
+
+### Bug Fixes
+
+* **tiktok:** read the post page when TikWM is rate-limited ([1a93946](https://github.com/EngDawood/download-media/commit/1a939462aa5bd3f31daa41ea4027f9b0683c5726))
+* **tiktok:** read the post page when TikWM is rate-limited ([084dcab](https://github.com/EngDawood/download-media/commit/084dcab8540270d5c54625b32c48411a4b5498ef))
+* **tiktok:** send downloaded bytes for video and audio ([3711bdb](https://github.com/EngDawood/download-media/commit/3711bdbedebc0e4659a7d4e858392f6c5dab1e54))
+* **tiktok:** send downloaded bytes for video and audio ([f19243d](https://github.com/EngDawood/download-media/commit/f19243dd2cf84c97e423b7d007d049d8c578efec))
+
 ## 1.0.0 (2026-10-24)
 
 
