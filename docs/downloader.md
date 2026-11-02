@@ -27,7 +27,7 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 
 ## Per-platform behaviour
 
-**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive, MediaFire, CapCut, SnackVideo, Internet Archive
+**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive, MediaFire, CapCut, SnackVideo, Internet Archive, Sci-Hub
 
 **Platform-specific UX:**
 * **GitHub**: public repos, folders and files need no token. With the `GITHUB_TOKEN` secret set, the bot uses it for every user (higher rate limits) except for repos owned by an account in `GITHUB_PRIVATE_OWNERS` (`wrangler.bot.jsonc`), which only the admin reads, so those private repos (whole-repo zip, `/tree/` folder, `/blob/` file) download for the admin and fail for everyone else. With `GITHUB_PRIVATE_OWNERS` empty the token is admin-only. The token never reaches the API or MCP endpoints. Use a fine-grained token with `Contents: Read-only`. Code: `github-private.ts`, `GitHubProvider`.
@@ -37,6 +37,7 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 * **Instagram Stories**: fetched via RSSHub/picnob.info; sent in media groups of 4. `/story` command available to all users (accepts `@username`, plain username, or URL). Optional custom footer via `/footer` (admin).
 * **SoundCloud / Spotify**: audio auto-download
 * **Internet Archive**: `archive.org/details|download|stream|embed/<id>` resolved through `archive.org/metadata/<id>`; sends the PDF (EPUB if there is none) with the other as a `dl:alt` button (`download.btn_epub`). Direct `ia*.us.archive.org/<n>/items/<id>/<file>` links pass through as-is; borrow-only items return an `unsupported` error. Large PDFs follow the usual >20MB/>50MB paths in `send-media.ts`.
+* **Sci-Hub**: papers by DOI — a `doi.org` link, a `sci-hub.se|.st|.ru` or `sci-net.xyz` link, or a bare DOI (the detector rewrites it to its doi.org link). The mirrors serve the article page anonymously; its `citation_pdf_url` meta tag names the PDF, which is sent as a document with title, journal and size in the caption. Sources are tried in order (the three mirrors, then Sci-Net): a 404 means that source does not hold the paper, while a DDoS-Guard 403 or the ALTCHA robot check counts as `rate_limited` so the auto-retry can help. Sci-Net serves its page anonymously for papers its members already hold (PDF in an iframe; unheld papers bounce to the login page), and mirrors redirect some DOIs there, so relative PDFs resolve against the final host. Behind its login (a plain form POST — no signing) it may hold more, so with the `SCI_NET_USERNAME` / `SCI_NET_PASSWORD` secrets set it is tried once more, logged in, at the end; registration there is invite-only. Large PDFs follow the usual >20MB/>50MB paths in `send-media.ts`.
 * **MediaFire**: files flagged by VirusTotal sit behind a "Download Anyway" malware advisory; do not automate past it.
 * **All others**: auto-download best quality
 

@@ -8,6 +8,9 @@ declare namespace Cloudflare {
 		GITHUB_TOKEN?: string;
 		/** Comma separated GitHub owners whose repos only the admin may read with GITHUB_TOKEN. */
 		GITHUB_PRIVATE_OWNERS?: string;
+		/** Sci-Net account for paper downloads (optional; Sci-Hub mirrors need no login). */
+		SCI_NET_USERNAME?: string;
+		SCI_NET_PASSWORD?: string;
 		OPENAI_API_KEY?: string;
 	}
 }

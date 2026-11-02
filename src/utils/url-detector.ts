@@ -280,6 +280,7 @@ const KNOWN_PLATFORMS = new Set([
 	'CapCut',
 	'SnackVideo',
 	'Internet Archive',
+	'Sci-Hub',
 ]);
 
 export function isGenericPlatform(platform: string): boolean {
@@ -369,6 +370,12 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	{
 		platform: 'Internet Archive',
 		pattern: /https?:\/\/(?:www\.)?archive\.org\/(?:details|download|stream|embed)\/\S+/i,
+	},
+	// Sci-Hub / Sci-Net / DOI: the path of every one of these links is the paper's DOI.
+	// doi.org is the link users actually hold for a paper, so it routes here too.
+	{
+		platform: 'Sci-Hub',
+		pattern: /https?:\/\/(?:www\.)?(?:sci-hub\.(?:se|st|ru)|sci-net\.xyz|(?:dx\.)?doi\.org)\/\S+/i,
 	},
 	// Google Drive / Docs: share links (/file/d/, /open?id=, /uc?id=), Workspace editor
 	// URLs on docs.google.com, and already-direct drive.usercontent.google.com downloads.
@@ -472,6 +479,14 @@ export function detectMediaUrl(text: string): DetectedUrl | null {
 		if (match) {
 			return { url: normalizeUrl(match[0], platform), platform };
 		}
+	}
+	// Bare DOI with no link around it ("10.1038/nature12373", "doi:10.…") — the
+	// canonical way users cite a paper. Turn it into its doi.org link so the whole
+	// pipeline (bot, API, MCP) treats it like any other Sci-Hub input.
+	const bareDoi = text.match(/\b10\.\d{4,9}\/[^\s"'<>]+/);
+	if (bareDoi) {
+		const doi = bareDoi[0].replace(/[.,;)]+$/, '');
+		return { url: `https://doi.org/${doi}`, platform: 'Sci-Hub' };
 	}
 	// Generic fallback — let AIO try any URL
 	const generic = text.match(GENERIC_URL_PATTERN);

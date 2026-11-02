@@ -35,7 +35,7 @@ export const ar: Translations = {
 	'start.guest.body':
 		'<b>بوت تحميل الوسائط</b>\n\n' +
 		'أرسل رابط من أي منصة مدعومة وسأحمّل الوسائط لك.\n\n' +
-		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive\n',
+		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive, Sci-Hub (أبحاث عبر DOI)\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} تحميلات مجانية</b> — ثم انضم إلى {channel} للمتابعة.\n',
 	'start.guest.help_hint': '\n/help — مزيد من المعلومات',
 

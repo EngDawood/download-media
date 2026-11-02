@@ -22,6 +22,7 @@ import { MediaFireProvider } from './downloader/platforms/mediafire';
 import { CapCutProvider } from './downloader/platforms/capcut';
 import { SnackVideoProvider } from './downloader/platforms/snackvideo';
 import { InternetArchiveProvider } from './downloader/platforms/internet-archive';
+import { SciHubProvider, type SciNetCredentials } from './downloader/platforms/sci-hub';
 
 export type { DownloaderMode, MediaItem, DownloaderResult };
 export { formatFileSize };
@@ -33,7 +34,7 @@ export { isUrl, detectMediaType, detectTypeFromJwtUrl, buildCaption, decodeTikto
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
-function buildRegistry(telegraphAccessToken: string, githubAuth?: GithubAuth): ProviderRegistry {
+function buildRegistry(telegraphAccessToken: string, githubAuth?: GithubAuth, sciNet?: SciNetCredentials): ProviderRegistry {
 	return new ProviderRegistry([
 		new TikTokProvider(),
 		new InstagramProvider(),
@@ -51,13 +52,14 @@ function buildRegistry(telegraphAccessToken: string, githubAuth?: GithubAuth): P
 		new CapCutProvider(),
 		new SnackVideoProvider(),
 		new InternetArchiveProvider(),
+		new SciHubProvider(sciNet),
 	]);
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /** `githubAuth` is built per request by the bot. API and MCP pass their whole Worker env here, so it must not share a name with a secret. */
-type DownloadEnv = { TELEGRAPH_ACCESS_TOKEN?: string; githubAuth?: GithubAuth };
+type DownloadEnv = { TELEGRAPH_ACCESS_TOKEN?: string; githubAuth?: GithubAuth; SCI_NET_USERNAME?: string; SCI_NET_PASSWORD?: string };
 
 /** Skip the automatic retry when the first attempt already took longer than this. */
 const RETRY_MAX_ELAPSED_MS = 15_000;
@@ -101,7 +103,10 @@ async function downloadOnce(
 	platform: string | undefined,
 	env: DownloadEnv | undefined,
 ): Promise<DownloaderResult> {
-	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '', env?.githubAuth);
+	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '', env?.githubAuth, {
+		username: env?.SCI_NET_USERNAME,
+		password: env?.SCI_NET_PASSWORD,
+	});
 	try {
 		const result = await registry.download(url, mode, platform);
 		if (result) return result;

@@ -230,7 +230,12 @@ export async function downloadAndSendMedia(
 			isAdmin: options?.adminId !== undefined && !options?.guestMode,
 			protectedOwners: parseOwners(workerEnv.GITHUB_PRIVATE_OWNERS),
 		};
-		result = await downloadMedia(url, mode, platform, { TELEGRAPH_ACCESS_TOKEN: options?.telegraphToken, githubAuth });
+		result = await downloadMedia(url, mode, platform, {
+			TELEGRAPH_ACCESS_TOKEN: options?.telegraphToken,
+			githubAuth,
+			SCI_NET_USERNAME: workerEnv.SCI_NET_USERNAME,
+			SCI_NET_PASSWORD: workerEnv.SCI_NET_PASSWORD,
+		});
 
 		if (result.status === 'error') {
 			trackEvent(options?.analytics, { userId, platform, userType, action: 'download_error' });
