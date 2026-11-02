@@ -54,5 +54,6 @@
 	// - TELEGRAM_WEBHOOK_SECRET
 	// - TELEGRAPH_ACCESS_TOKEN
 	// - GITHUB_TOKEN (optional; fine-grained with Contents: Read-only; see GITHUB_PRIVATE_OWNERS above)
+	// - SCI_NET_USERNAME / SCI_NET_PASSWORD (optional; Sci-Net paper downloads — Sci-Hub mirrors need no login)
 	// Leave PUBLIC_API_KEY unset: POST /api/download and POST /mcp stay disabled on this Worker.
 }

@@ -67,4 +67,5 @@
 	// - TELEGRAM_WEBHOOK_SECRET
 	// - TELEGRAPH_ACCESS_TOKEN
 	// - PUBLIC_API_KEY  (enables POST /api/download and POST /mcp; both disabled if unset)
+	// - SCI_NET_USERNAME / SCI_NET_PASSWORD (optional; Sci-Net paper downloads — Sci-Hub mirrors need no login)
 }

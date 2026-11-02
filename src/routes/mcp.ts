@@ -48,6 +48,7 @@ const SUPPORTED_PLATFORMS = [
 	'CapCut',
 	'SnackVideo',
 	'Internet Archive',
+	'Sci-Hub',
 ];
 
 const INSTRUCTIONS =
