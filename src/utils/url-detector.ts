@@ -375,7 +375,7 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	// doi.org is the link users actually hold for a paper, so it routes here too.
 	{
 		platform: 'Sci-Hub',
-		pattern: /https?:\/\/(?:www\.)?(?:sci-hub\.(?:se|st|ru)|sci-net\.xyz|(?:dx\.)?doi\.org)\/\S+/i,
+		pattern: /https?:\/\/(?:www\.)?(?:sci-hub\.(?:se|st|ru|ee|al|gd)|sci-net\.xyz|(?:dx\.)?doi\.org)\/\S+/i,
 	},
 	// Google Drive / Docs: share links (/file/d/, /open?id=, /uc?id=), Workspace editor
 	// URLs on docs.google.com, and already-direct drive.usercontent.google.com downloads.

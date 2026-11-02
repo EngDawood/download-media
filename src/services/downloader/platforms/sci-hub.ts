@@ -3,8 +3,21 @@ import type { DownloaderMode, DownloaderResult } from '../../../types/downloader
 import { DownloadError, classifyError, kindFromStatus, mostPermanent, type FailureKind } from '../failure';
 import { BROWSER_UA, formatFileSize, metaContent } from '../media-helpers';
 
-/** Sci-Hub mirrors, tried in order until one serves the article page. */
-export const SCI_HUB_INSTANCES = ['https://sci-hub.se', 'https://sci-hub.st', 'https://sci-hub.ru'];
+/**
+ * Sci-Hub mirrors, tried in order until one serves the article page. The first
+ * three are the canonical mirrors; .ee/.al/.gd are a second family whose pages
+ * carry the PDF in an iframe served from sci.bban.top — they answer when the
+ * canonical mirrors are bot-walling (which they do to datacenter egress, the
+ * deployed Worker included, while browsers pass).
+ */
+export const SCI_HUB_INSTANCES = [
+	'https://sci-hub.se',
+	'https://sci-hub.st',
+	'https://sci-hub.ru',
+	'https://sci-hub.ee',
+	'https://sci-hub.al',
+	'https://sci-hub.gd',
+];
 
 export const SCI_NET_BASE = 'https://sci-net.xyz';
 
@@ -63,13 +76,12 @@ export function parsePaperPage(html: string, pageUrl: string): PaperPage | null 
 	let pdf = metaContent(html, 'citation_pdf_url');
 	pdf ??= html.match(/<(?:iframe|embed)[^>]+src\s*=\s*"([^"]+\.pdf(?:[?#][^"]*)?)"/i)?.[1];
 	pdf ??= html.match(/<a[^>]+href\s*=\s*"([^"]+\.pdf(?:[?#][^"]*)?)"/i)?.[1];
+	// The bban family also prints the file URL inside a JS string with escaped
+	// slashes ("https:\/\/sci.bban.top\/pdf\/…"), so unescape and take any
+	// absolute .pdf URL as the last resort.
+	pdf ??= html.replace(/\\\//g, '/').match(/https?:\/\/[^\s"'<>]+\.pdf(?:[?#][^\s"'<>]*)?/i)?.[0];
 	if (!pdf) return null;
-	// Sci-Net pages carry no citation meta — their <title> is the paper title.
-	// Sci-Hub's is "Sci-Hub. <title> / <journal>, <year>", so strip both wrappings.
-	const rawTag = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ?? '';
-	const tagTitle = (/^Sci-Hub/i.test(rawTag.trim()) ? rawTag.replace(/\s*\/\s*[^/]*$/, '') : rawTag)
-		.replace(/^\s*Sci-(?:Hub|Net)[.:]\s*/i, '')
-		.trim();
+	const tagTitle = cleanTagTitle(html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ?? '');
 	return {
 		// The viewer fragment (#view=FitH&navpanes=0) is display state, not address.
 		pdfUrl: new URL(decodeEntities(pdf).split('#')[0], pageUrl).toString(),
@@ -79,8 +91,22 @@ export function parsePaperPage(html: string, pageUrl: string): PaperPage | null 
 	};
 }
 
-/** True when the instance answered with its ALTCHA robot check instead of the article. */
-export const isCaptchaPage = (html: string): boolean => html.includes('altcha-widget') || /are you a? robot/i.test(html);
+/**
+ * The <title> of every mirror family wraps the paper title differently:
+ * classic Sci-Hub "Sci-Hub. <title> / <journal>, <year>", Sci-Net "Sci-Net:
+ * <title>", the bban family "Sci-Hub | <title> | <doi>". Strip each wrapping.
+ */
+function cleanTagTitle(raw: string): string {
+	let t = raw.trim().replace(/^Sci-(?:Hub|Net)\s*[.:|]\s*/i, '');
+	const parts = t.split(' | ');
+	if (parts.length > 1 && DOI_RE.test(parts[parts.length - 1])) parts.pop();
+	t = parts.join(' | ').replace(/\s*\/\s*[^/]+,\s*\d{4}\s*$/, '');
+	return t.trim();
+}
+
+/** True when the instance answered with a robot/browser check instead of the article. */
+export const isCaptchaPage = (html: string): boolean =>
+	html.includes('altcha-widget') || /are you a? robot/i.test(html) || /checking your browser/i.test(html);
 
 const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -104,7 +130,7 @@ export interface SciNetCredentials {
  * is invite-only, so the bot cannot create its own account.
  */
 export class SciHubProvider implements IDownloaderProvider {
-	readonly platforms = ['sci-hub.se', 'sci-hub.st', 'sci-hub.ru', 'sci-net.xyz', 'doi.org'];
+	readonly platforms = ['sci-hub.se', 'sci-hub.st', 'sci-hub.ru', 'sci-hub.ee', 'sci-hub.al', 'sci-hub.gd', 'sci-net.xyz', 'doi.org'];
 
 	constructor(private readonly sciNet: SciNetCredentials = {}) {}
 
@@ -114,11 +140,17 @@ export class SciHubProvider implements IDownloaderProvider {
 			return { status: 'error', error: 'Send a DOI link (doi.org/10.…), a Sci-Hub link, or a bare DOI', failureKind: 'unsupported' };
 
 		const failures: FailureKind[] = [];
+		// Per-source outcomes, named in the final error: with seven independent
+		// sources a bare "busy" is undiagnosable from the API/MCP side.
+		const details: string[] = [];
 		for (const base of PAPER_INSTANCES) {
 			try {
 				return await this.fromInstance(base, doi);
 			} catch (e) {
 				failures.push(classifyError(e));
+				details.push(
+					e instanceof DownloadError ? e.message.replace('https://', '') : `${base.replace('https://', '')}: ${classifyError(e)}`,
+				);
 				// A 404 is the mirror saying it does not hold the paper — another mirror
 				// may, so keep going; every other failure is recorded the same way.
 				if (e instanceof DownloadError && e.kind === 'gone') continue;
@@ -129,6 +161,7 @@ export class SciHubProvider implements IDownloaderProvider {
 				return await this.fromSciNet(doi);
 			} catch (e) {
 				failures.push(classifyError(e));
+				details.push(e instanceof DownloadError ? e.message : `sci-net (login): ${classifyError(e)}`);
 			}
 		}
 		// Unlike the btch fleet (one backend raced), these are independent sources:
@@ -144,9 +177,10 @@ export class SciHubProvider implements IDownloaderProvider {
 		return {
 			status: 'error',
 			error:
-				kind === 'gone'
+				(kind === 'gone'
 					? `No paper found for DOI ${doi} on Sci-Hub or Sci-Net`
-					: `Sci-Hub did not serve DOI ${doi} (the mirrors may be busy or robot-checking) — try again`,
+					: `Sci-Hub did not serve DOI ${doi} (the mirrors may be busy or robot-checking) — try again`) +
+				(details.length ? ` [${details.join('; ')}]` : ''),
 			failureKind: kind,
 		};
 	}
@@ -208,7 +242,20 @@ export class SciHubProvider implements IDownloaderProvider {
 		} catch {
 			/* size is decoration — the link itself already resolved */
 		}
-		const filename = decodeURIComponent(paper.pdfUrl.split('/').pop()?.split(/[?#]/)[0] ?? '') || `${doi.replace('/', '_')}.pdf`;
+		// The bban file name is the DOI with its slash double-encoded, so decode
+		// twice: "jcr%252Fucx050.pdf" → "jcr/ucx050.pdf" — not a usable file
+		// name, so such names fall back to a DOI-derived one below.
+		let decoded = paper.pdfUrl.split('/').pop()?.split(/[?#]/)[0] ?? '';
+		for (let i = 0; i < 2; i++) {
+			try {
+				const next = decodeURIComponent(decoded);
+				if (next === decoded) break;
+				decoded = next;
+			} catch {
+				break;
+			}
+		}
+		const filename = decoded && !decoded.includes('/') ? decoded : `${doi.replaceAll('/', '_')}.pdf`;
 		const title = paper.title || doi;
 		const meta = [paper.journal, paper.year].filter(Boolean).join(', ');
 		const size = formatFileSize(filesize);

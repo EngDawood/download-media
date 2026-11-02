@@ -69,6 +69,25 @@ describe('parsePaperPage()', () => {
 		);
 	});
 
+	it('parses the bban-family page shape (sci-hub.ee/.al/.gd)', () => {
+		// Captured from sci-hub.ee for 10.1093/jcr/ucx050: no citation meta, the
+		// PDF is an iframe to sci.bban.top with the DOI's slash double-encoded,
+		// and the <title> wraps the paper title between "Sci-Hub |" and the DOI.
+		const html = `<html><head><title>Sci-Hub | Liquid Consumption | 10.1093/jcr/ucx050</title></head>
+<body><iframe src="https://sci.bban.top/pdf/10.1093/jcr%252Fucx050.pdf#view=FitH" id="pdf"></iframe></body></html>`;
+		const paper = parsePaperPage(html, 'https://sci-hub.ee/10.1093/jcr/ucx050');
+		expect(paper?.pdfUrl).toBe('https://sci.bban.top/pdf/10.1093/jcr%252Fucx050.pdf');
+		expect(paper?.title).toBe('Liquid Consumption');
+	});
+
+	it('finds the PDF in an escaped JS string when no tag carries it (sci-hub.al shape)', () => {
+		const html = String.raw`<html><head><title>Liquid Consumption | 10.1093/jcr/ucx050_Sci-Hub:2025</title></head>
+<body><button onclick="location.href='https:\/\/sci.bban.top\/pdf\/10.1093\/jcr%252Fucx050.pdf?download=true'">Download</button></body></html>`;
+		const paper = parsePaperPage(html, 'https://sci-hub.al/10.1093/jcr/ucx050');
+		expect(paper?.pdfUrl).toBe('https://sci.bban.top/pdf/10.1093/jcr%252Fucx050.pdf?download=true');
+		expect(paper?.title).toBe('Liquid Consumption');
+	});
+
 	it('returns null for pages with no PDF (robot check, request form)', () => {
 		expect(parsePaperPage(CAPTCHA_PAGE, 'https://sci-hub.st/10.1038/nature12373')).toBeNull();
 		expect(parsePaperPage('<html><body>not in the database</body></html>', 'https://sci-hub.st/10.1/x')).toBeNull();
@@ -80,6 +99,10 @@ describe('isCaptchaPage()', () => {
 		expect(isCaptchaPage(CAPTCHA_PAGE)).toBe(true);
 		expect(isCaptchaPage(ARTICLE_PAGE)).toBe(false);
 	});
+
+	it('recognises the JS browser check the mirrors also serve', () => {
+		expect(isCaptchaPage('<html><head><title>Checking your browser…</title></head></html>')).toBe(true);
+	});
 });
 
 describe('detectMediaUrl() — papers', () => {
@@ -89,6 +112,7 @@ describe('detectMediaUrl() — papers', () => {
 			platform: 'Sci-Hub',
 		});
 		expect(detectMediaUrl('look https://sci-hub.ru/10.1093/jcr/ucx050 please')?.platform).toBe('Sci-Hub');
+		expect(detectMediaUrl('https://sci-hub.ee/10.1093/jcr/ucx050')?.platform).toBe('Sci-Hub');
 		expect(detectMediaUrl('https://sci-net.xyz/10.1093/jcr/ucx050')?.platform).toBe('Sci-Hub');
 	});
 
@@ -181,6 +205,39 @@ describe('SciHubProvider', () => {
 		const result = await new SciHubProvider().download('https://doi.org/10.1038/nature12373', 'auto');
 		expect(result.status).toBe('error');
 		expect(result.failureKind).toBe('rate_limited');
+	});
+
+	it('falls through the walled canonical mirrors to the bban family', async () => {
+		const bbanPage = `<html><head><title>Sci-Hub | Liquid Consumption | 10.1093/jcr/ucx050</title></head>
+<body><iframe src="https://sci.bban.top/pdf/10.1093/jcr%252Fucx050.pdf#view=FitH" id="pdf"></iframe></body></html>`;
+		stubFetch((url, init) => {
+			if (init?.method === 'HEAD') return pdfHead();
+			if (url.startsWith('https://sci-hub.se/')) return new Response('<title>DDoS-Guard</title>', { status: 403 });
+			if (url.startsWith('https://sci-hub.st/')) return new Response(CAPTCHA_PAGE, { status: 200 });
+			if (url.startsWith('https://sci-hub.ru/')) return new Response('gone', { status: 404 });
+			if (url.startsWith('https://sci-hub.ee/')) return new Response(bbanPage, { status: 200 });
+			throw new Error(`unexpected fetch ${url}`);
+		});
+		const result = await new SciHubProvider().download('https://doi.org/10.1093/jcr/ucx050', 'auto');
+		expect(result.status).toBe('success');
+		expect(result.media).toEqual([
+			{
+				type: 'document',
+				url: 'https://sci.bban.top/pdf/10.1093/jcr%252Fucx050.pdf',
+				filename: '10.1093_jcr_ucx050.pdf',
+				filesize: 943776,
+			},
+		]);
+		expect(result.title).toBe('Liquid Consumption');
+	});
+
+	it('names each source outcome in the error when all fail', async () => {
+		stubFetch(() => new Response('<title>DDoS-Guard</title>', { status: 403 }));
+		const result = await new SciHubProvider().download('https://doi.org/10.1038/nature12373', 'auto');
+		expect(result.status).toBe('error');
+		expect(result.error).toContain('sci-hub.se');
+		expect(result.error).toContain('sci-hub.ee');
+		expect(result.error).toContain('sci-net.xyz');
 	});
 
 	it('rejects input with no DOI as unsupported', async () => {
