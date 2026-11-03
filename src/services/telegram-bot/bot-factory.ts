@@ -83,6 +83,20 @@ export function createBot(env: Env): Bot {
 		await next();
 	});
 
+	// Group gate: when TEST_GROUP_ID is set, updates from any other group or
+	// supergroup are dropped, so the bot only serves the test group. Private
+	// chats are unaffected. (Bots never receive other bots' group messages
+	// anyway; this gate is about which human-posted group traffic passes.)
+	const testGroupId = env.TEST_GROUP_ID ? parseInt(env.TEST_GROUP_ID, 10) : NaN;
+	bot.use(async (ctx, next) => {
+		const chat = ctx.chat;
+		if (chat && (chat.type === 'group' || chat.type === 'supergroup') && !Number.isNaN(testGroupId) && chat.id !== testGroupId) {
+			console.log('[GATE] Dropped update from non-test group:', chat.id);
+			return;
+		}
+		await next();
+	});
+
 	registerInfoCommands(bot, env, db);
 	registerAdminCommands(bot, env, db);
 	registerSubscriptionCallbacks(bot, db);

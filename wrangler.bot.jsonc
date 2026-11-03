@@ -29,6 +29,9 @@
 	},
 	"vars": {
 		"ADMIN_TELEGRAM_ID": "801062947",
+		// Testing group («dawood» supergroup): Raymond posts links there mentioning
+		// @download_media_4bot to test the bot end to end.
+		"TEST_GROUP_ID": "-1004295128950",
 		// GITHUB_TOKEN serves every user except for repos owned by these accounts, which only the admin reads.
 		"GITHUB_PRIVATE_OWNERS": "EngDawood"
 	},
