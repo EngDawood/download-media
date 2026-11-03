@@ -209,11 +209,40 @@ export function audioFilename(title?: string): string {
 	return base ? `${base}.mp3` : 'audio.mp3';
 }
 
+/**
+ * The container of an audio buffer, from its magic bytes: EBML is WebM/Matroska,
+ * "OggS" is Ogg. Telegram's sendAudio accepts only MP3/M4A and rejects both of
+ * these outright ("wrong file type") — and the rejection is a plain 400, so the
+ * old flow re-uploaded the same bytes under a .mp3 name and failed again. That
+ * is exactly what YouTube "mp3" downloads are today: btch's mp3 field wraps a
+ * googlevideo itag-249 stream, which is audio/webm (Opus).
+ */
+export function sniffAudioContainer(bytes: Uint8Array): 'webm' | 'ogg' | null {
+	if (bytes.length >= 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return 'webm';
+	if (bytes.length >= 4 && bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) return 'ogg';
+	return null;
+}
+
+/** `name.mp3` → `name.webm` (extension swapped, or appended when there is none). */
+const withContainerExt = (filename: string, container: 'webm' | 'ogg'): string =>
+	filename.includes('.') ? filename.replace(/\.[^.]+$/, `.${container}`) : `${filename}.${container}`;
+
 async function sendAudioMessage(bot: Bot, chatId: number, message: TelegramMediaMessage, disableNotification: boolean): Promise<void> {
 	// Telegram labels the track with `title` when present; without it the raw
 	// filename from the CDN (or 'audio') is shown instead.
 	const title = message.title?.trim() || undefined;
+	// A WebM/Ogg track cannot go out as an audio message at all; deliver it as a
+	// document with its true extension instead of failing the whole request.
+	const asDocument = (buffer: Uint8Array, container: 'webm' | 'ogg') =>
+		sendDocumentMessage(
+			bot,
+			chatId,
+			{ ...message, url: undefined, buffer, filename: withContainerExt(message.filename || audioFilename(title), container) },
+			disableNotification,
+		);
 	if (message.buffer) {
+		const container = sniffAudioContainer(message.buffer);
+		if (container) return asDocument(message.buffer, container);
 		const file = new InputFile(message.buffer, message.filename || audioFilename(title));
 		await sendWithCaption(
 			(caption) => bot.api.sendAudio(chatId, file, { caption, title, parse_mode: 'HTML', disable_notification: disableNotification }),
@@ -236,7 +265,10 @@ async function sendAudioMessage(bot: Bot, chatId: number, message: TelegramMedia
 		);
 	} catch (err) {
 		if (!isTelegramUrlError(err)) throw err;
-		const file = await downloadAsInputFile(url, message.filename || audioFilename(title));
+		const bytes = await downloadBytes(url);
+		const container = sniffAudioContainer(bytes);
+		if (container) return asDocument(bytes, container);
+		const file = new InputFile(bytes, message.filename || audioFilename(title));
 		await sendWithCaption(
 			(caption) => bot.api.sendAudio(chatId, file, { caption, title, parse_mode: 'HTML', disable_notification: disableNotification }),
 			bot,
@@ -436,7 +468,7 @@ export function pickSendableVariant(variants: MediaVariant[]): MediaVariant | un
 	return variants.find((v) => v.filesize === undefined || v.filesize <= MAX_UPLOAD_SIZE);
 }
 
-async function downloadAsInputFile(url: string, filename: string): Promise<InputFile> {
+async function downloadBytes(url: string): Promise<Uint8Array> {
 	let resp = await fetchMediaOnce(url);
 	if (!resp.ok && RETRYABLE_MEDIA_STATUSES.has(resp.status)) {
 		await new Promise((r) => setTimeout(r, 700));
@@ -467,5 +499,9 @@ async function downloadAsInputFile(url: string, filename: string): Promise<Input
 		throw new Error(`File too large (${(bytes.length / 1024 / 1024).toFixed(1)}MB)`);
 	}
 
-	return new InputFile(bytes, filename);
+	return bytes;
+}
+
+async function downloadAsInputFile(url: string, filename: string): Promise<InputFile> {
+	return new InputFile(await downloadBytes(url), filename);
 }
