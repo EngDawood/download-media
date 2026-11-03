@@ -33,7 +33,9 @@
 	],*/
 	
 	"vars": {
-		"ADMIN_TELEGRAM_ID": "801062947"
+		"ADMIN_TELEGRAM_ID": "801062947",
+		// Testing group («dawood» supergroup) for @download_media_4bot end-to-end tests.
+		"TEST_GROUP_ID": "-1004295128950"
 	},
 	// Analytics Engine dataset for download statistics
 	"analytics_engine_datasets": [
