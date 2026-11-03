@@ -36,7 +36,7 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 **Platform-specific UX:**
 
 - **GitHub**: public repos, folders and files need no token. With the `GITHUB_TOKEN` secret set, the bot uses it for every user (higher rate limits) except for repos owned by an account in `GITHUB_PRIVATE_OWNERS` (`wrangler.bot.jsonc`), which only the admin reads, so those private repos (whole-repo zip, `/tree/` folder, `/blob/` file) download for the admin and fail for everyone else. With `GITHUB_PRIVATE_OWNERS` empty the token is admin-only. The token never reaches the API or MCP endpoints. Use a fine-grained token with `Contents: Read-only`. Code: `github-private.ts`, `GitHubProvider`.
-- **YouTube**: fetches quality list, shows picker (up to 4 + Audio button)
+- **YouTube**: fetches quality list, shows picker (up to 4 + Audio button). The "mp3" btch returns is a proxy link around a googlevideo audio stream that is usually WebM/Opus (itag 249), not MP3; the provider names the file with the true extension (`youtubeAudioExt`), and `send-media.ts` sniffs the bytes and delivers WebM/Ogg audio as a document — Telegram's sendAudio accepts only MP3/M4A and rejects those containers, which is what used to break YouTube audio downloads.
 - **TikTok**: slideshows auto-download; videos show Video/Audio picker
 - **Facebook**: shows HD/SD picker if multiple qualities available
 - **Instagram Stories**: fetched via RSSHub/picnob.info; sent in media groups of 4. `/story` command available to all users (accepts `@username`, plain username, or URL). Optional custom footer via `/footer` (admin).

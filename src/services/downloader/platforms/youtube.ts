@@ -32,6 +32,47 @@ const stillProcessing = (kind: FailureKind): DownloaderResult => ({
 const MAX_SENDABLE_BYTES = 45 * 1024 * 1024;
 
 /**
+ * The extension matching the audio btch actually returned. Its "mp3" field is
+ * a vidsnap proxy link wrapping a googlevideo stream — and that stream is
+ * usually itag 249 (audio/webm, Opus), not MP3 at all. Telegram's sendAudio
+ * accepts only MP3/M4A and rejects WebM outright, so callers need the truth:
+ * unwrap the proxy link and read the wrapped stream's mime/itag.
+ */
+export function youtubeAudioExt(url: string): 'mp3' | 'm4a' | 'webm' | 'opus' {
+	try {
+		const outer = new URL(url);
+		const inner = outer.searchParams.get('u');
+		const target = inner ? new URL(inner) : outer;
+		const mime = target.searchParams.get('mime') ?? '';
+		const itag = target.searchParams.get('itag') ?? '';
+		if (mime.includes('webm') || ['249', '250', '251'].includes(itag)) return 'webm';
+		if (mime.includes('mp4') || itag === '140') return 'm4a';
+		if (mime.includes('mpeg')) return 'mp3';
+		const suffix = target.pathname.split('.').pop()?.toLowerCase();
+		if (suffix === 'webm' || suffix === 'm4a' || suffix === 'mp3' || suffix === 'opus') return suffix;
+	} catch {
+		/* not a URL we can read — fall through to the historical default */
+	}
+	return 'mp3';
+}
+
+/** Title → filesystem-safe base name (same sanitising the bot's audio sender applies). */
+const audioBaseName = (title?: string): string =>
+	(title ?? '')
+		// eslint-disable-next-line no-control-regex -- stripping control chars is the point
+		.replace(/[\\/:*?"<>|\x00-\x1f]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, 64)
+		.trim();
+
+/** The audio item with a filename whose extension tells the truth about the stream. */
+const audioItem = (url: string, title?: string): MediaItem => {
+	const base = audioBaseName(title);
+	return { type: 'audio', url, filename: base ? `${base}.${youtubeAudioExt(url)}` : undefined };
+};
+
+/**
  * Pick the best variant Telegram will actually accept.
  * btch lists variants best-first, but the best is routinely far over the upload
  * limit when a lower one would sail through — so prefer the largest variant that
@@ -57,7 +98,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 			const caption = buildCaption(res.title);
 			const thumbnail = res.thumbnail;
 			if (mode === 'audio' && isUrl(res.mp3))
-				return { status: 'success', media: [{ type: 'audio', url: res.mp3 }], caption, title: res.title, thumbnail };
+				return { status: 'success', media: [audioItem(res.mp3, res.title)], caption, title: res.title, thumbnail };
 			if (isUrl(res.mp4)) {
 				return {
 					status: 'success',
@@ -86,7 +127,14 @@ export class YouTubeProvider implements IDownloaderProvider {
 				const audioItems = parseLinksSection(data.links.audio, 'audio');
 				const mp3Url = audioItems[0]?.url;
 				if (mode === 'audio') {
-					if (audioItems.length) return { status: 'success', media: [audioItems[0]], caption, title: data.title, thumbnail };
+					if (audioItems.length)
+						return {
+							status: 'success',
+							media: [{ ...audioItems[0], filename: audioItems[0].filename ?? audioItem(audioItems[0].url, data.title).filename }],
+							caption,
+							title: data.title,
+							thumbnail,
+						};
 				}
 				const videos: MediaItem[] = parseLinksSection(data.links.video, 'video');
 				if (videos.length) {
@@ -114,7 +162,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 			if (isUrl(aio.mp3)) {
 				return {
 					status: 'success',
-					media: [{ type: 'audio', url: aio.mp3 }],
+					media: [audioItem(aio.mp3, flatTitle)],
 					caption: flatCaption,
 					title: flatTitle,
 					thumbnail: flatThumb,
