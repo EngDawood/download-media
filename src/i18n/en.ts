@@ -90,6 +90,10 @@ export const en = {
 	'download.done_info': 'Done. ({info})',
 	'download.sent_album': 'Sent {count} items as album.',
 	'download.failed': '❌ Download failed. The link may be private, deleted, or unsupported.\n<code>{url}</code>\n<i>Error: {error}</i>',
+	'download.youtube_live':
+		'🔴 This is a live stream that is still on air, so only a few seconds of it can be downloaded right now.\n<code>{url}</code>\n<i>Send the link again after the broadcast ends and YouTube has the replay ready.</i>',
+	'download.youtube_live_maybe':
+		"⏳ Couldn't get this video yet. If it's a live stream that is still on air, it can't be downloaded until the broadcast ends.\n<code>{url}</code>\n<i>Send it again after the stream ends, or tap Retry if it's already over.</i>",
 	'download.processing_retry':
 		'⏳ YouTube is still processing this video — this can take a moment the first time.\n<code>{url}</code>\n<i>Tap Retry in a few seconds.</i>',
 	'download.delay_retry':
