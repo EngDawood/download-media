@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.1.0](https://github.com/EngDawood/download-media/compare/download-media-bot-v1.0.0...download-media-bot-v1.1.0) (2026-11-05)
+
+
+### Features
+
+* **sci-hub:** download papers by DOI via Sci-Hub mirrors and Sci-Net ([1905601](https://github.com/EngDawood/download-media/commit/1905601577157c7a8e9be88e5afc410d316b8c4a))
+* **sci-hub:** download papers by DOI via Sci-Hub mirrors and Sci-Net ([fb02caf](https://github.com/EngDawood/download-media/commit/fb02cafb1fac697a7721377043f5b7a09008ac47))
+* **tiktok:** show the too-large screen for videos over 50MB ([8c4348a](https://github.com/EngDawood/download-media/commit/8c4348a79b23bcd01e616fb7028f38c9b780f07d))
+* **tiktok:** show the too-large screen for videos over 50MB ([e3cfcec](https://github.com/EngDawood/download-media/commit/e3cfcec577b7da2e5d66b74e1548211533f0b59b))
+
+
+### Bug Fixes
+
+* **i18n:** Arabic gate message broke MarkdownV2 — non-subscribers got silence ([9177850](https://github.com/EngDawood/download-media/commit/917785038028e634129c08b520eb81de4bce36b1))
+* **i18n:** escape Arabic gate.blocked for MarkdownV2 so non-subscribers get the join prompt ([df3d10c](https://github.com/EngDawood/download-media/commit/df3d10cfc03cf13098f382de64b4847208df97fa))
+* **sci-hub:** add bban-family mirrors — canonical mirrors bot-wall the Worker ([3c180e5](https://github.com/EngDawood/download-media/commit/3c180e54e57e6a2d1f4c0d2b305d6a0c82a60021))
+* **sci-hub:** add bban-family mirrors — canonical mirrors bot-wall the Worker ([efcbc93](https://github.com/EngDawood/download-media/commit/efcbc9327da293bc13c434162e1ad7809e7b8d8b))
+* **tiktok:** read the post page when TikWM is rate-limited ([1a93946](https://github.com/EngDawood/download-media/commit/1a939462aa5bd3f31daa41ea4027f9b0683c5726))
+* **tiktok:** read the post page when TikWM is rate-limited ([084dcab](https://github.com/EngDawood/download-media/commit/084dcab8540270d5c54625b32c48411a4b5498ef))
+* **tiktok:** send downloaded bytes for video and audio ([3711bdb](https://github.com/EngDawood/download-media/commit/3711bdbedebc0e4659a7d4e858392f6c5dab1e54))
+* **tiktok:** send downloaded bytes for video and audio ([f19243d](https://github.com/EngDawood/download-media/commit/f19243dd2cf84c97e423b7d007d049d8c578efec))
+* **youtube:** audio downloads are WebM, not MP3 — deliver as documents ([5625d9e](https://github.com/EngDawood/download-media/commit/5625d9ec0e1c2d5197e1091c79d9a48a0a219b15))
+* **youtube:** audio downloads are WebM, not MP3 — deliver them as documents ([435a6a5](https://github.com/EngDawood/download-media/commit/435a6a56777743dce14da47a77914a572ef4c489))
+
 ## 1.0.0 (2026-10-24)
 
 
