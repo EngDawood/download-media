@@ -245,6 +245,11 @@ export async function downloadAndSendMedia(
 			// slow or busy — not about the user's link. Say that plainly and point at Retry,
 			// instead of the generic "the link may be private or deleted" text, which sends
 			// people off re-checking a link that was fine all along.
+			if (result.liveStream && platform === 'YouTube') {
+				const key = result.retryable ? 'download.youtube_live_maybe' : 'download.youtube_live';
+				await showError(t(locale, key, { url }), 'HTML', result.error);
+				return;
+			}
 			if (result.retryable && platform === 'YouTube') {
 				await showError(t(locale, 'download.processing_retry', { url }), 'HTML', result.error);
 				return;
