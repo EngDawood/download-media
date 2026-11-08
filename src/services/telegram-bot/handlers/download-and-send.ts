@@ -3,11 +3,19 @@ import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import { downloadMedia, formatFileSize } from '../../media-downloader';
 import { parseOwners } from '../../downloader/github-private';
-import { sendMediaToChannel, sendWithCaption, measureVariants, pickSendableVariant } from './send-media';
+import {
+	sendMediaToChannel,
+	sendWithCaption,
+	measureVariants,
+	pickSendableVariant,
+	extractFileId,
+	sendCachedMediaToChannel,
+} from './send-media';
+import { getMediaCache, putMediaCache, deleteMediaCache, type MediaCacheItem } from '../../../utils/media-cache';
 import { setAdminState, clearAdminState } from '../storage/admin-state';
 import { setReportData } from '../storage/session-store';
 import type { TelegramMediaMessage } from '../../../types/telegram';
-import type { MediaItem, MediaVariant } from '../../../types/downloader';
+import type { DownloaderResult, MediaItem, MediaVariant } from '../../../types/downloader';
 import { trackEvent } from '../../../utils/analytics';
 import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats-d1';
 import { getConfig } from '../../../utils/db';
@@ -213,6 +221,51 @@ export async function downloadAndSendMedia(
 		statusMessageId = msg.message_id;
 	}
 
+	// Media cache: a link this bot has already uploaded once can be resent by
+	// file_id — no provider call, no download, no re-upload. Direct-URL sends
+	// skip it (the URL already is the file), as do flows without a database.
+	// On a hit the guest gate is re-applied from what the entry stored, so a
+	// cached post is moderated exactly as a fresh download would be. A failed
+	// resend drops the entry and falls through to the normal flow, silently.
+	if (!directUrl && options?.db) {
+		const cached = await getMediaCache(options.db, url, mode);
+		if (cached) {
+			const isGuest = options?.guestMode || options?.adminId === undefined;
+			const cachedResult: DownloaderResult = {
+				status: 'success',
+				caption: cached.caption,
+				title: cached.title,
+				thumbnail: cached.thumbnail,
+			};
+			if (isGuest && (cached.sensitive || (options?.guestMode && (await isSexualResult(options.openaiApiKey, cachedResult))))) {
+				await bot.api.editMessageText(chatId, statusMessageId!, t(locale, 'download.sensitive_blocked')).catch(() => {});
+				return;
+			}
+			try {
+				await sendCachedMediaToChannel(bot, chatId, cached.items, cached.caption ?? '', cached.title);
+				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
+				const cachedSize = cached.items.reduce((sum, item) => sum + (item.filesize ?? 0), 0);
+				await recordSuccess(Date.now() - downloadStartTime, cachedSize);
+				const groupable = cached.items.every((item) => item.type === 'photo' || item.type === 'video');
+				const doneText =
+					cached.items.length > 1 && groupable
+						? t(locale, 'download.sent_album', { count: cached.items.length })
+						: cached.items.length === 1 && cached.items[0].filesize
+							? t(locale, 'download.done_info', { info: formatFileSize(cached.items[0].filesize) || '' })
+							: t(locale, 'download.done');
+				await bot.api.editMessageText(chatId, statusMessageId!, doneText);
+				return;
+			} catch (e) {
+				log('warn', 'download-and-send', 'cached file_id resend failed, falling back to download', {
+					error: (e as Error)?.message,
+					platform,
+					url,
+				});
+				await deleteMediaCache(options.db, url, mode);
+			}
+		}
+	}
+
 	let result: Awaited<ReturnType<typeof downloadMedia>> | undefined;
 
 	try {
@@ -319,10 +372,16 @@ export async function downloadAndSendMedia(
 				})}`;
 			}
 
+			// The Messages Telegram answers with, aligned with the items they
+			// carried — the media cache write after the send reads file_ids from them.
+			const sentItems: MediaItem[] = [];
+			const sentMessages: unknown[] = [];
+
 			if (result.media.length > 1) {
 				const groupableItems = result.media.filter((m) => m.type === 'photo' || m.type === 'video');
 
 				if (groupableItems.length > 1) {
+					sentItems.push(...groupableItems);
 					for (let i = 0; i < groupableItems.length; i += 4) {
 						const chunk = groupableItems.slice(i, i + 4);
 						const msg: TelegramMediaMessage = {
@@ -335,7 +394,7 @@ export async function downloadAndSendMedia(
 								parse_mode: 'HTML',
 							})),
 						};
-						await sendMediaToChannel(bot, chatId, msg);
+						sentMessages.push(...(await sendMediaToChannel(bot, chatId, msg)));
 					}
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 					await recordSuccess(Date.now() - downloadStartTime, totalFileSizeBytes);
@@ -350,7 +409,8 @@ export async function downloadAndSendMedia(
 							title: result.title,
 							caption: caption,
 						};
-						await sendMediaToChannel(bot, chatId, msg);
+						sentItems.push(item);
+						sentMessages.push(...(await sendMediaToChannel(bot, chatId, msg)));
 					}
 					trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 					await recordSuccess(Date.now() - downloadStartTime, totalFileSizeBytes);
@@ -367,7 +427,8 @@ export async function downloadAndSendMedia(
 					title: result.title,
 					caption: caption,
 				};
-				await sendMediaToChannel(bot, chatId, msg);
+				sentItems.push(item);
+				sentMessages.push(...(await sendMediaToChannel(bot, chatId, msg)));
 				trackEvent(options?.analytics, { userId, platform, userType, action: 'download_success' });
 				await recordSuccess(Date.now() - downloadStartTime, totalFileSizeBytes);
 
@@ -418,6 +479,41 @@ export async function downloadAndSendMedia(
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: mp3Keyboard });
 				} else {
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText);
+				}
+			}
+
+			// Cache what Telegram just stored, so the next request for this link +
+			// mode resends by file_id instead of downloading again. Only a
+			// complete send is cached: the Messages must line up 1:1 with the
+			// items sent and every one must carry a file_id — anything less
+			// would replay a partial or wrong post.
+			if (options?.db && sentItems.length > 0 && sentMessages.length === sentItems.length) {
+				const items: MediaCacheItem[] = [];
+				for (let i = 0; i < sentItems.length; i++) {
+					const extracted = extractFileId(sentMessages[i]);
+					if (!extracted) break;
+					// What Telegram actually stored wins over what we meant to
+					// send: a WebM "audio" leaves as a document (send-media
+					// reroutes it), and its file_id only replays as a document.
+					const type =
+						extracted.type === 'video' || extracted.type === 'photo' || extracted.type === 'audio' || extracted.type === 'document'
+							? extracted.type
+							: sentItems[i].type;
+					items.push({
+						type,
+						fileId: extracted.fileId,
+						filename: sentItems[i].filename,
+						filesize: extracted.fileSize ?? sentItems[i].filesize,
+					});
+				}
+				if (items.length === sentItems.length) {
+					await putMediaCache(options.db, url, mode, {
+						items,
+						caption,
+						title: result.title,
+						thumbnail: result.thumbnail,
+						sensitive: result.sensitive || undefined,
+					});
 				}
 			}
 
