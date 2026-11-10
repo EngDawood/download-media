@@ -5,7 +5,14 @@
 
 import type { FailureKind } from '../services/downloader/failure';
 
-export type DownloaderMode = 'auto' | 'audio' | 'hd' | 'sd';
+/**
+ * What the caller wants back. The numeric literals are explicit video heights
+ * ('1080' = 1080p) produced by the quality picker: a rung stores its height as
+ * its mode, and tapping it re-runs the extractor for exactly that rendition.
+ * Only providers that can honour a height (YouTube via cobalt) act on them;
+ * everyone else treats them like 'auto'.
+ */
+export type DownloaderMode = 'auto' | 'audio' | 'hd' | 'sd' | '2160' | '1440' | '1080' | '720' | '480' | '360' | '240' | '144';
 
 /**
  * One alternate rendition of the same video, for platforms that hand us the whole

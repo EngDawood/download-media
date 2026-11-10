@@ -1,6 +1,7 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
+import { cobaltFetch, cobaltQualityOf } from '../cobalt-client';
 import { classifyError, isRetryable, mostPermanent, type FailureKind } from '../failure';
 import { parseLinksSection } from '../aio-parser';
 import { buildCaption, isUrl } from '../media-helpers';
@@ -30,6 +31,38 @@ const stillProcessing = (kind: FailureKind): DownloaderResult => ({
 
 /** Telegram caps bot uploads at 50MB; stay under it so multipart overhead cannot tip us over. */
 const MAX_SENDABLE_BYTES = 45 * 1024 * 1024;
+
+/** Heights the quality picker can offer, best first. */
+const QUALITY_RUNGS = [2160, 1440, 1080, 720, 480, 360, 240, 144] as const;
+
+/** Default rendition for a plain video request: sharp enough to look right, small enough for Telegram. */
+const DEFAULT_VIDEO_HEIGHT = 720;
+
+/** cobalt processes on its side (ffmpeg remux / MP3 conversion), so it gets more room than a btch race. */
+const COBALT_TIMEOUT_MS = 25_000;
+
+/** "Title (720p, h264).mp4" / "Title.mp3" → "Title". cobalt puts the title only in the filename. */
+const titleFromCobaltFilename = (filename?: string): string | undefined => {
+	if (!filename) return undefined;
+	const title = filename
+		.replace(/\.[a-z0-9]+$/i, '')
+		.replace(/\s*\(\d{3,4}p, [^)]+\)$/, '')
+		.trim();
+	return title || undefined;
+};
+
+/**
+ * The picker's rungs for a cobalt delivery: every rung up to the best quality the
+ * video really has, except the one already sent, plus the MP3 as the last rung.
+ * Rungs are unresolved — tapping one re-runs the download in that rung's mode.
+ */
+const cobaltAltQualities = (delivered: number, maxKnown: number): NonNullable<DownloaderResult['altQualities']> => [
+	...QUALITY_RUNGS.filter((h) => h <= maxKnown && h !== delivered).map((h) => ({
+		label: `${h}p`,
+		mode: `${h}` as DownloaderMode,
+	})),
+	{ label: 'MP3', mode: 'audio' as DownloaderMode },
+];
 
 /**
  * The extension matching the audio btch actually returned. Its "mp3" field is
@@ -91,8 +124,73 @@ function pickSendableVideo(videos: MediaItem[]): MediaItem {
 export class YouTubeProvider implements IDownloaderProvider {
 	readonly platforms = ['youtube.com', 'youtu.be', 'music.youtube.com'];
 
+	/**
+	 * cobalt is the default backend: it converts on its side, so audio comes back
+	 * as a real MP3 (Telegram's sendAudio accepts nothing else) and video as a
+	 * clean h264 MP4 at a chosen height. Any failure throws and the caller falls
+	 * through to the btch chain unchanged.
+	 */
+	private async viaCobalt(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
+		if (mode === 'audio') {
+			const media = await cobaltFetch(url, { downloadMode: 'audio', audioFormat: 'mp3', audioBitrate: '128' }, COBALT_TIMEOUT_MS);
+			const title = titleFromCobaltFilename(media.filename);
+			return {
+				status: 'success',
+				media: [{ type: 'audio', url: media.url, filename: media.filename }],
+				caption: buildCaption(title),
+				title,
+			};
+		}
+
+		const explicit = mode === 'hd' ? 1080 : mode === 'sd' ? 480 : mode === 'auto' ? null : parseInt(mode, 10);
+		if (explicit !== null) {
+			const media = await cobaltFetch(url, { videoQuality: String(explicit), youtubeVideoCodec: 'h264' }, COBALT_TIMEOUT_MS);
+			const delivered = cobaltQualityOf(media.filename) ?? explicit;
+			const title = titleFromCobaltFilename(media.filename);
+			return {
+				status: 'success',
+				media: [{ type: 'video', url: media.url, filename: media.filename, quality: `${delivered}p` }],
+				caption: buildCaption(title),
+				title,
+				altQualities: cobaltAltQualities(delivered, delivered),
+			};
+		}
+
+		// 'auto': one probe at max quality detects the ladder the video really has —
+		// cobalt names the delivered rendition in the filename. The probe itself is
+		// the download when nothing above the default height exists.
+		const probe = await cobaltFetch(url, { videoQuality: 'max', youtubeVideoCodec: 'h264' }, COBALT_TIMEOUT_MS);
+		const max = cobaltQualityOf(probe.filename);
+		if (max === null || max <= DEFAULT_VIDEO_HEIGHT) {
+			const delivered = max ?? DEFAULT_VIDEO_HEIGHT;
+			const title = titleFromCobaltFilename(probe.filename);
+			return {
+				status: 'success',
+				media: [{ type: 'video', url: probe.url, filename: probe.filename, quality: `${delivered}p` }],
+				caption: buildCaption(title),
+				title,
+				altQualities: cobaltAltQualities(delivered, delivered),
+			};
+		}
+		const media = await cobaltFetch(url, { videoQuality: String(DEFAULT_VIDEO_HEIGHT), youtubeVideoCodec: 'h264' }, COBALT_TIMEOUT_MS);
+		const title = titleFromCobaltFilename(media.filename);
+		return {
+			status: 'success',
+			media: [{ type: 'video', url: media.url, filename: media.filename, quality: `${DEFAULT_VIDEO_HEIGHT}p` }],
+			caption: buildCaption(title),
+			title,
+			altQualities: cobaltAltQualities(DEFAULT_VIDEO_HEIGHT, max),
+		};
+	}
+
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
 		const failures: FailureKind[] = [];
+		try {
+			return await this.viaCobalt(url, mode);
+		} catch (e) {
+			failures.push(classifyError(e));
+		}
+
 		try {
 			const res = await btchFetch('youtube', url, YOUTUBE_TIMEOUT_MS, hasYoutubeMedia, 'timeout');
 			const caption = buildCaption(res.title);

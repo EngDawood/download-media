@@ -82,3 +82,139 @@ describe('YouTubeProvider', () => {
 		expect(result.failureKind).toBe('gone');
 	});
 });
+
+describe('YouTubeProvider via cobalt (default backend)', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	const COBALT = 'https://cobaltapi.cjs.nz/';
+
+	/** Route fetch: cobalt answers from `cobalt`, everything else from `btch`. Records cobalt request bodies. */
+	const stubBackends = (cobalt: (body: any) => Response, btch: (input: string) => Response, bodies: any[] = []) => {
+		vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+			if (input.startsWith(COBALT)) {
+				const body = JSON.parse(String(init?.body));
+				bodies.push(body);
+				return cobalt(body);
+			}
+			return btch(input);
+		});
+		return bodies;
+	};
+
+	it('serves audio mode as a real MP3 from cobalt without touching btch', async () => {
+		const calls: string[] = [];
+		vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+			calls.push(input);
+			if (input.startsWith(COBALT)) {
+				const body = JSON.parse(String(init?.body));
+				expect(body.downloadMode).toBe('audio');
+				expect(body.audioFormat).toBe('mp3');
+				return Response.json({
+					status: 'tunnel',
+					url: 'https://cobaltapi.cjs.nz/tunnel?id=aud',
+					filename: 'Farm Animals - Some Channel.mp3',
+				});
+			}
+			return Response.json(MEDIA);
+		});
+		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'audio');
+		expect(result.status).toBe('success');
+		expect(result.media?.[0]).toEqual({
+			type: 'audio',
+			url: 'https://cobaltapi.cjs.nz/tunnel?id=aud',
+			filename: 'Farm Animals - Some Channel.mp3',
+		});
+		expect(result.title).toBe('Farm Animals - Some Channel');
+		expect(calls.some((c) => c.includes('tioo.eu.org'))).toBe(false);
+	});
+
+	it('falls back to btch for audio when cobalt errors', async () => {
+		stubBackends(
+			() => Response.json({ status: 'error', error: { code: 'error.api.fetch.empty' } }),
+			async () => Response.json(MEDIA),
+		);
+		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'audio');
+		expect(result.status).toBe('success');
+		expect(result.media?.[0].filename).toBe('Farm Animals.mp3');
+	});
+
+	it('detects the quality ladder from a max probe and delivers 720p by default', async () => {
+		const bodies = stubBackends(
+			(body) =>
+				Response.json({
+					status: 'tunnel',
+					url: `https://cobaltapi.cjs.nz/tunnel?id=q${body.videoQuality}`,
+					filename: `Farm Animals (${body.videoQuality === 'max' ? 1080 : body.videoQuality}p, h264).mp4`,
+				}),
+			async () => Response.json(MEDIA),
+		);
+		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
+		expect(result.status).toBe('success');
+		expect(bodies.map((b) => b.videoQuality)).toEqual(['max', '720']);
+		expect(result.media?.[0]).toEqual({
+			type: 'video',
+			url: 'https://cobaltapi.cjs.nz/tunnel?id=q720',
+			filename: 'Farm Animals (720p, h264).mp4',
+			quality: '720p',
+		});
+		expect(result.altQualities).toEqual([
+			{ label: '1080p', mode: '1080' },
+			{ label: '480p', mode: '480' },
+			{ label: '360p', mode: '360' },
+			{ label: '240p', mode: '240' },
+			{ label: '144p', mode: '144' },
+			{ label: 'MP3', mode: 'audio' },
+		]);
+	});
+
+	it('delivers the probe itself when the best available quality is 720p or lower', async () => {
+		const bodies = stubBackends(
+			() =>
+				Response.json({
+					status: 'tunnel',
+					url: 'https://cobaltapi.cjs.nz/tunnel?id=max480',
+					filename: 'Farm Animals (480p, h264).mp4',
+				}),
+			async () => Response.json(MEDIA),
+		);
+		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
+		expect(bodies).toHaveLength(1);
+		expect(result.media?.[0].url).toBe('https://cobaltapi.cjs.nz/tunnel?id=max480');
+		expect(result.media?.[0].quality).toBe('480p');
+		expect(result.altQualities).toEqual([
+			{ label: '360p', mode: '360' },
+			{ label: '240p', mode: '240' },
+			{ label: '144p', mode: '144' },
+			{ label: 'MP3', mode: 'audio' },
+		]);
+	});
+
+	it('serves an explicit quality mode with one cobalt call', async () => {
+		const bodies = stubBackends(
+			(body) =>
+				Response.json({
+					status: 'tunnel',
+					url: 'https://cobaltapi.cjs.nz/tunnel?id=q1080',
+					filename: 'Farm Animals (1080p, h264).mp4',
+				}),
+			async () => Response.json(MEDIA),
+		);
+		const result = await new YouTubeProvider().download(URL_UNDER_TEST, '1080');
+		expect(bodies.map((b) => b.videoQuality)).toEqual(['1080']);
+		expect(result.media?.[0].quality).toBe('1080p');
+		expect(result.altQualities?.[0]).toEqual({ label: '720p', mode: '720' });
+	});
+
+	it('falls back to btch for video when cobalt is down', async () => {
+		stubBackends(
+			() => new Response('boom', { status: 500 }),
+			async () => Response.json(MEDIA),
+		);
+		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
+		expect(result.status).toBe('success');
+		expect(result.media?.[0]).toEqual({ type: 'video', url: MEDIA.mp4 });
+		expect(result.mp3Url).toBe(MEDIA.mp3);
+	});
+});

@@ -1,3 +1,5 @@
+import type { DownloaderMode } from './downloader';
+
 // Format settings for controlling Telegram message appearance
 export interface FormatSettings {
 	notification: 'normal' | 'muted';
@@ -20,7 +22,7 @@ export interface AdminState {
 		 * `mode` says how to re-run the original link to get it (Facebook, where every
 		 * rendition costs another extractor call).
 		 */
-		qualities?: Array<{ quality: string; url?: string; size?: string; mode?: 'auto' | 'audio' | 'hd' | 'sd' }>;
+		qualities?: Array<{ quality: string; url?: string; size?: string; mode?: DownloaderMode }>;
 		/** Cached caption from quality fetch */
 		downloadCaption?: string;
 		/** YouTube mp3 URL for audio button after video send */
@@ -32,7 +34,7 @@ export interface AdminState {
 		/** Pending broadcast message text */
 		broadcastMessage?: string;
 		/** Download mode stored for retry button */
-		downloadMode?: 'auto' | 'audio' | 'hd' | 'sd';
+		downloadMode?: DownloaderMode;
 		/** Alternate rendering offered after the send (Google Docs/Slides → PDF) */
 		altFormat?: { label: string; url: string; filename: string };
 	};

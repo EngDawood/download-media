@@ -7,7 +7,7 @@ import { sendMediaToChannel, sendWithCaption, measureVariants, pickSendableVaria
 import { setAdminState, clearAdminState } from '../storage/admin-state';
 import { setReportData } from '../storage/session-store';
 import type { TelegramMediaMessage } from '../../../types/telegram';
-import type { MediaItem, MediaVariant } from '../../../types/downloader';
+import type { DownloaderMode, MediaItem, MediaVariant } from '../../../types/downloader';
 import { trackEvent } from '../../../utils/analytics';
 import { incrementSuccessStats, incrementErrorStats, addDownloadHistory, addFailedDownload } from '../../../utils/stats-d1';
 import { getConfig } from '../../../utils/db';
@@ -69,7 +69,7 @@ export async function downloadAndSendMedia(
 	chatId: number,
 	url: string,
 	platform: string,
-	mode: 'auto' | 'audio' | 'hd' | 'sd' = 'auto',
+	mode: DownloaderMode = 'auto',
 	statusMessageId?: number,
 	directUrl?: boolean,
 	options?: {
