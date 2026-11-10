@@ -419,7 +419,18 @@ const RETRYABLE_MEDIA_STATUSES = new Set([403, 408, 429, 500, 502, 503, 504, 520
 
 async function fetchMediaOnce(url: string): Promise<Response> {
 	return fetch(url, {
-		headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+		headers: {
+			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+			// The vidsnap proxy serving YouTube audio stalls on a plain GET — a
+			// 1.2MB track drips at ~2KB/s and dies on the fetch timeout — but
+			// answers `Range: bytes=0-` at full speed (verified live, twice).
+			// That stall is what killed every YouTube MP3 since the WebM fix:
+			// Telegram refuses the stream by URL, this fallback fetch is the
+			// only route left, and it never completed. A 0- range is safe
+			// everywhere else: hosts without range support ignore the header
+			// and return the whole body with a 200.
+			Range: 'bytes=0-',
+		},
 		signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
 	});
 }
