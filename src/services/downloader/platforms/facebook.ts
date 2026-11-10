@@ -1,6 +1,7 @@
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
+import { cobaltFetch } from '../cobalt-client';
 import { tryAIO } from '../aio-parser';
 import { tryFdown } from '../fdown-client';
 import { classifyError, mostPermanent, type FailureKind } from '../failure';
@@ -14,6 +15,27 @@ const FACEBOOK_TIMEOUT_MS = 25_000;
 
 // Tracking params Facebook appends to the redirect target; they are not part of the post.
 const SHARE_TRACKING_PARAMS = ['rdid', 'share_url'];
+
+/** cobalt answers Facebook in ~2–4s when it can; cap it so a hang cannot eat the whole chain's budget. */
+const COBALT_TIMEOUT_MS = 15_000;
+
+/**
+ * cobalt as the second Facebook stage: for public posts it hands back a direct
+ * fbcdn MP4 (or an MP3 tunnel in audio mode) while the btch fleet is still
+ * warming up. Throws on any cobalt error so the caller records the failure and
+ * moves on to AIO.
+ */
+async function tryCobalt(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
+	if (mode === 'audio') {
+		const media = await cobaltFetch(url, { downloadMode: 'audio', audioFormat: 'mp3', audioBitrate: '128' }, COBALT_TIMEOUT_MS);
+		return { status: 'success', media: [{ type: 'audio', url: media.url, filename: media.filename }] };
+	}
+	const media = await cobaltFetch(url, {}, COBALT_TIMEOUT_MS);
+	return {
+		status: 'success',
+		media: [{ type: 'video', url: media.url, ...(media.filename ? { filename: media.filename } : {}) }],
+	};
+}
 
 /**
  * facebook.com/share/{r,v}/{id} 302s to the real post (e.g. /reel/{id}/). btch returns
@@ -59,6 +81,13 @@ export class FacebookProvider implements IDownloaderProvider {
 		try {
 			const fdownResult = await tryFdown(url, mode);
 			if (fdownResult) return fdownResult;
+		} catch (e) {
+			failures.push(classifyError(e));
+		}
+
+		// cobalt next (the user's chosen order): ahead of the btch stages, behind fdown.
+		try {
+			return await tryCobalt(url, mode);
 		} catch (e) {
 			failures.push(classifyError(e));
 		}
