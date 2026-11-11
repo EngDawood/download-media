@@ -89,6 +89,83 @@ describe('sendMediaToChannel video', () => {
 		vi.unstubAllGlobals();
 	});
 
+	it('aborts an oversize chunked body at the cap instead of draining it', async () => {
+		// Cobalt tunnels stream chunked with no content-length, so the size
+		// guards that read headers never fire: a full movie would be pulled
+		// until the fetch times out or the Worker runs out of memory, and the
+		// user gets the generic error instead of the too-large screen. The
+		// body read must stop at the upload ceiling and throw 'File too large'.
+		const sendVideo = vi.fn(async (_chatId: number, file: unknown) => {
+			if (typeof file === 'string') {
+				throw new GrammyError(
+					'Call to sendVideo failed!',
+					{ ok: false, error_code: 400, description: 'Bad Request: wrong file type' },
+					'sendVideo',
+					{},
+				);
+			}
+			return {};
+		});
+		const bot = { api: { sendVideo, sendMessage: vi.fn() } } as unknown as Bot;
+		const CHUNKS = 60; // 60 × 1MB = 60MB total, cap is 50MB
+		let pulls = 0;
+		let cancelled = false;
+		const stream = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				pulls++;
+				if (pulls > CHUNKS) {
+					controller.close();
+					return;
+				}
+				controller.enqueue(new Uint8Array(1024 * 1024));
+			},
+			cancel() {
+				cancelled = true;
+			},
+		});
+		vi.stubGlobal('fetch', async () => new Response(stream, { status: 200, headers: { 'content-type': 'video/mp4' } }));
+
+		await expect(
+			sendMediaToChannel(bot, 1, { type: 'video', url: 'https://rue-cobalt.xenon.zone/tunnel?id=movie', caption: '' }),
+		).rejects.toThrow(/File too large \(5[01]\.\dMB\)/);
+		expect(pulls).toBeLessThan(CHUNKS);
+		expect(cancelled).toBe(true);
+		vi.unstubAllGlobals();
+	});
+
+	it('delivers a small chunked body whole', async () => {
+		const sendVideo = vi.fn(async (_chatId: number, file: unknown) => {
+			if (typeof file === 'string') {
+				throw new GrammyError(
+					'Call to sendVideo failed!',
+					{ ok: false, error_code: 400, description: 'Bad Request: wrong file type' },
+					'sendVideo',
+					{},
+				);
+			}
+			return {};
+		});
+		const bot = { api: { sendVideo, sendMessage: vi.fn() } } as unknown as Bot;
+		let pulls = 0;
+		const stream = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				pulls++;
+				if (pulls > 3) {
+					controller.close();
+					return;
+				}
+				controller.enqueue(new Uint8Array([pulls, pulls, pulls]));
+			},
+		});
+		vi.stubGlobal('fetch', async () => new Response(stream, { status: 200, headers: { 'content-type': 'video/mp4' } }));
+
+		await sendMediaToChannel(bot, 1, { type: 'video', url: 'https://cdn.example/small.mp4', caption: '' });
+
+		expect(sendVideo).toHaveBeenCalledTimes(2);
+		expect(sendVideo.mock.calls[1][1]).toBeInstanceOf(InputFile);
+		vi.unstubAllGlobals();
+	});
+
 	it('uploads provided bytes instead of the URL', async () => {
 		const { bot, sendVideo } = stubBot();
 		await sendMediaToChannel(bot, 1, {
