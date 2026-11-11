@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { cobaltFetch, cobaltQualityOf } from '../src/services/downloader/cobalt-client';
+import { cobaltFetch, cobaltFetchMany, cobaltQualityOf, COBALT_API_URLS_INSTAGRAM } from '../src/services/downloader/cobalt-client';
 import { DownloadError } from '../src/services/downloader/failure';
 
 const PAGE_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
@@ -41,9 +41,7 @@ describe('cobaltFetch', () => {
 	});
 
 	it('returns the direct url for a redirect response (Facebook)', async () => {
-		stubFetch(async () =>
-			Response.json({ status: 'redirect', url: 'https://video.xx.fbcdn.net/o1/v/t2/f2/m412/clip.mp4?_nc_cat=101' }),
-		);
+		stubFetch(async () => Response.json({ status: 'redirect', url: 'https://video.xx.fbcdn.net/o1/v/t2/f2/m412/clip.mp4?_nc_cat=101' }));
 		const media = await cobaltFetch('https://www.facebook.com/watch/?v=10153231379946729', {}, 5_000);
 		expect(media.url).toContain('fbcdn.net');
 	});
@@ -90,6 +88,53 @@ describe('cobaltQualityOf', () => {
 		expect(cobaltQualityOf('Never Gonna Give You Up (Official Video) (4K Remaster).mp4')).toBeNull();
 		expect(cobaltQualityOf('audio file.mp3')).toBeNull();
 		expect(cobaltQualityOf(undefined)).toBeNull();
+	});
+});
+
+describe('cobaltFetchMany + custom pool order', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('returns every picker item, not just the first', async () => {
+		stubFetch(async () =>
+			Response.json({
+				status: 'picker',
+				picker: [
+					{ type: 'photo', url: 'https://cdn.example/first.jpg' },
+					{ type: 'video', url: 'https://cdn.example/second.mp4' },
+					{ type: 'photo', url: 'https://cdn.example/third.jpg' },
+				],
+			}),
+		);
+		const items = await cobaltFetchMany(PAGE_URL, {}, 5_000);
+		expect(items.map((i) => i.url)).toEqual([
+			'https://cdn.example/first.jpg',
+			'https://cdn.example/second.mp4',
+			'https://cdn.example/third.jpg',
+		]);
+	});
+
+	it('wraps a tunnel answer as a single-item list', async () => {
+		stubFetch(async () => Response.json({ status: 'tunnel', url: 'https://cobaltapi.cjs.nz/tunnel?id=one', filename: 'a.mp4' }));
+		const items = await cobaltFetchMany(PAGE_URL, {}, 5_000);
+		expect(items).toEqual([{ url: 'https://cobaltapi.cjs.nz/tunnel?id=one', filename: 'a.mp4' }]);
+	});
+
+	it('tries a caller-supplied pool in its own order (Instagram pool leads with liubquanti)', async () => {
+		const calls: string[] = [];
+		vi.stubGlobal('fetch', async (input: string) => {
+			calls.push(input);
+			if (input.startsWith('https://api.cobalt.liubquanti.click')) {
+				return Response.json({ status: 'error', error: { code: 'error.api.fetch.empty' } });
+			}
+			return Response.json({ status: 'redirect', url: 'https://scontent.cdninstagram.com/clip.mp4' });
+		});
+		const media = await cobaltFetch(PAGE_URL, {}, 15_000, COBALT_API_URLS_INSTAGRAM);
+		expect(media.url).toBe('https://scontent.cdninstagram.com/clip.mp4');
+		expect(calls[0]).toContain('api.cobalt.liubquanti.click');
+		expect(calls[1]).toContain('rue-cobalt.xenon.zone');
+		expect(COBALT_API_URLS_INSTAGRAM[0]).toContain('liubquanti');
 	});
 });
 

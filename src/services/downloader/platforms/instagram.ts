@@ -2,6 +2,7 @@ import { log } from '../../../utils/logger';
 import type { IDownloaderProvider } from '../../../types/downloader-provider';
 import type { DownloaderMode, DownloaderResult, MediaItem } from '../../../types/downloader';
 import { btchFetch } from '../btch-client';
+import { cobaltFetch, cobaltFetchMany, COBALT_API_URLS_INSTAGRAM, type CobaltMedia } from '../cobalt-client';
 import { classifyError, mostPermanent, type FailureKind } from '../failure';
 import { parseAioGallery, parseLinksSection } from '../aio-parser';
 import { buildCaption, isUrl, detectMediaType, dedupeByIdentity } from '../media-helpers';
@@ -116,12 +117,42 @@ async function tryViaRSSHub(username: string, failures: FailureKind[]): Promise<
 	}
 }
 
+// ─── Cobalt (primary for posts/reels) ───────────────────────────────────────
+
+// The pool gets 20s total; the two IG-capable instances answer in ~2-6s when
+// they can serve the post at all, and a photo post (which neither can serve)
+// should not keep the user waiting much longer before the btch stages try.
+const COBALT_TIMEOUT_MS = 20_000;
+
+const cobaltMediaType = (item: CobaltMedia): MediaItem['type'] =>
+	item.pickerType === 'photo' ? 'photo' : item.pickerType === 'video' ? 'video' : detectMediaType(item.url);
+
+async function tryCobalt(url: string, mode: DownloaderMode, failures: FailureKind[]): Promise<DownloaderResult | null> {
+	try {
+		if (mode === 'audio') {
+			const media = await cobaltFetch(url, { downloadMode: 'audio', audioFormat: 'mp3' }, COBALT_TIMEOUT_MS, COBALT_API_URLS_INSTAGRAM);
+			return { status: 'success', media: [{ type: 'audio', url: media.url, filename: media.filename }], caption: '' };
+		}
+		const items = await cobaltFetchMany(url, {}, COBALT_TIMEOUT_MS, COBALT_API_URLS_INSTAGRAM);
+		const media: MediaItem[] = items.map((item) => ({
+			type: cobaltMediaType(item),
+			url: item.url,
+			...(item.filename ? { filename: item.filename } : {}),
+		}));
+		log('info', 'instagram', 'cobalt served post', { url, count: media.length });
+		return { status: 'success', media: capItems(dedupeByIdentity(media)), caption: '' };
+	} catch (e) {
+		failures.push(classifyError(e));
+		return null;
+	}
+}
+
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export class InstagramProvider implements IDownloaderProvider {
 	readonly platforms = ['instagram.com'];
 
-	async download(url: string, _mode: DownloaderMode): Promise<DownloaderResult> {
+	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
 		const failures: FailureKind[] = [];
 
 		// Stories: use RSSHub as primary method (returns all current stories for the user)
@@ -136,27 +167,14 @@ export class InstagramProvider implements IDownloaderProvider {
 			};
 		}
 
-		// Non-story posts: btch AIO → btch igdl
-		let aioCaption = '';
-		try {
-			const res = await btchFetch('aio', url);
-			const data = res.data;
-			if (data) {
-				aioCaption = buildCaption(data.title);
-				const media: MediaItem[] = [];
-				if (data.gallery?.items?.length > 0) media.push(...parseAioGallery(data.gallery.items));
-				if (media.length === 0 && data.links) {
-					media.push(...parseLinksSection(data.links.video, 'video'));
-					// Image-only posts expose no video links — without this they fall through to igdl
-					if (media.length === 0) media.push(...parseLinksSection(data.links.photo ?? data.links.image, 'photo'));
-				}
-				if (media.length > 0) {
-					return { status: 'success', media: capItems(dedupeByIdentity(media)), caption: aioCaption, thumbnail: data.thumbnail };
-				}
-			}
-		} catch (e) {
-			failures.push(classifyError(e)); /* fall through to igdl */
-		}
+		// Non-story posts: cobalt → btch igdl → btch AIO. Cobalt leads because
+		// liubquanti/rue resolve reels to direct CDN links in seconds, while
+		// btch AIO — the old first stage — now answers "could not process this
+		// link" for IG after a 9-17s stall (verified November 11, 2026), so it
+		// is demoted to last resort; igdl, which still works and is fast,
+		// stays ahead of it and covers the photo posts cobalt cannot serve.
+		const cobaltResult = await tryCobalt(url, mode, failures);
+		if (cobaltResult) return cobaltResult;
 
 		try {
 			const res = await btchFetch('igdl', url);
@@ -168,13 +186,37 @@ export class InstagramProvider implements IDownloaderProvider {
 				return {
 					status: 'success',
 					media: capItems(dedupeByIdentity(media)),
-					caption: aioCaption,
+					caption: '',
 					thumbnail: items[0]?.thumbnail,
 				};
 			}
 		} catch (e) {
 			// Without this catch, an igdl timeout throws a raw AbortError up through
 			// downloadMedia and users saw "The operation was aborted due to timeout".
+			failures.push(classifyError(e));
+		}
+
+		try {
+			const res = await btchFetch('aio', url);
+			const data = res.data;
+			if (data) {
+				const media: MediaItem[] = [];
+				if (data.gallery?.items?.length > 0) media.push(...parseAioGallery(data.gallery.items));
+				if (media.length === 0 && data.links) {
+					media.push(...parseLinksSection(data.links.video, 'video'));
+					// Image-only posts expose no video links — without this they fall through to igdl
+					if (media.length === 0) media.push(...parseLinksSection(data.links.photo ?? data.links.image, 'photo'));
+				}
+				if (media.length > 0) {
+					return {
+						status: 'success',
+						media: capItems(dedupeByIdentity(media)),
+						caption: buildCaption(data.title),
+						thumbnail: data.thumbnail,
+					};
+				}
+			}
+		} catch (e) {
 			failures.push(classifyError(e));
 		}
 		const kind = mostPermanent(failures);
