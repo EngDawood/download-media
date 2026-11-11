@@ -417,22 +417,36 @@ const MEDIA_FETCH_TIMEOUT_MS = 120_000;
 // permanent and a 4xx other than 403/408/429 means the URL itself is bad.
 const RETRYABLE_MEDIA_STATUSES = new Set([403, 408, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 530]);
 
-async function fetchMediaOnce(url: string): Promise<Response> {
-	return fetch(url, {
-		headers: {
-			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-			// The vidsnap proxy serving YouTube audio stalls on a plain GET — a
-			// 1.2MB track drips at ~2KB/s and dies on the fetch timeout — but
-			// answers `Range: bytes=0-` at full speed (verified live, twice).
-			// That stall is what killed every YouTube MP3 since the WebM fix:
-			// Telegram refuses the stream by URL, this fallback fetch is the
-			// only route left, and it never completed. A 0- range is safe
-			// everywhere else: hosts without range support ignore the header
-			// and return the whole body with a 200.
-			Range: 'bytes=0-',
-		},
-		signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
-	});
+/**
+ * The one host known to demand a Range request: the vidsnap proxy serving
+ * YouTube audio stalls on a plain GET — a 1.2MB track drips at ~2KB/s and
+ * dies on the fetch timeout — but answers `Range: bytes=0-` at full speed
+ * (verified live, twice; PR #61).
+ *
+ * The header is NOT safe everywhere, the assumption PR #61 shipped with:
+ * cobalt tunnel URLs reject Range requests outright (an error body instead
+ * of media), so when YouTube moved to cobalt (PR #62) this fallback — the
+ * only route left after Telegram refuses a tunnel by URL — failed for
+ * every cobalt-served video. Hosts therefore get a plain GET unless they
+ * are vidsnap, and `downloadBytes` flips the shape once as a last resort
+ * for any other host that turns out to demand the opposite.
+ */
+const RANGE_FIRST_HOSTS = new Set(['api.vidsnap.app']);
+
+function prefersRange(url: string): boolean {
+	try {
+		return RANGE_FIRST_HOSTS.has(new URL(url).host);
+	} catch {
+		return false;
+	}
+}
+
+async function fetchMediaOnce(url: string, withRange: boolean): Promise<Response> {
+	const headers: Record<string, string> = {
+		'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+	};
+	if (withRange) headers.Range = 'bytes=0-';
+	return fetch(url, { headers, signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS) });
 }
 
 /**
@@ -480,10 +494,17 @@ export function pickSendableVariant(variants: MediaVariant[]): MediaVariant | un
 }
 
 async function downloadBytes(url: string): Promise<Uint8Array> {
-	let resp = await fetchMediaOnce(url);
+	const rangeFirst = prefersRange(url);
+	let resp = await fetchMediaOnce(url, rangeFirst);
 	if (!resp.ok && RETRYABLE_MEDIA_STATUSES.has(resp.status)) {
 		await new Promise((r) => setTimeout(r, 700));
-		resp = await fetchMediaOnce(url);
+		resp = await fetchMediaOnce(url, rangeFirst);
+	}
+	if (!resp.ok) {
+		// Last resort: the opposite header shape. A host that refuses a plain
+		// GET may be another Range-demanding proxy; one that refused a Range
+		// request gets its plain retry here instead of failing the send.
+		resp = await fetchMediaOnce(url, !rangeFirst);
 	}
 	if (!resp.ok) {
 		// Host and path only: the query carries a signed token and can run to 1.5KB.
