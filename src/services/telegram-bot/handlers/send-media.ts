@@ -526,11 +526,47 @@ async function downloadBytes(url: string): Promise<Uint8Array> {
 		throw new Error(`File too large (${(contentLength / 1024 / 1024).toFixed(1)}MB)`);
 	}
 
-	const bytes = new Uint8Array(await resp.arrayBuffer());
-	if (bytes.length > MAX_UPLOAD_SIZE) {
-		throw new Error(`File too large (${(bytes.length / 1024 / 1024).toFixed(1)}MB)`);
-	}
+	return readBodyCapped(resp);
+}
 
+/**
+ * Read a response body chunk by chunk, aborting the moment it crosses the
+ * upload ceiling. Hosts that stream chunked with no content-length —
+ * cobalt tunnels above all — defeat the header check in `downloadBytes`:
+ * buffering the whole body first meant a full-length movie was pulled
+ * until the fetch timed out or the Worker ran out of memory, and the user
+ * saw the generic error instead of the too-large screen. Aborting at the
+ * cap throws the same `File too large` the handler already presents, with
+ * the counted-so-far size (the true total is unknowable without draining
+ * the stream, which is exactly what this avoids).
+ */
+async function readBodyCapped(resp: Response): Promise<Uint8Array> {
+	if (!resp.body) {
+		const bytes = new Uint8Array(await resp.arrayBuffer());
+		if (bytes.length > MAX_UPLOAD_SIZE) {
+			throw new Error(`File too large (${(bytes.length / 1024 / 1024).toFixed(1)}MB)`);
+		}
+		return bytes;
+	}
+	const reader = resp.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		total += value.byteLength;
+		if (total > MAX_UPLOAD_SIZE) {
+			await reader.cancel().catch(() => {});
+			throw new Error(`File too large (${(total / 1024 / 1024).toFixed(1)}MB)`);
+		}
+		chunks.push(value);
+	}
+	const bytes = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
 	return bytes;
 }
 
