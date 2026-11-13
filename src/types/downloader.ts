@@ -66,6 +66,8 @@ export interface DownloaderResult {
 	 */
 	fullHtml?: string;
 	mp3Url?: string;
+	/** Set when the link is a broadcast that is still on air: extractors can only hand back a few-second chunk of it. */
+	liveStream?: boolean;
 	/**
 	 * Renditions that exist but are not in hand. Unlike `variants`, which carries URLs the
 	 * provider already extracted, each of these costs another extractor call to resolve, so

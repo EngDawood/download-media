@@ -22,11 +22,13 @@ const YOUTUBE_AIO_TIMEOUT_MS = 6_000;
  */
 const hasYoutubeMedia = (data: { mp4?: unknown; mp3?: unknown } | undefined): boolean => isUrl(data?.mp4) || isUrl(data?.mp3);
 
-const stillProcessing = (kind: FailureKind): DownloaderResult => ({
+const stillProcessing = (kind: FailureKind, url?: string): DownloaderResult => ({
 	status: 'error',
 	error: 'YouTube is still processing this video',
 	retryable: true,
 	failureKind: kind,
+	// A /live/ link that no backend can extract is almost always a broadcast still on air.
+	liveStream: url ? isLivePathUrl(url) : undefined,
 });
 
 /** Telegram caps bot uploads at 50MB; stay under it so multipart overhead cannot tip us over. */
@@ -91,6 +93,50 @@ export function youtubeAudioExt(url: string): 'mp3' | 'm4a' | 'webm' | 'opus' {
 	}
 	return 'mp3';
 }
+
+/**
+ * True when a btch link points at a broadcast that is still on air. Live googlevideo
+ * streams are segmented (DASH/HLS): fetching one returns a single few-second chunk, so
+ * the bot used to deliver a ~30 KB "proxy.m4a" for a live link. Unwrap the vidsnap
+ * proxy and read the wrapped stream's markers.
+ */
+export function isYoutubeLiveStreamUrl(url: string | undefined): boolean {
+	if (!url) return false;
+	try {
+		const outer = new URL(url);
+		const inner = outer.searchParams.get('u');
+		const target = inner ? new URL(inner) : outer;
+		const q = target.searchParams;
+		const source = q.get('source') ?? '';
+		const path = target.pathname;
+		return (
+			source.includes('yt_live') ||
+			q.get('live') === '1' ||
+			q.has('sq') ||
+			q.get('noclen') === '1' ||
+			/\/(manifest|hls_playlist|hls_variant|dash)\//.test(path) ||
+			/\/(sq|live)\/\d/.test(path)
+		);
+	} catch {
+		return false;
+	}
+}
+
+/** youtube.com/live/<id> is how YouTube shares broadcasts; it stays the URL after the stream ends too. */
+const isLivePathUrl = (url: string): boolean => {
+	try {
+		return /^\/live\//.test(new URL(url).pathname);
+	} catch {
+		return false;
+	}
+};
+
+const liveStream = (): DownloaderResult => ({
+	status: 'error',
+	error: 'YouTube live stream is still on air',
+	failureKind: 'unsupported',
+	liveStream: true,
+});
 
 /** Title → filesystem-safe base name (same sanitising the bot's audio sender applies). */
 const audioBaseName = (title?: string): string =>
@@ -199,6 +245,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 
 		try {
 			const res = await btchFetch('youtube', url, YOUTUBE_TIMEOUT_MS, hasYoutubeMedia, 'timeout');
+			if (isYoutubeLiveStreamUrl(res.mp3) || isYoutubeLiveStreamUrl(res.mp4)) return liveStream();
 			const caption = buildCaption(res.title);
 			const thumbnail = res.thumbnail;
 			if (mode === 'audio' && isUrl(res.mp3))
@@ -219,16 +266,19 @@ export class YouTubeProvider implements IDownloaderProvider {
 			// Every backend empty or too slow means the extraction is not ready yet. The AIO
 			// endpoint cannot do better (it fails for YouTube) and its "gone" error would outrank
 			// this and turn a retryable miss into "No YouTube media found".
-			if (isRetryable(kind)) return stillProcessing(kind);
+			if (isRetryable(kind)) return stillProcessing(kind, url);
 		}
 
 		try {
 			const aio = await btchFetch('aio', url, YOUTUBE_AIO_TIMEOUT_MS);
 			const data = aio.data;
+			if (isYoutubeLiveStreamUrl(aio.mp3) || isYoutubeLiveStreamUrl(aio.mp4)) return liveStream();
 			if (data?.links) {
 				const caption = buildCaption(data.title);
 				const thumbnail = data.thumbnail;
 				const audioItems = parseLinksSection(data.links.audio, 'audio');
+				const videoItems = parseLinksSection(data.links.video, 'video');
+				if ([...audioItems, ...videoItems].some((m) => isYoutubeLiveStreamUrl(m.url))) return liveStream();
 				const mp3Url = audioItems[0]?.url;
 				if (mode === 'audio') {
 					if (audioItems.length)
@@ -279,7 +329,7 @@ export class YouTubeProvider implements IDownloaderProvider {
 		// Most-permanent-wins: if one attempt got a definitive "not found" and the other
 		// merely timed out, this is a dead link, not a slow extraction.
 		const kind = mostPermanent(failures);
-		if (isRetryable(kind)) return stillProcessing(kind);
+		if (isRetryable(kind)) return stillProcessing(kind, url);
 		return { status: 'error', error: 'No YouTube media found', failureKind: kind };
 	}
 }
