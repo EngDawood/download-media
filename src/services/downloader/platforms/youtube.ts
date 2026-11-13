@@ -41,6 +41,9 @@ const DEFAULT_VIDEO_HEIGHT = 720;
 /** cobalt processes on its side (ffmpeg remux / MP3 conversion), so it gets more room than a btch race. */
 const COBALT_TIMEOUT_MS = 25_000;
 
+/** The ladder probe only reads a filename, never a download — a short cap keeps it cheap. */
+const COBALT_LADDER_TIMEOUT_MS = 5_000;
+
 /** "Title (720p, h264).mp4" / "Title.mp3" → "Title". cobalt puts the title only in the filename. */
 const titleFromCobaltFilename = (filename?: string): string | undefined => {
 	if (!filename) return undefined;
@@ -156,30 +159,33 @@ export class YouTubeProvider implements IDownloaderProvider {
 			};
 		}
 
-		// 'auto': one probe at max quality detects the ladder the video really has —
-		// cobalt names the delivered rendition in the filename. The probe itself is
-		// the download when nothing above the default height exists.
-		const probe = await cobaltFetch(url, { videoQuality: 'max', youtubeVideoCodec: 'h264' }, COBALT_TIMEOUT_MS);
-		const max = cobaltQualityOf(probe.filename);
-		if (max === null || max <= DEFAULT_VIDEO_HEIGHT) {
-			const delivered = max ?? DEFAULT_VIDEO_HEIGHT;
-			const title = titleFromCobaltFilename(probe.filename);
-			return {
-				status: 'success',
-				media: [{ type: 'video', url: probe.url, filename: probe.filename, quality: `${delivered}p` }],
-				caption: buildCaption(title),
-				title,
-				altQualities: cobaltAltQualities(delivered, delivered),
-			};
+		// 'auto': fetch the delivery rendition first. The old max-first probe
+		// let the slow liubquanti relay time out on its 8.3s slice while rue
+		// answered in ~1s — and rue's tunnels were empty for some videos
+		// (November 13, 2026), so the fast answer won and the bot sent 0 bytes.
+		// The ladder is learned afterwards from a cheap max probe whose URL is
+		// discarded; only its filename matters, so the probe skips the bytes
+		// check and a failed probe just means rungs up to the delivered height.
+		const delivery = await cobaltFetch(url, { videoQuality: String(DEFAULT_VIDEO_HEIGHT), youtubeVideoCodec: 'h264' }, COBALT_TIMEOUT_MS);
+		const delivered = cobaltQualityOf(delivery.filename) ?? DEFAULT_VIDEO_HEIGHT;
+		const title = titleFromCobaltFilename(delivery.filename);
+		let max = delivered;
+		if (delivered >= DEFAULT_VIDEO_HEIGHT) {
+			try {
+				const ladder = await cobaltFetch(url, { videoQuality: 'max', youtubeVideoCodec: 'h264' }, COBALT_LADDER_TIMEOUT_MS, undefined, {
+					verifyBytes: false,
+				});
+				max = cobaltQualityOf(ladder.filename) ?? delivered;
+			} catch {
+				/* Ladder unknown — offer rungs up to what was delivered. */
+			}
 		}
-		const media = await cobaltFetch(url, { videoQuality: String(DEFAULT_VIDEO_HEIGHT), youtubeVideoCodec: 'h264' }, COBALT_TIMEOUT_MS);
-		const title = titleFromCobaltFilename(media.filename);
 		return {
 			status: 'success',
-			media: [{ type: 'video', url: media.url, filename: media.filename, quality: `${DEFAULT_VIDEO_HEIGHT}p` }],
+			media: [{ type: 'video', url: delivery.url, filename: delivery.filename, quality: `${delivered}p` }],
 			caption: buildCaption(title),
 			title,
-			altQualities: cobaltAltQualities(DEFAULT_VIDEO_HEIGHT, max),
+			altQualities: cobaltAltQualities(delivered, max),
 		};
 	}
 

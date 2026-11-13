@@ -28,6 +28,10 @@ const stubChain = (handlers: {
 			calls.push('rss');
 			return handlers.rss ? handlers.rss() : new Response('down', { status: 503 });
 		}
+		// The bytes probe GETs the tunnel URL; it is not a backend call.
+		if (input.includes('/tunnel?')) {
+			return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+		}
 		if (input.includes('cobalt')) {
 			const host = new URL(input).hostname;
 			calls.push(`cobalt:${host}`);

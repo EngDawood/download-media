@@ -546,6 +546,9 @@ async function readBodyCapped(resp: Response): Promise<Uint8Array> {
 		if (bytes.length > MAX_UPLOAD_SIZE) {
 			throw new Error(`File too large (${(bytes.length / 1024 / 1024).toFixed(1)}MB)`);
 		}
+		if (bytes.length === 0) {
+			throw new Error('Downloaded media was empty (0 bytes)');
+		}
 		return bytes;
 	}
 	const reader = resp.body.getReader();
@@ -560,6 +563,12 @@ async function readBodyCapped(resp: Response): Promise<Uint8Array> {
 			throw new Error(`File too large (${(total / 1024 / 1024).toFixed(1)}MB)`);
 		}
 		chunks.push(value);
+	}
+	// A 200 with no bytes is a failed download, not an empty file: uploading
+	// it makes Telegram reject the send with a generic error (rue-cobalt
+	// tunnels did exactly this for two YouTube videos, November 13, 2026).
+	if (total === 0) {
+		throw new Error('Downloaded media was empty (0 bytes)');
 	}
 	const bytes = new Uint8Array(total);
 	let offset = 0;
