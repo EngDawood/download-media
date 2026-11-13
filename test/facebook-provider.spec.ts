@@ -23,6 +23,11 @@ const AIO_OK = {
 const stubChain = (handlers: { fdown: () => Response; cobalt: (body: any) => Response; btch: (input: string) => Response }) => {
 	const calls: string[] = [];
 	vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+		// The bytes probe GETs the delivered URL (fbcdn redirect or tunnel);
+		// it is not a backend call, so it answers bytes and stays out of `calls`.
+		if (input.includes('fbcdn.net') || input.includes('/tunnel?')) {
+			return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+		}
 		if (input.includes('fdown.isuru.eu.org')) {
 			calls.push('fdown');
 			return handlers.fdown();
@@ -88,7 +93,7 @@ describe('FacebookProvider cobalt step (after fdown, before AIO)', () => {
 			fdown: fdownEmpty,
 			cobalt: (body) => {
 				expect(body.downloadMode).toBe('audio');
-			return Response.json({
+				return Response.json({
 					status: 'tunnel',
 					url: 'https://cobaltapi.cjs.nz/tunnel?id=fbaud',
 					filename: 'facebook_10153231379946729_audio.mp3',

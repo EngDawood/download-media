@@ -60,8 +60,44 @@ function kindForCobaltError(code: string): FailureKind {
 	return 'gone';
 }
 
+/** First byte must arrive within this long, or the tunnel counts as dead. Good tunnels answer in ~1s; an empty one ends immediately. */
+const TUNNEL_PROBE_TIMEOUT_MS = 8_000;
+
+/**
+ * A cobalt answer is only a promise, not a file: rue-cobalt issued HTTP 200
+ * tunnels for two YouTube videos whose bodies were empty (verified live,
+ * November 13, 2026), and the bot then uploaded 0 bytes to Telegram. Read
+ * the first chunk with a plain GET — never Range, which tunnels reject —
+ * and cancel: re-fetching the same tunnel URL afterwards still returns the
+ * full file (verified live), so the probe costs one round trip, not the file.
+ */
+async function tunnelServesBytes(url: string): Promise<boolean> {
+	try {
+		const res = await fetch(url, {
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+			signal: AbortSignal.timeout(TUNNEL_PROBE_TIMEOUT_MS),
+		});
+		if (!res.ok || !res.body) return false;
+		const reader = res.body.getReader();
+		try {
+			const { done, value } = await reader.read();
+			return !done && (value?.byteLength ?? 0) > 0;
+		} finally {
+			await reader.cancel().catch(() => {});
+		}
+	} catch {
+		return false;
+	}
+}
+
 /** One instance's attempt. Throws a `DownloadError` (or a raw fetch error) on any failure. */
-async function cobaltFetchFrom(apiUrl: string, url: string, request: CobaltRequest, timeoutMs: number): Promise<CobaltMedia[]> {
+async function cobaltFetchFrom(
+	apiUrl: string,
+	url: string,
+	request: CobaltRequest,
+	timeoutMs: number,
+	verifyBytes: boolean,
+): Promise<CobaltMedia[]> {
 	const res = await fetch(`${apiUrl}/`, {
 		method: 'POST',
 		headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -73,47 +109,56 @@ async function cobaltFetchFrom(apiUrl: string, url: string, request: CobaltReque
 		throw new DownloadError(`cobalt returned ${res.status}`, kindFromStatus(res.status));
 	}
 	const data: any = await res.json().catch(() => null);
+	let items: CobaltMedia[];
 	if (data?.status === 'tunnel' || data?.status === 'redirect') {
-		if (typeof data.url === 'string' && data.url) return [{ url: data.url, filename: data.filename }];
-		throw new DownloadError('cobalt: response carried no url', 'gone');
-	}
-	if (data?.status === 'picker') {
-		const items: CobaltMedia[] = Array.isArray(data.picker)
+		if (typeof data.url === 'string' && data.url) items = [{ url: data.url, filename: data.filename }];
+		else throw new DownloadError('cobalt: response carried no url', 'gone');
+	} else if (data?.status === 'picker') {
+		items = Array.isArray(data.picker)
 			? data.picker
 					.filter((p: any) => typeof p?.url === 'string' && p.url)
 					.map((p: any) => ({ url: p.url, pickerType: typeof p.type === 'string' ? p.type : undefined }))
 			: [];
-		if (items.length > 0) return items;
-		throw new DownloadError('cobalt: empty picker', 'gone');
+		if (items.length === 0) throw new DownloadError('cobalt: empty picker', 'gone');
+	} else {
+		const code = data?.error?.code ?? 'unknown';
+		log('warn', 'cobalt', String(code), { apiUrl, url });
+		throw new DownloadError(`cobalt: ${code}`, kindForCobaltError(String(code)));
 	}
-	const code = data?.error?.code ?? 'unknown';
-	log('warn', 'cobalt', String(code), { apiUrl, url });
-	throw new DownloadError(`cobalt: ${code}`, kindForCobaltError(String(code)));
+	if (verifyBytes && !(await tunnelServesBytes(items[0].url))) {
+		log('warn', 'cobalt', 'empty tunnel', { apiUrl, url });
+		throw new DownloadError('cobalt: tunnel served no bytes', 'gone');
+	}
+	return items;
 }
 
 /**
  * Ask the cobalt pool to process one page URL, trying instances in order.
- * `timeoutMs` is the TOTAL budget across the pool — each instance gets an
- * equal slice, so a dead instance cannot eat the whole chain's time.
- * Resolves with every downloadable item: a single entry for `tunnel` /
- * `redirect` answers (YouTube, Facebook), or all of a `picker`'s items
- * (Instagram carousels). `apiUrls` overrides the pool and its order for
- * services only some instances can serve. When every instance fails it
- * throws the most permanent failure seen, classified like every other
- * backend's.
+ * `timeoutMs` is the PER-INSTANCE cap, not a total budget: the liubquanti
+ * relay needs 15-23s to answer a max-quality probe (7-18s for 720p, measured
+ * November 13, 2026), and slicing a 25s total three ways capped it at 8.3s,
+ * so it always timed out and the fast-but-sometimes-empty rue instance won
+ * by default. A hanging instance can now cost the full cap before the next
+ * is tried; that is the price of reaching the slow relay at all. Resolves
+ * with every downloadable item: a single entry for `tunnel` / `redirect`
+ * answers (YouTube, Facebook), or all of a `picker`'s items (Instagram
+ * carousels). `apiUrls` overrides the pool and its order for services only
+ * some instances can serve. When every instance fails it throws the most
+ * permanent failure seen, classified like every other backend's.
  */
 export async function cobaltFetchMany(
 	url: string,
 	request: CobaltRequest,
 	timeoutMs: number,
 	apiUrls: string[] = COBALT_API_URLS,
+	verifyBytes = false,
 ): Promise<CobaltMedia[]> {
-	const perInstanceMs = Math.max(5_000, Math.floor(timeoutMs / apiUrls.length));
+	const perInstanceMs = Math.max(5_000, timeoutMs);
 	const failures: FailureKind[] = [];
 	let lastError: unknown;
 	for (const apiUrl of apiUrls) {
 		try {
-			return await cobaltFetchFrom(apiUrl, url, request, perInstanceMs);
+			return await cobaltFetchFrom(apiUrl, url, request, perInstanceMs, verifyBytes);
 		} catch (e) {
 			lastError = e;
 			failures.push(classifyError(e));
@@ -123,13 +168,19 @@ export async function cobaltFetchMany(
 	throw new DownloadError(lastError instanceof Error ? lastError.message : 'cobalt: all instances failed', kind);
 }
 
-/** Single-media form of {@link cobaltFetchMany}: the tunnel/redirect URL, or a picker's first item. */
+/**
+ * Single-media form of {@link cobaltFetchMany}: the tunnel/redirect URL, or a picker's first item.
+ * The returned URL is verified to serve bytes first (see `tunnelServesBytes`),
+ * unless the caller opts out — a ladder probe only reads the filename, so it
+ * skips the check and never pays for a download it will throw away.
+ */
 export async function cobaltFetch(
 	url: string,
 	request: CobaltRequest,
 	timeoutMs: number,
 	apiUrls: string[] = COBALT_API_URLS,
+	options: { verifyBytes?: boolean } = {},
 ): Promise<CobaltMedia> {
-	const items = await cobaltFetchMany(url, request, timeoutMs, apiUrls);
+	const items = await cobaltFetchMany(url, request, timeoutMs, apiUrls, options.verifyBytes ?? true);
 	return items[0];
 }

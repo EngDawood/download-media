@@ -27,6 +27,8 @@ describe('cobaltFetch', () => {
 	it('posts the page url and requested options as JSON to the instance root', async () => {
 		let seen: { input: string; body: any } = { input: '', body: null };
 		stubFetch(async (input: string, init?: RequestInit) => {
+			// The bytes probe GETs the tunnel URL with no body; only the API POST carries JSON.
+			if (!init?.body) return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
 			seen = { input, body: JSON.parse(String(init?.body)) };
 			return Response.json({ status: 'tunnel', url: 'https://cobaltapi.cjs.nz/tunnel?id=x', filename: 'a.mp3' });
 		});
@@ -157,4 +159,87 @@ describe('cobaltFetch instance pool', () => {
 		expect(calls[0]).toContain('cobaltapi.cjs.nz');
 		expect(calls[1]).toContain('api.cobalt.liubquanti.click');
 	});
+
+	it('rejects a tunnel that serves zero bytes and takes the next instance instead', async () => {
+		// Live failure, November 13, 2026: rue-cobalt issued a 200 tunnel for
+		// two Mehad Hamad YouTube videos whose body was empty (reproduced 4x),
+		// while liubquanti served the same videos as real MP4s. The API answer
+		// cannot tell a dead tunnel from a good one — only fetching it can.
+		vi.stubGlobal('fetch', async (input: string) => {
+			if (input.includes('/tunnel?')) {
+				if (input.includes('id=empty')) {
+					return new Response(
+						new ReadableStream({
+							start(c) {
+								c.close();
+							},
+						}),
+						{ status: 200 },
+					);
+				}
+				return new Response(new Uint8Array([0, 0, 0, 24, 1, 2, 3]), { status: 200 });
+			}
+			if (input.startsWith('https://cobaltapi.cjs.nz')) {
+				return Response.json({ status: 'tunnel', url: 'https://cobaltapi.cjs.nz/tunnel?id=empty', filename: 'Title (720p, h264).mp4' });
+			}
+			return Response.json({
+				status: 'tunnel',
+				url: 'https://api.cobalt.liubquanti.click/tunnel?id=good',
+				filename: 'Title (720p, h264).mp4',
+			});
+		});
+		const media = await cobaltFetch(PAGE_URL, { videoQuality: '720', youtubeVideoCodec: 'h264' }, 15_000);
+		expect(media.url).toBe('https://api.cobalt.liubquanti.click/tunnel?id=good');
+	});
+
+	it('throws gone when every instance serves an empty tunnel', async () => {
+		vi.stubGlobal('fetch', async (input: string) => {
+			if (input.includes('/tunnel?')) {
+				return new Response(
+					new ReadableStream({
+						start(c) {
+							c.close();
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			return Response.json({ status: 'tunnel', url: `${input}tunnel?id=empty`, filename: 'Title (720p, h264).mp4' });
+		});
+		await expect(cobaltFetch(PAGE_URL, { videoQuality: '720', youtubeVideoCodec: 'h264' }, 15_000)).rejects.toMatchObject({ kind: 'gone' });
+	});
+
+	it('gives a slow instance the full budget instead of a sliced share', async () => {
+		// Live failure, November 13, 2026: liubquanti needs 15-23s to answer
+		// a max-quality probe (7-18s for 720p) but each instance only got an
+		// 8.3s slice of the 25s total, so it always timed out and rue — whose
+		// tunnels were empty for these videos — won by default.
+		vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+			if (input.includes('/tunnel?')) {
+				return new Response(new Uint8Array([0, 0, 0, 24]), { status: 200 });
+			}
+			if (input.startsWith('https://cobaltapi.cjs.nz')) {
+				return Response.json({ status: 'error', error: { code: 'error.api.youtube.login' } });
+			}
+			if (input.startsWith('https://api.cobalt.liubquanti.click')) {
+				// Honour the abort signal the way a real fetch would: the
+				// per-instance timeout must actually cut this answer off.
+				await new Promise<void>((resolve, reject) => {
+					const timer = setTimeout(resolve, 6_000);
+					init?.signal?.addEventListener('abort', () => {
+						clearTimeout(timer);
+						reject(new DOMException('The operation was aborted', 'AbortError'));
+					});
+				});
+				return Response.json({
+					status: 'tunnel',
+					url: 'https://api.cobalt.liubquanti.click/tunnel?id=slow',
+					filename: 'Title (720p, h264).mp4',
+				});
+			}
+			return Response.json({ status: 'error', error: { code: 'error.api.fetch.empty' } });
+		});
+		const media = await cobaltFetch(PAGE_URL, { videoQuality: '720', youtubeVideoCodec: 'h264' }, 15_000);
+		expect(media.url).toBe('https://api.cobalt.liubquanti.click/tunnel?id=slow');
+	}, 20_000);
 });

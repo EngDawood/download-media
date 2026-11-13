@@ -133,6 +133,34 @@ describe('sendMediaToChannel video', () => {
 		vi.unstubAllGlobals();
 	});
 
+	it('refuses a 200 with an empty body instead of uploading 0 bytes to Telegram', async () => {
+		// The rue-cobalt tunnels for two YouTube videos answered 200 with no
+		// bytes at all (November 13, 2026): the bot uploaded the empty file
+		// and Telegram rejected it with a generic error. An empty download is
+		// a failed download — say so instead of sending nothing.
+		const sendVideo = vi.fn(async (_chatId: number, file: unknown) => {
+			if (typeof file === 'string') {
+				throw new GrammyError(
+					'Call to sendVideo failed!',
+					{ ok: false, error_code: 400, description: 'Bad Request: wrong file type' },
+					'sendVideo',
+					{},
+				);
+			}
+			return {};
+		});
+		const bot = { api: { sendVideo, sendMessage: vi.fn() } } as unknown as Bot;
+		const fetchSpy = vi.fn(async () => new Response(new Uint8Array(0), { status: 200, headers: { 'content-type': 'video/mp4' } }));
+		vi.stubGlobal('fetch', fetchSpy);
+
+		await expect(
+			sendMediaToChannel(bot, 1, { type: 'video', url: 'https://rue-cobalt.xenon.zone/tunnel?id=empty', caption: '' }),
+		).rejects.toThrow(/empty \(0 bytes\)/);
+		expect(fetchSpy).toHaveBeenCalledTimes(1);
+		expect(sendVideo).toHaveBeenCalledTimes(1);
+		vi.unstubAllGlobals();
+	});
+
 	it('delivers a small chunked body whole', async () => {
 		const sendVideo = vi.fn(async (_chatId: number, file: unknown) => {
 			if (typeof file === 'string') {

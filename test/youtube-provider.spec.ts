@@ -93,6 +93,9 @@ describe('YouTubeProvider via cobalt (default backend)', () => {
 	/** Route fetch: cobalt answers from `cobalt`, everything else from `btch`. Records cobalt request bodies. */
 	const stubBackends = (cobalt: (body: any) => Response, btch: (input: string) => Response, bodies: any[] = []) => {
 		vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+			// The bytes probe GETs a tunnel URL; btch GETs have no body either,
+			// so route on the URL, not on the presence of a body.
+			if (input.includes('/tunnel?')) return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
 			if (input.startsWith(COBALT)) {
 				const body = JSON.parse(String(init?.body));
 				bodies.push(body);
@@ -107,6 +110,7 @@ describe('YouTubeProvider via cobalt (default backend)', () => {
 		const calls: string[] = [];
 		vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
 			calls.push(input);
+			if (input.includes('/tunnel?')) return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
 			if (input.startsWith(COBALT)) {
 				const body = JSON.parse(String(init?.body));
 				expect(body.downloadMode).toBe('audio');
@@ -152,7 +156,9 @@ describe('YouTubeProvider via cobalt (default backend)', () => {
 		);
 		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
 		expect(result.status).toBe('success');
-		expect(bodies.map((b) => b.videoQuality)).toEqual(['max', '720']);
+		// Delivery first: the 720p fetch is what the user is sent. The max
+		// probe only learns the ladder, so it runs second and its URL is discarded.
+		expect(bodies.map((b) => b.videoQuality)).toEqual(['720', 'max']);
 		expect(result.media?.[0]).toEqual({
 			type: 'video',
 			url: 'https://cobaltapi.cjs.nz/tunnel?id=q720',
@@ -169,19 +175,47 @@ describe('YouTubeProvider via cobalt (default backend)', () => {
 		]);
 	});
 
-	it('delivers the probe itself when the best available quality is 720p or lower', async () => {
+	it('still delivers 720p when the ladder probe fails', async () => {
+		const bodies = stubBackends(
+			(body) =>
+				body.videoQuality === 'max'
+					? Response.json({ status: 'error', error: { code: 'error.api.fetch.empty' } })
+					: Response.json({
+							status: 'tunnel',
+							url: 'https://cobaltapi.cjs.nz/tunnel?id=q720',
+							filename: 'Farm Animals (720p, h264).mp4',
+						}),
+			async () => Response.json(MEDIA),
+		);
+		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
+		expect(result.status).toBe('success');
+		expect(bodies.map((b) => b.videoQuality)).toEqual(['720', 'max']);
+		expect(result.media?.[0].quality).toBe('720p');
+		// The ladder is unknown, so only rungs up to the delivered height are offered.
+		expect(result.altQualities).toEqual([
+			{ label: '480p', mode: '480' },
+			{ label: '360p', mode: '360' },
+			{ label: '240p', mode: '240' },
+			{ label: '144p', mode: '144' },
+			{ label: 'MP3', mode: 'audio' },
+		]);
+	});
+
+	it('delivers the 720p fetch itself when the best available quality is 720p or lower', async () => {
 		const bodies = stubBackends(
 			() =>
 				Response.json({
 					status: 'tunnel',
-					url: 'https://cobaltapi.cjs.nz/tunnel?id=max480',
+					url: 'https://cobaltapi.cjs.nz/tunnel?id=q720',
 					filename: 'Farm Animals (480p, h264).mp4',
 				}),
 			async () => Response.json(MEDIA),
 		);
 		const result = await new YouTubeProvider().download(URL_UNDER_TEST, 'auto');
+		// The 720p request already came back 480p, so the video tops out
+		// below the default — no ladder probe is needed.
 		expect(bodies).toHaveLength(1);
-		expect(result.media?.[0].url).toBe('https://cobaltapi.cjs.nz/tunnel?id=max480');
+		expect(result.media?.[0].url).toBe('https://cobaltapi.cjs.nz/tunnel?id=q720');
 		expect(result.media?.[0].quality).toBe('480p');
 		expect(result.altQualities).toEqual([
 			{ label: '360p', mode: '360' },
