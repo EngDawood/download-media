@@ -10,6 +10,7 @@ declare namespace Cloudflare {
 		ANALYTICS: AnalyticsEngineDataset;
 		TELEGRAM_BOT_TOKEN: string;
 		ADMIN_TELEGRAM_ID: string;
+		TEST_GROUP_ID: string;
 		TELEGRAPH_ACCESS_TOKEN: string;
 		PUBLIC_API_KEY: string;
 	}
