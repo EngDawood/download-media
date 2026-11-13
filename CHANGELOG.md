@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.1.0](https://github.com/EngDawood/download-media/compare/download-media-bot-v1.0.0...download-media-bot-v1.1.0) (2026-11-13)
+
+
+### Features
+
+* **downloader:** cobalt pool as default YouTube backend, fallback for Facebook ([1596523](https://github.com/EngDawood/download-media/commit/1596523421a85cd52c8553c4439efacb50ca4295))
+* **downloader:** cobalt pool as default YouTube backend, fallback for Facebook ([38bc98a](https://github.com/EngDawood/download-media/commit/38bc98a6272d7879c835be065bc86fd8031abced))
+* **instagram:** cobalt-first chain — fixes most Instagram failures ([0d1e67f](https://github.com/EngDawood/download-media/commit/0d1e67f2f1d95e3a444ab7cf6fd33f1e4a02511e))
+* **instagram:** cobalt-first chain (IG-capable instances), igdl second, AIO last ([99fb43a](https://github.com/EngDawood/download-media/commit/99fb43a8e62a3c9f0df119712078e93008da9b51))
+* **sci-hub:** download papers by DOI via Sci-Hub mirrors and Sci-Net ([1905601](https://github.com/EngDawood/download-media/commit/1905601577157c7a8e9be88e5afc410d316b8c4a))
+* **sci-hub:** download papers by DOI via Sci-Hub mirrors and Sci-Net ([fb02caf](https://github.com/EngDawood/download-media/commit/fb02cafb1fac697a7721377043f5b7a09008ac47))
+* **tiktok:** show the too-large screen for videos over 50MB ([8c4348a](https://github.com/EngDawood/download-media/commit/8c4348a79b23bcd01e616fb7028f38c9b780f07d))
+* **tiktok:** show the too-large screen for videos over 50MB ([e3cfcec](https://github.com/EngDawood/download-media/commit/e3cfcec577b7da2e5d66b74e1548211533f0b59b))
+
+
+### Bug Fixes
+
+* **bot:** oversize videos get the too-large screen, not the generic error ([fb4107c](https://github.com/EngDawood/download-media/commit/fb4107c61eba7bcde116b220e9189c5fb0c3af13))
+* **bot:** YouTube sends fail on cobalt tunnels — Range header scoped to vidsnap ([96bd6fd](https://github.com/EngDawood/download-media/commit/96bd6fdb3deb2c2a3dfe2809d81b5f48e7ce2348))
+* **i18n:** Arabic gate message broke MarkdownV2 — non-subscribers got silence ([9177850](https://github.com/EngDawood/download-media/commit/917785038028e634129c08b520eb81de4bce36b1))
+* **i18n:** escape Arabic gate.blocked for MarkdownV2 so non-subscribers get the join prompt ([df3d10c](https://github.com/EngDawood/download-media/commit/df3d10cfc03cf13098f382de64b4847208df97fa))
+* **sci-hub:** add bban-family mirrors — canonical mirrors bot-wall the Worker ([3c180e5](https://github.com/EngDawood/download-media/commit/3c180e54e57e6a2d1f4c0d2b305d6a0c82a60021))
+* **sci-hub:** add bban-family mirrors — canonical mirrors bot-wall the Worker ([efcbc93](https://github.com/EngDawood/download-media/commit/efcbc9327da293bc13c434162e1ad7809e7b8d8b))
+* **send-media:** abort oversize chunked bodies at the cap ([14512d9](https://github.com/EngDawood/download-media/commit/14512d9e94337aaece63a4d5c268285ff9693487))
+* **send-media:** plain GET for cobalt tunnels — Range only for vidsnap ([9f4a330](https://github.com/EngDawood/download-media/commit/9f4a33039c9a8010ef1e0eb37407fd117276ee7a))
+* **tiktok:** read the post page when TikWM is rate-limited ([1a93946](https://github.com/EngDawood/download-media/commit/1a939462aa5bd3f31daa41ea4027f9b0683c5726))
+* **tiktok:** read the post page when TikWM is rate-limited ([084dcab](https://github.com/EngDawood/download-media/commit/084dcab8540270d5c54625b32c48411a4b5498ef))
+* **tiktok:** send downloaded bytes for video and audio ([3711bdb](https://github.com/EngDawood/download-media/commit/3711bdbedebc0e4659a7d4e858392f6c5dab1e54))
+* **tiktok:** send downloaded bytes for video and audio ([f19243d](https://github.com/EngDawood/download-media/commit/f19243dd2cf84c97e423b7d007d049d8c578efec))
+* **youtube:** audio downloads are WebM, not MP3 — deliver as documents ([5625d9e](https://github.com/EngDawood/download-media/commit/5625d9ec0e1c2d5197e1091c79d9a48a0a219b15))
+* **youtube:** audio downloads are WebM, not MP3 — deliver them as documents ([435a6a5](https://github.com/EngDawood/download-media/commit/435a6a56777743dce14da47a77914a572ef4c489))
+* **youtube:** detect live streams instead of sending a few-second chunk ([6c3fe67](https://github.com/EngDawood/download-media/commit/6c3fe67ef5a1df95039aac1dc0244f8f9237cf1c))
+* **youtube:** detect live streams instead of sending a few-second chunk ([3669c1a](https://github.com/EngDawood/download-media/commit/3669c1a8f24633c762018e8d7dbf5910a9339b83))
+* **youtube:** fetch media with a Range header so the audio proxy answers ([e21a8db](https://github.com/EngDawood/download-media/commit/e21a8dbeb7684fc009325cf29ef2808b61fd7cd9))
+* **youtube:** fetch media with a Range header so the audio proxy answers ([f1466b9](https://github.com/EngDawood/download-media/commit/f1466b9028e9682c90f7dfd9cffbfa5ff8113033))
+* **youtube:** reject empty cobalt tunnels and give slow instances the full timeout ([3ae34a0](https://github.com/EngDawood/download-media/commit/3ae34a0f37cfb353842e82a8b42a44e3412c8f97))
+* **youtube:** reject empty cobalt tunnels and give slow instances the full timeout ([34f1f42](https://github.com/EngDawood/download-media/commit/34f1f42765988f1f870be7bc3a7e77cd9ea73ba8))
+
 ## 1.0.0 (2026-10-24)
 
 
