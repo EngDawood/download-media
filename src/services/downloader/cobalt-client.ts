@@ -1,10 +1,13 @@
 import { log } from '../../utils/logger';
 import { DownloadError, classifyError, kindFromStatus, mostPermanent, type FailureKind } from './failure';
+import { BROWSER_UA } from './media-helpers';
 
 /**
  * cobalt (imputnet/cobalt) instances that answer without any auth, verified by
  * live extraction tests on November 11, 2026 — real MP3 bytes for YouTube
  * audio, a playable MP4 for YouTube video, and (except rue) a Facebook MP4.
+ * Re-swept November 15, 2026 (27 hosts): still the only three that answer
+ * keyless — the rest demand a session JWT or are dead.
  *
  * Everything else in the public directory is unusable from a Worker today:
  * the official imput.net hosts sit behind a Cloudflare bot wall (403), and
@@ -74,7 +77,7 @@ const TUNNEL_PROBE_TIMEOUT_MS = 8_000;
 async function tunnelServesBytes(url: string): Promise<boolean> {
 	try {
 		const res = await fetch(url, {
-			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+			headers: { 'User-Agent': BROWSER_UA },
 			signal: AbortSignal.timeout(TUNNEL_PROBE_TIMEOUT_MS),
 		});
 		if (!res.ok || !res.body) return false;
@@ -100,7 +103,10 @@ async function cobaltFetchFrom(
 ): Promise<CobaltMedia[]> {
 	const res = await fetch(`${apiUrl}/`, {
 		method: 'POST',
-		headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+		// Workers fetch sends no User-Agent by default, and the instances'
+		// WAFs insta-reject UA-less requests: the pool worked from a
+		// browser-UA sandbox while failing fast from the Worker (2026-11-15).
+		headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': BROWSER_UA },
 		body: JSON.stringify({ url, ...request }),
 		signal: AbortSignal.timeout(timeoutMs),
 	});

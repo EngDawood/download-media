@@ -8,7 +8,7 @@ import { buildCaption, isUrl, formatFileSize } from './downloader/media-helpers'
 import { TikTokProvider } from './downloader/platforms/tiktok';
 import { InstagramProvider } from './downloader/platforms/instagram';
 import { TwitterProvider } from './downloader/platforms/twitter';
-import { YouTubeProvider } from './downloader/platforms/youtube';
+import { YouTubeProvider, isYoutubeLiveStreamUrl, youtubeAudioExt } from './downloader/platforms/youtube';
 import { FacebookProvider } from './downloader/platforms/facebook';
 import { ThreadsProvider } from './downloader/platforms/threads';
 import { SoundCloudProvider } from './downloader/platforms/soundcloud';
@@ -97,12 +97,49 @@ export async function downloadMedia(
 	return second.status === 'error' ? second : second;
 }
 
+/**
+ * A URL that is already a media file — a vidsnap proxy wrapping a googlevideo
+ * stream, or a bare googlevideo playback URL — is returned as media, never
+ * re-extracted. The bot's MP3 button re-feeds the extracted audio link here,
+ * and the extractor answers "Unsupported platform or no media found" for it
+ * (2026-11-15, dvfJHMLR54Y + scJuro118jA). Live streams are excluded: their
+ * URLs are single few-second chunks, not files (PR #59).
+ */
+export function directMediaResult(url: string): DownloaderResult | null {
+	try {
+		const outer = new URL(url);
+		const inner = outer.searchParams.get('u');
+		const target = inner ? new URL(inner) : outer;
+		const isProxy = outer.hostname === 'api.vidsnap.app' && outer.pathname === '/proxy' && !!inner;
+		const isGoogleVideo = /\.googlevideo\.com$/.test(outer.hostname) && outer.pathname === '/videoplayback';
+		if (!isProxy && !isGoogleVideo) return null;
+		if (isYoutubeLiveStreamUrl(url)) return null;
+		const mime = target.searchParams.get('mime') ?? '';
+		const itag = target.searchParams.get('itag') ?? '';
+		const audioItags = new Set(['139', '140', '141', '249', '250', '251', '256', '258', '259']);
+		if (mime.startsWith('audio/') || audioItags.has(itag)) {
+			return { status: 'success', media: [{ type: 'audio', url, filename: `audio.${youtubeAudioExt(url)}` }] };
+		}
+		const videoItags = new Set(['18', '22', '37', '38', '43', '44', '45', '46']);
+		if (mime.startsWith('video/') || videoItags.has(itag)) {
+			return { status: 'success', media: [{ type: 'video', url, filename: 'video.mp4' }] };
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
 async function downloadOnce(
 	url: string,
 	mode: DownloaderMode,
 	platform: string | undefined,
 	env: DownloadEnv | undefined,
 ): Promise<DownloaderResult> {
+	// A URL that is already a media file is returned as-is, before any
+	// provider runs — see directMediaResult.
+	const direct = directMediaResult(url);
+	if (direct) return direct;
 	const registry = buildRegistry(env?.TELEGRAPH_ACCESS_TOKEN ?? '', env?.githubAuth, {
 		username: env?.SCI_NET_USERNAME,
 		password: env?.SCI_NET_PASSWORD,
