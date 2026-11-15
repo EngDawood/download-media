@@ -42,6 +42,21 @@ describe('cobaltFetch', () => {
 		});
 	});
 
+	it('sends a browser User-Agent on the API POST', async () => {
+		// Workers fetch sends no User-Agent by default, and the instances'
+		// WAFs insta-reject UA-less requests — the pool worked from a
+		// browser-UA sandbox while failing fast from the Worker (2026-11-15).
+		// The tunnel probe already sends one; the POST must too.
+		let seenHeaders: Record<string, string> | undefined;
+		stubFetch(async (_input: string, init?: RequestInit) => {
+			if (!init?.body) return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+			seenHeaders = init.headers as Record<string, string>;
+			return Response.json({ status: 'tunnel', url: 'https://cobaltapi.cjs.nz/tunnel?id=x', filename: 'a.mp3' });
+		});
+		await cobaltFetch(PAGE_URL, { downloadMode: 'audio', audioFormat: 'mp3', audioBitrate: '128' }, 5_000);
+		expect(seenHeaders?.['User-Agent']).toContain('Mozilla/5.0');
+	});
+
 	it('returns the direct url for a redirect response (Facebook)', async () => {
 		stubFetch(async () => Response.json({ status: 'redirect', url: 'https://video.xx.fbcdn.net/o1/v/t2/f2/m412/clip.mp4?_nc_cat=101' }));
 		const media = await cobaltFetch('https://www.facebook.com/watch/?v=10153231379946729', {}, 5_000);
