@@ -69,3 +69,45 @@ export async function setUserLang(db: D1Database, userId: number, lang: string):
 		.bind(userId, lang)
 		.run();
 }
+
+/** The user's preferred download type, stored in user_settings.download_mode. Default is 'video'. */
+export type DownloadMode = 'video' | 'mp3';
+
+export function isDownloadMode(value: unknown): value is DownloadMode {
+	return value === 'video' || value === 'mp3';
+}
+
+export async function getUserDownloadMode(db: D1Database, userId: number): Promise<DownloadMode | null> {
+	try {
+		const row = await db
+			.prepare(`SELECT download_mode FROM user_settings WHERE user_id = ?`)
+			.bind(userId)
+			.first<{ download_mode: string }>();
+		const value = row?.download_mode ?? null;
+		return isDownloadMode(value) ? value : null;
+	} catch {
+		// Column missing until migration 0002 lands — behave as "no preference".
+		return null;
+	}
+}
+
+/**
+ * Returns false when the write fails (e.g. migration 0002 not applied yet),
+ * so the caller can tell the user the setting didn't stick instead of
+ * confirming a save that never happened.
+ */
+export async function setUserDownloadMode(db: D1Database, userId: number, mode: string): Promise<boolean> {
+	if (!isDownloadMode(mode)) return false;
+	try {
+		await db
+			.prepare(
+				`INSERT INTO user_settings (user_id, download_mode) VALUES (?, ?)
+				 ON CONFLICT(user_id) DO UPDATE SET download_mode = excluded.download_mode`,
+			)
+			.bind(userId, mode)
+			.run();
+		return true;
+	} catch {
+		return false;
+	}
+}

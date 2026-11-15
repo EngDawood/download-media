@@ -4,7 +4,15 @@ import { deleteSession } from '../../../utils/db';
 import { getBlockedUrl, deleteBlockedUrl } from '../storage/session-store';
 // import { downloadAndSendMedia } from '../handlers/download-and-send'; // used by the disabled /story handler
 import { KV_KEY_REQUIRED_CHANNEL, FREE_USES_BEFORE_GATE, KV_KEY_INSTAGRAM_FOOTER } from '../../../constants';
-import { getConfig, setConfig, deleteConfig, setUserLang } from '../../../utils/db';
+import {
+	getConfig,
+	setConfig,
+	deleteConfig,
+	setUserLang,
+	getUserDownloadMode,
+	setUserDownloadMode,
+	type DownloadMode,
+} from '../../../utils/db';
 import { t, getLocale, localeName, SUPPORTED_LOCALES, type Locale } from '../../../i18n';
 import {
 	getStatsReport,
@@ -29,6 +37,8 @@ function fmtBytes(bytes: number): string {
 	if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
 	return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
+
+const modeLabel = (locale: Locale, mode: DownloadMode): string => t(locale, mode === 'mp3' ? 'mode.mp3' : 'mode.video');
 
 function fmtDuration(ms: number): string {
 	if (ms <= 0) return '';
@@ -784,6 +794,32 @@ export function registerInfoCommands(bot: Bot, env: Env, db: D1Database): void {
 		await setUserLang(db, userId, newLocale);
 		(ctx as any).locale = newLocale;
 		await ctx.editMessageText(t(newLocale, 'lang.changed', { language: localeName(newLocale) }), { parse_mode: 'HTML' });
+		await ctx.answerCallbackQuery();
+	});
+
+	bot.command('mode', async (ctx) => {
+		const locale = getLocale(ctx);
+		const stored = ctx.from ? await getUserDownloadMode(db, ctx.from.id) : null;
+		const current = modeLabel(locale, stored ?? 'video');
+		const keyboard = new InlineKeyboard().text(t(locale, 'mode.video'), 'mode:video').text(t(locale, 'mode.mp3'), 'mode:mp3');
+
+		await ctx.reply(t(locale, 'mode.current', { mode: current }) + '\n\n' + t(locale, 'mode.pick'), {
+			parse_mode: 'HTML',
+			reply_markup: keyboard,
+		});
+	});
+
+	bot.callbackQuery(/^mode:(video|mp3)$/, async (ctx) => {
+		const mode = ctx.match[1] as DownloadMode;
+		const locale = getLocale(ctx);
+		const saved = await setUserDownloadMode(db, ctx.from.id, mode);
+		if (!saved) {
+			await ctx.answerCallbackQuery({ text: t(locale, 'mode.save_failed') });
+			return;
+		}
+		await ctx.editMessageText(t(locale, 'mode.changed', { mode: modeLabel(locale, mode) }), {
+			parse_mode: 'HTML',
+		});
 		await ctx.answerCallbackQuery();
 	});
 

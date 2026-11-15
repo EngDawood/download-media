@@ -172,6 +172,14 @@ export const ar: Translations = {
 	'lang.pick': 'اختر لغتك:',
 	'lang.changed': '✅ تم تغيير اللغة إلى <b>{language}</b>.',
 
+	// --- /mode command ---
+	'mode.current': '🎬 وضع التحميل المفضل: <b>{mode}</b>',
+	'mode.pick': 'اختر ما يحمّله البوت عند إرسال رابط (MP3 يعمل مع يوتيوب وتيك توك فقط):',
+	'mode.changed': '✅ تم تعيين وضع التحميل إلى <b>{mode}</b>. سيتم تحميل الروابط الجديدة بصيغة {mode} حيثما كان ذلك متاحاً.',
+	'mode.save_failed': '⚠️ تعذّر الحفظ الآن — لم يتم تطبيق تحديث قاعدة البيانات بعد. حاول لاحقاً.',
+	'mode.video': '🎬 فيديو',
+	'mode.mp3': '🎵 MP3',
+
 	// --- /stats command (admin only) ---
 	'stats.header': '📊 <b>إحصائيات البوت</b>',
 	'stats.start_users': '🚀 المستخدمون الذين بدأوا البوت: <b>{count}</b>',
