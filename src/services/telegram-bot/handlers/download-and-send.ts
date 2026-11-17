@@ -421,6 +421,16 @@ export async function downloadAndSendMedia(
 						context: { downloadUrl: url, downloadPlatform: platform, mp3Url: result.mp3Url, mediaTitle: result.title },
 					});
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: mp3Keyboard });
+				} else if (mode === 'audio' && options?.db && (platform === 'YouTube' || platform === 'TikTok')) {
+					// Mirror of the MP3 offer above: after an audio download, offer the
+					// video of the same link. The generic `dl:video` callback re-runs the
+					// original URL in auto mode.
+					const videoKeyboard = new InlineKeyboard().text(t(locale, 'download.btn_video'), 'dl:video');
+					await setAdminState(options.db, options.adminId || userId, {
+						action: 'downloading_media',
+						context: { downloadUrl: url, downloadPlatform: platform, mediaTitle: result.title },
+					});
+					await bot.api.editMessageText(chatId, statusMessageId!, doneText, { reply_markup: videoKeyboard });
 				} else {
 					await bot.api.editMessageText(chatId, statusMessageId!, doneText);
 				}
