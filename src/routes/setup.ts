@@ -9,6 +9,7 @@ const GUEST_COMMANDS = [
 	{ command: 'help', description: 'How to use the bot' },
 	// { command: 'story', description: 'Download Instagram stories by username' },
 	{ command: 'lang', description: 'Change bot language' },
+	{ command: 'mode', description: 'Choose video or MP3 downloads' },
 	{ command: 'cancel', description: 'Cancel current action' },
 ];
 
@@ -17,6 +18,7 @@ const GUEST_COMMANDS_AR = [
 	{ command: 'help', description: 'طريقة استخدام البوت' },
 	// { command: 'story', description: 'تحميل قصص Instagram باسم المستخدم' },
 	{ command: 'lang', description: 'تغيير لغة البوت' },
+	{ command: 'mode', description: 'اختر التحميل فيديو أو MP3' },
 	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
 ];
 
@@ -25,6 +27,7 @@ const ADMIN_COMMANDS = [
 	{ command: 'start', description: 'Show supported platforms' },
 	{ command: 'help', description: 'How to use the bot' },
 	{ command: 'lang', description: 'Change bot language' },
+	{ command: 'mode', description: 'Choose video or MP3 downloads' },
 	{ command: 'cancel', description: 'Cancel current action' },
 	// { command: 'story', description: 'Download Instagram stories by username' },
 	{ command: 'setchannel', description: 'Set required subscription channel' },
@@ -43,6 +46,7 @@ const ADMIN_COMMANDS_AR = [
 	{ command: 'start', description: 'عرض المنصات المدعومة' },
 	{ command: 'help', description: 'طريقة استخدام البوت' },
 	{ command: 'lang', description: 'تغيير لغة البوت' },
+	{ command: 'mode', description: 'اختر التحميل فيديو أو MP3' },
 	{ command: 'cancel', description: 'إلغاء الإجراء الحالي' },
 	// { command: 'story', description: 'تحميل قصص Instagram باسم المستخدم' },
 	{ command: 'setchannel', description: 'تعيين قناة الاشتراك' },

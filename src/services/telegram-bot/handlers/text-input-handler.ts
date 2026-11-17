@@ -4,6 +4,8 @@ import { getAdminState, setAdminState, clearAdminState } from '../storage/admin-
 import { setBlockedUrl } from '../storage/session-store';
 import { detectMediaUrl, isBlockedDomain, resolveDirectMediaType } from '../../../utils/url-detector';
 import { downloadAndSendMedia } from './download-and-send';
+import { resolveDownloadMode } from '../download-mode';
+import { getUserDownloadMode } from '../../../utils/db';
 import { fetchFacebookInfo } from '../../media-downloader';
 import { checkSubscriptionGate } from './subscription-gate';
 import { incrementLinkStats, isUserBlocked, isDomainAllowlisted } from '../../../utils/stats-d1';
@@ -156,6 +158,10 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				return;
 			}
 
+			// The user's preferred download type (/mode): mp3 downloads audio where
+			// the platform offers it, video everywhere else. Default is video.
+			const preferredMode = resolveDownloadMode(userId ? await getUserDownloadMode(db, userId) : null, platform);
+
 			if (!isAdmin) {
 				const gateBlocked = await checkSubscriptionGate(ctx, db, bot, env.ANALYTICS, platform);
 				if (gateBlocked) return;
@@ -177,8 +183,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 					return;
 				}
 
-				const mode = platform === 'SoundCloud' || platform === 'Spotify' ? 'audio' : 'auto';
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, {
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, preferredMode, undefined, undefined, {
 					guestMode: true,
 					db,
 					analytics: env.ANALYTICS,
@@ -193,7 +198,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 			}
 
 			if (platform === 'YouTube') {
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', undefined, undefined, {
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, preferredMode, undefined, undefined, {
 					db,
 					adminId,
 					analytics: env.ANALYTICS,
@@ -208,7 +213,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 
 			if (platform === 'TikTok') {
 				const statusMsg = await ctx.reply(t(locale, 'input.fetching_post'));
-				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, {
+				await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, preferredMode, statusMsg.message_id, undefined, {
 					db,
 					adminId,
 					analytics: env.ANALYTICS,
@@ -235,7 +240,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 						context: { downloadUrl: url, downloadPlatform: platform },
 					});
 				} else {
-					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, 'auto', statusMsg.message_id, undefined, {
+					await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, preferredMode, statusMsg.message_id, undefined, {
 						db,
 						adminId,
 						analytics: env.ANALYTICS,
@@ -266,8 +271,7 @@ export function registerTextInputHandler(bot: Bot, env: Env, db: D1Database): vo
 				return;
 			}
 
-			const mode = platform === 'SoundCloud' || platform === 'Spotify' ? 'audio' : 'auto';
-			await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, mode, undefined, undefined, {
+			await downloadAndSendMedia(bot, ctx.chat!.id, url, platform, preferredMode, undefined, undefined, {
 				db,
 				adminId,
 				analytics: env.ANALYTICS,

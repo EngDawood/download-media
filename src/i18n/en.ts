@@ -178,6 +178,14 @@ export const en = {
 	'lang.pick': 'Choose your language:',
 	'lang.changed': '✅ Language changed to <b>{language}</b>.',
 
+	// --- /mode command ---
+	'mode.current': '🎬 Preferred download mode: <b>{mode}</b>',
+	'mode.pick': 'Choose what the bot downloads when you send a link (MP3 applies to YouTube and TikTok):',
+	'mode.changed': '✅ Download mode set to <b>{mode}</b>. New links will download as {mode} where available.',
+	'mode.save_failed': '⚠️ Could not save yet — the database update has not run. Try again in a bit.',
+	'mode.video': '🎬 Video',
+	'mode.mp3': '🎵 MP3',
+
 	// --- /stats command (admin only) ---
 	'stats.header': '📊 <b>Bot Statistics</b>',
 	'stats.start_users': '🚀 Users started bot: <b>{count}</b>',
