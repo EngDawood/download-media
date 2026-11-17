@@ -120,6 +120,7 @@ export const ar: Translations = {
 	'download.btn_browser': '🌐 فتح في المتصفح',
 	'download.downgraded': '⚠️ حجم {best} كان {size} — أكبر من حد تيليجرام (50 ميجابايت)، لذلك تم إرسال {picked} بدلاً منها.',
 	'download.btn_mp3': '🎵 استخراج الصوت',
+	'download.btn_video': '🎬 تحميل الفيديو',
 	'download.btn_pdf': '📄 الحصول على PDF',
 	'download.btn_epub': '📖 الحصول على EPUB',
 	'download.btn_other_quality': '🎚 جودة أخرى',
@@ -236,6 +237,20 @@ export const ar: Translations = {
 	'stats.users_power_row': '{rank}. {userDisplay} — {count} ✅ · {failures} ❌ · {topPlatform}',
 	'stats.users_no_data': 'لا توجد بيانات مستخدمين بعد.',
 	'stats.today_history_header': '📜 <b>تحميلات اليوم</b>',
+
+	// الملخص اليومي — يرسله للمشرف كرون 23:00 بتوقيت الرياض.
+	'daily_summary.header': '📊 <b>ملخص اليوم — {date}</b>',
+	'daily_summary.links': '📥 روابط اليوم: <b>{links}</b>',
+	'daily_summary.success': '✅ ناجح: <b>{success}</b>',
+	'daily_summary.errors': '❌ فشل: <b>{errors}</b>',
+	'daily_summary.new_users': '🆕 مستخدمون جدد اليوم: <b>{count}</b>',
+	'daily_summary.gate': '🚪 البوابة: <b>{blocked}</b> محجوب · <b>{verified}</b> تم التحقق',
+	'daily_summary.top_platforms': '📱 <b>أهم المنصات:</b>',
+	'daily_summary.top_users': '👥 <b>أكثر المستخدمين:</b>',
+	'daily_summary.row': '{name} — <b>{count}</b>',
+	'daily_summary.top_failure': '⚠️ أكثر سبب فشل: {reason} (<b>{count}</b>)',
+	'daily_summary.empty': 'لا توجد تحميلات اليوم بعد.',
+	'daily_summary.total': '📈 الإجمالي: <b>{links}</b> رابط · <b>{users}</b> مستخدم',
 
 	// --- /block & /unblock commands ---
 	'block.usage': 'الاستخدام: /block {userId}',

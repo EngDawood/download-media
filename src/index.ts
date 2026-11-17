@@ -7,6 +7,7 @@ import { localOnlyGuard, handleGetDashboard, handleGetTestUrls, handlePostTestUr
 import { handleApiDownload } from './routes/api';
 import { handleMcp, handleMcpMethodNotAllowed, handleMcpOptions } from './routes/mcp';
 import { handleDocs, handleDocsAr, handleHome, handleHomeAr, handleRobots, handleSitemap } from './routes/site';
+import { DAILY_SUMMARY_CRON, sendDailySummary } from './services/telegram-bot/daily-summary';
 
 const DEPLOY_KV_KEY = 'deploy:id';
 
@@ -94,4 +95,18 @@ app.post('/telegram', async (c) => {
 	return c.json({ ok: true });
 });
 
-export default app;
+export default {
+	fetch: app.fetch,
+	// Daily usage summary to the admin (23:00 Riyadh = 20:00 UTC).
+	// The cron is registered in wrangler.bot.jsonc only — the API/MCP
+	// Worker (wrangler.jsonc) has no scheduled trigger.
+	async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+		if (controller.cron !== DAILY_SUMMARY_CRON) return;
+		try {
+			await sendDailySummary(env);
+		} catch (err) {
+			console.error('[scheduled] Daily summary failed:', err);
+			throw err;
+		}
+	},
+};

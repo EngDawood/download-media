@@ -121,6 +121,7 @@ export const en = {
 	'download.btn_browser': '🌐 Open in Browser',
 	'download.downgraded': "⚠️ {best} was {size} — over Telegram's 50MB limit, so {picked} was sent instead.",
 	'download.btn_mp3': '🎵 Extract Audio',
+	'download.btn_video': '🎬 Download Video',
 	'download.btn_pdf': '📄 Get PDF',
 	'download.btn_epub': '📖 Get EPUB',
 	'download.btn_other_quality': '🎚 Other quality',
@@ -242,6 +243,20 @@ export const en = {
 	'stats.users_power_row': '{rank}. {userDisplay} — {count} ✅ · {failures} ❌ · {topPlatform}',
 	'stats.users_no_data': 'No user data yet.',
 	'stats.today_history_header': '📜 <b>Downloads Today</b>',
+
+	// Daily summary — sent to the admin by the 23:00 Riyadh cron.
+	'daily_summary.header': '📊 <b>Daily summary — {date}</b>',
+	'daily_summary.links': '📥 Links today: <b>{links}</b>',
+	'daily_summary.success': '✅ Successful: <b>{success}</b>',
+	'daily_summary.errors': '❌ Failed: <b>{errors}</b>',
+	'daily_summary.new_users': '🆕 New users today: <b>{count}</b>',
+	'daily_summary.gate': '🚪 Gate: <b>{blocked}</b> blocked · <b>{verified}</b> verified',
+	'daily_summary.top_platforms': '📱 <b>Top platforms:</b>',
+	'daily_summary.top_users': '👥 <b>Top users:</b>',
+	'daily_summary.row': '{name} — <b>{count}</b>',
+	'daily_summary.top_failure': '⚠️ Most common failure: {reason} (<b>{count}</b>)',
+	'daily_summary.empty': 'No downloads yet today.',
+	'daily_summary.total': '📈 All time: <b>{links}</b> links · <b>{users}</b> users',
 
 	// --- /block & /unblock commands ---
 	'block.usage': 'Usage: /block {userId}',

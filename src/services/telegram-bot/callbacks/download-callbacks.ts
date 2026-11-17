@@ -18,7 +18,7 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 		const locale = getLocale(ctx);
 		// Quality picking, like the mp3 button, is offered to guests too, so its state lives
 		// under the tapping user rather than the admin.
-		const perUserAction = action === 'yt:mp3' || action === 'q' || action.startsWith('q:') || action === 'alt';
+		const perUserAction = action === 'yt:mp3' || action === 'video' || action === 'q' || action.startsWith('q:') || action === 'alt';
 		const stateOwner = perUserAction ? userId : adminId;
 		const state = await getAdminState(db, stateOwner);
 
@@ -63,6 +63,25 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 				userId,
 				mediaType: 'audio',
 				mediaTitle,
+				firstName,
+				username,
+				locale,
+				originalUrl: downloadUrl,
+				telegraphToken,
+			});
+			return;
+		}
+
+		// Video of the same link, offered after an audio download — available to
+		// all users. Re-runs the original URL in auto mode, mirroring the MP3
+		// button above.
+		if (action === 'video') {
+			await clearAdminState(db, stateOwner);
+			await ctx.answerCallbackQuery();
+			await downloadAndSendMedia(bot, chatId, downloadUrl, downloadPlatform || 'YouTube', 'auto', msgId, undefined, {
+				db,
+				analytics: env.ANALYTICS,
+				userId,
 				firstName,
 				username,
 				locale,

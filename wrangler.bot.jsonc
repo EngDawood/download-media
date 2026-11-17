@@ -48,7 +48,11 @@
 		}
 	],
 	// No custom domain: the Telegram webhook is registered on the workers.dev host.
-	"workers_dev": true
+	"workers_dev": true,
+	// Daily usage summary to the admin: 20:00 UTC = 23:00 Riyadh, today so far.
+	"triggers": {
+		"crons": ["0 20 * * *"]
+	}
 	// Secrets (wrangler secret put -c wrangler.bot.jsonc):
 	// - TELEGRAM_BOT_TOKEN
 	// - TELEGRAM_WEBHOOK_SECRET
