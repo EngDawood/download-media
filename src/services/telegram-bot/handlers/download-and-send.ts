@@ -168,6 +168,12 @@ export async function downloadAndSendMedia(
 			}
 		} else {
 			if (options?.db && userId) {
+				// The Retry button reads this per-user state. Without it a guest's tap fell
+				// through to the admin's state and re-downloaded the admin's last link.
+				await setAdminState(options.db, userId, {
+					action: 'downloading_media',
+					context: { downloadUrl: options?.originalUrl ?? url, downloadPlatform: platform, downloadMode: mode },
+				}).catch(() => {});
 				setReportData(options.db, userId, {
 					url,
 					platform,

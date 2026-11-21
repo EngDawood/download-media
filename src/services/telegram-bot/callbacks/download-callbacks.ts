@@ -18,7 +18,11 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 		const locale = getLocale(ctx);
 		// Quality picking, like the mp3 button, is offered to guests too, so its state lives
 		// under the tapping user rather than the admin.
-		const perUserAction = action === 'yt:mp3' || action === 'video' || action === 'q' || action.startsWith('q:') || action === 'alt';
+		// Retry is per-user for guests too: their failed link is stored under their own id, and
+		// reading the admin's state instead re-downloaded the admin's last link into the guest's chat.
+		const isAdmin = userId === adminId;
+		const perUserAction =
+			action === 'yt:mp3' || action === 'video' || action === 'q' || action.startsWith('q:') || action === 'alt' || (action === 'retry' && !isAdmin);
 		const stateOwner = perUserAction ? userId : adminId;
 		const state = await getAdminState(db, stateOwner);
 
@@ -192,6 +196,22 @@ export function registerDownloadCallbacks(bot: Bot, env: Env, db: D1Database): v
 				return;
 			}
 			mode = 'auto';
+		}
+
+		// A guest's retry runs as a guest: own id for stats and moderation, no admin privileges.
+		if (!isAdmin) {
+			await downloadAndSendMedia(bot, chatId, downloadUrl, downloadPlatform || 'Unknown', mode, msgId, undefined, {
+				guestMode: true,
+				db,
+				analytics: env.ANALYTICS,
+				userId,
+				firstName,
+				username,
+				locale,
+				telegraphToken,
+				openaiApiKey: env.OPENAI_API_KEY,
+			});
+			return;
 		}
 
 		await downloadAndSendMedia(bot, chatId, downloadUrl, downloadPlatform || 'Unknown', mode, msgId, undefined, {
