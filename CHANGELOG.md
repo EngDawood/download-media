@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.0](https://github.com/EngDawood/download-media/compare/download-media-bot-v1.1.0...download-media-bot-v1.2.0) (2026-11-21)
+
+
+### Features
+
+* add original Instagram caption from the post page's og:description ([9ba9bd8](https://github.com/EngDawood/download-media/commit/9ba9bd8930afdb32153342881b0a1395825b1676))
+* add original Instagram caption from the post page's og:description ([0f0e6ba](https://github.com/EngDawood/download-media/commit/0f0e6ba4a5ea618f04ab870d226155568d000180))
+* daily usage summary cron + Download Video offer after audio ([6e38611](https://github.com/EngDawood/download-media/commit/6e386110883e75281793f3b2b330d31182f776a4))
+* daily usage summary cron + Download Video offer after audio ([c4a4643](https://github.com/EngDawood/download-media/commit/c4a4643acad4bdd5734e353e9581abd8958e59c3))
+* per-user preferred download type (/mode, video / mp3) ([7b8ca04](https://github.com/EngDawood/download-media/commit/7b8ca04c59c1f610b4baf976efb87a66d6a4365d))
+* per-user preferred download type (video / mp3) ([c4f2e9a](https://github.com/EngDawood/download-media/commit/c4f2e9aa148b90077b882b8f6c789fb2b701011b))
+
+
+### Bug Fixes
+
+* guest Retry replayed the admin's last link ([d2ab570](https://github.com/EngDawood/download-media/commit/d2ab570d7ff1b78837fdc91e3eb9e70fa7199a80))
+* treat extracted media links as media + browser UA for cobalt ([c527f43](https://github.com/EngDawood/download-media/commit/c527f43bc62ed7a0e340edd6716d86266fa4db66))
+* treat extracted media links as media + browser UA for cobalt ([c5e7cff](https://github.com/EngDawood/download-media/commit/c5e7cff415e22f6ae6a4462d10a44553545cd8fa))
+
 ## [1.1.0](https://github.com/EngDawood/download-media/compare/download-media-bot-v1.0.0...download-media-bot-v1.1.0) (2026-11-13)
 
 
