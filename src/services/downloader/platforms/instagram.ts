@@ -7,6 +7,7 @@ import { classifyError, mostPermanent, type FailureKind } from '../failure';
 import { parseAioGallery, parseLinksSection } from '../aio-parser';
 import { buildCaption, isUrl, detectMediaType, dedupeByIdentity } from '../media-helpers';
 import { RSSHUB_SERVERS } from '../../../constants';
+import { fetchInstagramCaption } from '../instagram-caption';
 
 // Instagram carousels top out at 20 slides; anything beyond that is upstream noise
 // and would turn into a flood of sendMediaGroup calls.
@@ -153,6 +154,14 @@ export class InstagramProvider implements IDownloaderProvider {
 	readonly platforms = ['instagram.com'];
 
 	async download(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
+		if (extractStoryUsername(url)) return this.extract(url, mode);
+		// The caption comes from the post page, in parallel with extraction; none of the
+		// extraction stages return one. fetchInstagramCaption never throws.
+		const [result, caption] = await Promise.all([this.extract(url, mode), mode === 'audio' ? '' : fetchInstagramCaption(url)]);
+		return result.status === 'success' && !result.caption && caption ? { ...result, caption } : result;
+	}
+
+	private async extract(url: string, mode: DownloaderMode): Promise<DownloaderResult> {
 		const failures: FailureKind[] = [];
 
 		// Stories: use RSSHub as primary method (returns all current stories for the user)
