@@ -16,7 +16,8 @@ export const ar: Translations = {
 		'• SoundCloud — صوت\n' +
 		'• Spotify — صوت\n' +
 		'• Pinterest — تحميل تلقائي\n' +
-		'• GitHub — تحميل المستودع كملف ZIP (أو الملف مباشرةً)\n\n' +
+		'• GitHub — تحميل المستودع كملف ZIP (أو الملف مباشرةً)\n' +
+		'• SharePoint / OneDrive — تحميل الملفات والمجلدات المشتركة (المجلدات كملف ZIP عند توفره)\n\n' +
 		'<b>أوامر المشرف:</b>\n' +
 		'/setchannel @username — تعيين قناة الاشتراك\n' +
 		'/setfreeuses {count} — تعيين حد التحميل المجاني\n' +
@@ -35,7 +36,7 @@ export const ar: Translations = {
 	'start.guest.body':
 		'<b>بوت تحميل الوسائط</b>\n\n' +
 		'أرسل رابط من أي منصة مدعومة وسأحمّل الوسائط لك.\n\n' +
-		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive, Sci-Hub (أبحاث عبر DOI)\n',
+		'<b>المدعومة:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive, Sci-Hub (أبحاث عبر DOI), SharePoint / OneDrive\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} تحميلات مجانية</b> — ثم انضم إلى {channel} للمتابعة.\n',
 	'start.guest.help_hint': '\n/help — مزيد من المعلومات',
 
@@ -47,6 +48,7 @@ export const ar: Translations = {
 		'• <b>TikTok</b> — فيديو/صوت (الصور تتخطى الاختيار)\n' +
 		'• <b>Facebook</b> — HD/SD عند توفر جودات متعددة\n' +
 		'• <b>قصص Instagram</b> — أرسل رابط القصة\n' +
+		'• <b>SharePoint / OneDrive</b> — الملفات والمجلدات المشتركة؛ المجلدات تصل كملف ZIP عند توفره\n' +
 		'• الملفات الكبيرة (&gt;50MB) تعرض الرابط المباشر للتحميل يدوياً\n\n' +
 		'<b>أوامر المشرف:</b>\n' +
 		'<code>/setchannel</code> @username — إلزام المستخدمين بالانضمام لقناة بعد {freeUses} تحميلات مجانية.\n' +

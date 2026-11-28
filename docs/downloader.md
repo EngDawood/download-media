@@ -31,7 +31,7 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 
 ## Per-platform behaviour
 
-**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive, MediaFire, CapCut, SnackVideo, Internet Archive, Sci-Hub
+**Supported platforms:** TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, Douyin, GitHub, Google Drive, MediaFire, CapCut, SnackVideo, Internet Archive, Sci-Hub, SharePoint / OneDrive
 
 **Platform-specific UX:**
 
@@ -45,6 +45,23 @@ Twitter is the exception: `FxTwitter API (primary) → btch AIO → btch twitter
 - **Internet Archive**: `archive.org/details|download|stream|embed/<id>` resolved through `archive.org/metadata/<id>`; sends the PDF (EPUB if there is none) with the other as a `dl:alt` button (`download.btn_epub`). Direct `ia*.us.archive.org/<n>/items/<id>/<file>` links pass through as-is; borrow-only items return an `unsupported` error. Large PDFs follow the usual >20MB/>50MB paths in `send-media.ts`.
 - **Sci-Hub**: papers by DOI — a `doi.org` link, a `sci-hub.se|.st|.ru|.ee|.al|.gd` or `sci-net.xyz` link, or a bare DOI (the detector rewrites it to its doi.org link). The mirrors serve the article page anonymously; its `citation_pdf_url` meta tag names the PDF, which is sent as a document with title, journal and size in the caption. Sources are tried in order (the six mirrors, then Sci-Net): a 404 means that source does not hold the paper, while a DDoS-Guard 403 or the ALTCHA robot check counts as `rate_limited` so the auto-retry can help. The .ee/.al/.gd family is a separate mirror network whose pages carry the PDF in an iframe on sci.bban.top; it answers when the canonical mirrors bot-wall datacenter egress (as they do to the deployed Worker). Sci-Net serves its page anonymously for papers its members already hold (PDF in an iframe; unheld papers bounce to the login page), and mirrors redirect some DOIs there, so relative PDFs resolve against the final host. Behind its login (a plain form POST — no signing) it may hold more, so with the `SCI_NET_USERNAME` / `SCI_NET_PASSWORD` secrets set it is tried once more, logged in, at the end; registration there is invite-only. Large PDFs follow the usual >20MB/>50MB paths in `send-media.ts`.
 - **MediaFire**: files flagged by VirusTotal sit behind a "Download Anyway" malware advisory; do not automate past it.
+- **SharePoint / OneDrive**: anonymous "Anyone with the link" shares only — no
+  login, no user cookies. A share link is resolved through the OneDrive shares
+  API (`api.onedrive.com/v1.0/shares/{u!token}/root`); a folder first tries
+  its server-side zip (`/root/content`, probed with HEAD so no bytes pass
+  through the Worker — the probe must report a size, or it falls back) and
+  then enumerates the children, recursing into subfolders, at most 10 files.
+  Files over Telegram's 50 MB cap are not sent; their direct download URLs
+  go in the caption instead, the existing "too large" pattern. When the
+  shares API refuses a link, the SharePoint REST flow borrowed from
+  sharept-dl (Neal-Ding/sharept-dl, MIT) takes over: GET the link, follow
+  the 302 chain, enumerate with `GetFolderByServerRelativeUrl`, and download
+  the bytes through the Worker, since those download URLs only work with
+  the anonymous session cookie the chain sets. REST folder downloads buffer
+  every file at once, so their running total is capped at 40 MB for Worker
+  memory. Links that need sign-in — including `onedrive.aspx?id=` page URLs
+  to unshared folders — get a bilingual error telling the user to share as
+  "Anyone with the link" and send the share link instead.
 - **All others**: auto-download best quality
 
 **Guest mode:** Guests get automatic downloads only: no Pickers, no stored state. SoundCloud and Spotify force `audio`; everything else uses `auto`.

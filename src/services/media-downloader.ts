@@ -23,6 +23,7 @@ import { CapCutProvider } from './downloader/platforms/capcut';
 import { SnackVideoProvider } from './downloader/platforms/snackvideo';
 import { InternetArchiveProvider } from './downloader/platforms/internet-archive';
 import { SciHubProvider, type SciNetCredentials } from './downloader/platforms/sci-hub';
+import { SharePointProvider } from './downloader/platforms/sharepoint';
 
 export type { DownloaderMode, MediaItem, DownloaderResult };
 export { formatFileSize };
@@ -53,6 +54,7 @@ function buildRegistry(telegraphAccessToken: string, githubAuth?: GithubAuth, sc
 		new SnackVideoProvider(),
 		new InternetArchiveProvider(),
 		new SciHubProvider(sciNet),
+		new SharePointProvider(),
 	]);
 }
 
