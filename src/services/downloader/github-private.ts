@@ -39,18 +39,29 @@ const encodePath = (path: string) => path.split('/').map(encodeURIComponent).joi
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /**
- * Buffer a GitHub download, capped at MAX_ARCHIVE_SIZE. The token is optional (public repos work without one).
+ * Buffer a download, capped at `maxBytes` (default MAX_ARCHIVE_SIZE). The token is optional (public repos work without one).
  * codeload takes `Bearer`; raw.githubusercontent.com takes the older `token` scheme.
+ * `extraHeaders` carries anything else the caller needs — SharePoint's REST flow passes the
+ * anonymous session cookie here, since its download URLs only work with it.
+ * The 404 message names GitHub: callers outside GitHub swallow errors
+ * themselves (SharePoint's downloadRestFile maps any failure to null).
  */
-export async function fetchBytes(url: string, token: string | undefined, scheme: 'Bearer' | 'token', what: string): Promise<Uint8Array> {
-	const headers: Record<string, string> = { 'User-Agent': USER_AGENT };
+export async function fetchBytes(
+	url: string,
+	token: string | undefined,
+	scheme: 'Bearer' | 'token',
+	what: string,
+	extraHeaders?: Record<string, string>,
+	maxBytes: number = MAX_ARCHIVE_SIZE,
+): Promise<Uint8Array> {
+	const headers: Record<string, string> = { 'User-Agent': USER_AGENT, ...extraHeaders };
 	if (token) headers.Authorization = `${scheme} ${token}`;
 	const resp = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) });
 	if (resp.status === 404) throw new DownloadError(`Repository, ref or file not found: ${what}`, 'gone');
 	if (!resp.ok || !resp.body) throw new DownloadError(`GitHub download error ${resp.status}`, kindFromStatus(resp.status));
 
-	const tooLarge = () => new DownloadError(`Download too large (> ${MAX_ARCHIVE_SIZE / 1024 / 1024} MB)`, 'gone');
-	if (Number(resp.headers.get('content-length') ?? 0) > MAX_ARCHIVE_SIZE) throw tooLarge();
+	const tooLarge = () => new DownloadError(`Download too large (> ${maxBytes / 1024 / 1024} MB)`, 'gone');
+	if (Number(resp.headers.get('content-length') ?? 0) > maxBytes) throw tooLarge();
 
 	const reader = resp.body.getReader();
 	const chunks: Uint8Array[] = [];
@@ -59,7 +70,7 @@ export async function fetchBytes(url: string, token: string | undefined, scheme:
 		const { done, value } = await reader.read();
 		if (done) break;
 		total += value.length;
-		if (total > MAX_ARCHIVE_SIZE) {
+		if (total > maxBytes) {
 			await reader.cancel();
 			throw tooLarge();
 		}

@@ -281,6 +281,7 @@ const KNOWN_PLATFORMS = new Set([
 	'SnackVideo',
 	'Internet Archive',
 	'Sci-Hub',
+	'SharePoint',
 ]);
 
 export function isGenericPlatform(platform: string): boolean {
@@ -384,6 +385,15 @@ const PLATFORM_PATTERNS: Array<{ platform: string; pattern: RegExp }> = [
 	{
 		platform: 'Google Drive',
 		pattern: /https?:\/\/(?:drive|docs|drive\.usercontent)\.google\.com\/\S+/i,
+	},
+	// SharePoint / OneDrive: share links (/:f:/ folder, /:w:/:x:/:p:/:b:/:t:/:s:/ file),
+	// 1drv.ms short links, onedrive.live.com share/download URLs, and
+	// onedrive.aspx?id= folder view pages. Matched as a known platform for the
+	// same reason as Google Drive — a share link always answers text/html.
+	{
+		platform: 'SharePoint',
+		pattern:
+			/https?:\/\/(?:[a-z0-9-]+\.)?sharepoint\.com\/:[a-z]:\/\S+|https?:\/\/[a-z0-9-]+\.sharepoint\.com\/\S*onedrive\.aspx\?\S*id=\S+|https?:\/\/1drv\.ms\/[fu]\/\S+|https?:\/\/onedrive\.live\.com\/\S+/i,
 	},
 	// GitHub: repo root, /tree/branch (zip), or /blob/branch/file (raw file download)
 	{

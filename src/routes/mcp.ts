@@ -49,6 +49,7 @@ const SUPPORTED_PLATFORMS = [
 	'SnackVideo',
 	'Internet Archive',
 	'Sci-Hub',
+	'SharePoint / OneDrive',
 ];
 
 const INSTRUCTIONS =

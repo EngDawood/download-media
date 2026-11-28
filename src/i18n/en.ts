@@ -14,7 +14,8 @@ export const en = {
 		'• SoundCloud — Audio\n' +
 		'• Spotify — Audio\n' +
 		'• Pinterest — Auto-download\n' +
-		'• GitHub — Download repo as ZIP (or file directly)\n\n' +
+		'• GitHub — Download repo as ZIP (or file directly)\n' +
+		'• SharePoint / OneDrive — Download shared files and folders (folders as ZIP when available)\n\n' +
 		'<b>Admin commands:</b>\n' +
 		'/setchannel @username — Set subscription channel\n' +
 		'/setfreeuses {count} — Set free downloads limit\n' +
@@ -33,7 +34,7 @@ export const en = {
 	'start.guest.body':
 		'<b>Media Download Bot</b>\n\n' +
 		"Send a URL from any supported platform and I'll download the media for you.\n\n" +
-		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive, Sci-Hub (papers by DOI)\n',
+		'<b>Supported:</b> TikTok, Instagram, X/Twitter, YouTube, Facebook, Threads, SoundCloud, Spotify, Pinterest, GitHub, MediaFire, CapCut, SnackVideo, Internet Archive, Sci-Hub (papers by DOI), SharePoint / OneDrive\n',
 	'start.guest.channel_line': '\n⚡ <b>{freeUses} free downloads</b> — then join {channel} to keep going.\n',
 	'start.guest.help_hint': '\n/help — More info',
 
@@ -45,6 +46,7 @@ export const en = {
 		'• <b>TikTok</b> — Video/Audio (slideshows skip the picker)\n' +
 		'• <b>Facebook</b> — HD/SD when multiple qualities available\n' +
 		'• <b>Instagram Stories</b> — Send a story URL\n' +
+		'• <b>SharePoint / OneDrive</b> — Shared files and folders; folders arrive as ZIP when available\n' +
 		'• Large files (&gt;50MB) show the direct URL to download manually\n\n' +
 		'<b>Admin commands:</b>\n' +
 		'<code>/setchannel</code> @username — Require users to join a channel after {freeUses} free downloads.\n' +

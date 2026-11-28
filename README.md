@@ -20,6 +20,7 @@ A high-performance, multi-platform media downloader Telegram bot built with **Ho
   - **Spotify**: Audio previews and track downloads.
   - **Pinterest**: Videos and high-resolution images.
   - **GitHub**: Repository archives, folders, and single raw files.
+  - **SharePoint / OneDrive**: Shared files and folders (folders as ZIP when available).
 - **Fast & Reliable**: Powered by Cloudflare's global network for low-latency responses.
 - **Quality Options**: Integrated quality picker for platforms like YouTube and Facebook.
 - **Long-form Content**: X Articles and self-reply threads are published to Telegraph for reading in Telegram, and returned in full as Markdown over the API/MCP.
